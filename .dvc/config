@@ -1,0 +1,4 @@
+[core]
+    remote = my_dvc_remote
+['remote "my_dvc_remote"']
+    url = F:/my_dvc_remote

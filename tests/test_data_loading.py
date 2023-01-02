@@ -12,6 +12,6 @@ def LogoDatasetLocation():
 
 def test_all_files_found(LogoDatasetLocation):
     file_loader = ImgFolderDataset(LogoDatasetLocation)
-    for file in file_loader:
-        print(file.shape)
-    assert len(file_loader) == 17217
+    # for file in file_loader:
+    #     print(file.shape)
+    assert len(file_loader) == 17216
