@@ -8,34 +8,33 @@ from torchvision import transforms
 
 pytorch_transforms = Any
 
-TRANSFORMS = transforms.Compose([
-    transforms.ToTensor()
+FORWARD_TRANSFORMS = transforms.Compose([
+    transforms.Resize((64, 64)),
+    transforms.ToTensor(),
 ])
-#
-# TRANSFORMS = transforms.Compose([
-#     transforms.RandomHorizontalFlip(p=0.5),
-#     #transforms.GaussianBlur(5, sigma=(0.1, 0.5)),
-#     transforms.RandomResizedCrop(size=256, scale=(0.5, 1.0))
-# ])
+
+BACKWARD_TRANSFORMS = transforms.Compose([
+    transforms.ToPILImage()
+])
+
+
+def tensor_to_image(tensor: Tensor) -> Image.Image:
+    return BACKWARD_TRANSFORMS(tensor)
+
 
 class ImgFolderDataset(Dataset):
-    def __init__(self, img_dir: Path, transform: pytorch_transforms = TRANSFORMS) -> None:
+    def __init__(self, img_dir: Path) -> None:
         self.img_dir = img_dir
-        self.transform = transform
+        self.transform = FORWARD_TRANSFORMS
         dir_content = img_dir.glob('**/*')
         self.img_file_locations = [file for file in dir_content if file.is_file() and file.suffix == ".png"]
-        #self.tensors = [transforms.ToTensor()(Image.open(img_file)) for img_file in img_files]
 
     def __len__(self) -> int:
         return len(self.img_file_locations)
 
     def __getitem__(self, idx) -> Tensor:
-        return self.transform(Image.open(self.img_file_locations[idx]))
-        # if self.transform is not None:
-        #     sample = self.transform(self.tensors[idx])
-        # else:
-        #     sample = self.tensors[idx]
-        # return sample
+        return self.transform(Image.open(self.img_file_locations[idx]).convert("L"))
+
 
 
 # def loader_from_folder(img_dir: Path, n_samples: int | None = None, **kwargs):
