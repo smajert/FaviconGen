@@ -1,14 +1,7 @@
-from pathlib import Path
-
 import PIL
-import pytest
+from torch.utils.data import DataLoader
 
 import logo_maker.data_loading as dl
-
-
-@pytest.fixture
-def LogoDatasetLocation():
-    return Path(__file__).parents[1] / "data/logos"
 
 
 def test_all_files_found(LogoDatasetLocation):
@@ -24,3 +17,12 @@ def test_tensor_to_image(LogoDatasetLocation):
     if do_plot:
         image.show()
     assert isinstance(image, PIL.Image.Image)
+
+
+def test_image_grid(LogoDatasetLocation):
+    file_loader = dl.ImgFolderDataset(LogoDatasetLocation)
+    data_loader = DataLoader(file_loader, batch_size=32)
+    batch = next(iter(data_loader))
+    dl.show_image_grid(batch)
+
+

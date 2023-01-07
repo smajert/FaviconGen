@@ -1,10 +1,12 @@
 from pathlib import Path
 from typing import Any
 
+from matplotlib import pyplot as plt
+import numpy as np
 from PIL import Image
 from torch import arange, Tensor
 from torch.utils.data import Dataset, DataLoader, Subset
-from torchvision import transforms
+from torchvision import transforms, utils
 
 pytorch_transforms = Any
 
@@ -22,6 +24,15 @@ def tensor_to_image(tensor: Tensor) -> Image.Image:
     return BACKWARD_TRANSFORMS(tensor)
 
 
+def show_image_grid(tensor: Tensor) -> None:
+    img_grid = utils.make_grid(tensor)
+    plt.figure()
+    img_grid = BACKWARD_TRANSFORMS(img_grid.detach())
+    plt.imshow(img_grid)
+    plt.gca().set(xticklabels=[], yticklabels=[], xticks=[], yticks=[])
+    plt.show()
+
+
 class ImgFolderDataset(Dataset):
     def __init__(self, img_dir: Path) -> None:
         self.img_dir = img_dir
@@ -35,13 +46,3 @@ class ImgFolderDataset(Dataset):
     def __getitem__(self, idx) -> Tensor:
         return self.transform(Image.open(self.img_file_locations[idx]).convert("L"))
 
-
-
-# def loader_from_folder(img_dir: Path, n_samples: int | None = None, **kwargs):
-#     dataset = ImgFolderDataset(img_dir)
-#     if n_samples is not None:
-#         if n_samples < len(dataset):
-#             dataset = Subset(dataset, arange(n_samples))
-#         else:
-#             raise ValueError("Cannot draw {n_samples} samples from dataset with length {len(dataset)}.")
-#     return DataLoader(dataset, **kwargs)
