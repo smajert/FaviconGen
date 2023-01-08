@@ -12,9 +12,11 @@ def LogoDataLoader(LogoDatasetLocation):
 
 def test_make_image_noisy(LogoDataLoader):
     image_tensor = next(iter(LogoDataLoader))[0, ...]
-    noisy_tensor, noise = sd.get_noisy_sample_at_step_t(image_tensor, 2)
+    noisy_tensor, noise = sd.get_noisy_sample_at_step_t(image_tensor, 20)
     noisy_img = tensor_to_image(noisy_tensor)
+    noise_img = tensor_to_image(noise)
     noisy_img.show()
+    noise_img.show()
 
 
 
