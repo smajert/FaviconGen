@@ -87,23 +87,25 @@ class Generator(torch.nn.Module):
             x = layer(x)
             print(x.shape)
 
-            # skip connection 0 -> 7
+            # skip connection 0 -> 6
             if layer_idx == 0:
-                residual_0_to_7 = x
-            if layer_idx == 7:
-                x += residual_0_to_7
-
-            # skip connection 2 -> 5
-            if layer_idx == 2:
-                residual_2_to_5 = x
+                residual_0_to_6 = x
+            if layer_idx == 6:
+                x += residual_0_to_6
+            
+            # skip connection 1 -> 5
+            if layer_idx == 1:
+                residual_1_to_5 = x
             if layer_idx == 5:
-                x += residual_2_to_5
+                x += residual_1_to_5
 
         return x
 
 
 def train() -> None:
     model = Generator()
+    test_tensor = torch.randn((1, 1, 64, 64))
+    model(test_tensor)
     print(model)
 
 
