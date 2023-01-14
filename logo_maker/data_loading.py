@@ -13,9 +13,11 @@ pytorch_transforms = Any
 FORWARD_TRANSFORMS = transforms.Compose([
     transforms.Resize((64, 64)),
     transforms.ToTensor(),
+    transforms.Lambda(lambda t: (t * 2) - 1)  # Scale between [-1, 1]
 ])
 
 BACKWARD_TRANSFORMS = transforms.Compose([
+    transforms.Lambda(lambda t: (t + 1) / 2),  # Undo scaling between [-1, 1]
     transforms.ToPILImage()
 ])
 

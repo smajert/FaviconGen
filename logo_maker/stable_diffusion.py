@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+import numpy as np
 import torch
 
 
@@ -13,19 +14,36 @@ class NoiseSchedule:
         self.one_minus_sqrt_alpha_cumulative_product = 1 - self.sqrt_alpha_cumulative_product
 
 
+RANDOM_NUMBER_GENERATOR = torch.Generator()
+RANDOM_NUMBER_GENERATOR.manual_seed(0)
 SCHEDULE = NoiseSchedule()
 
 
-def get_noisy_sample_at_step_t(
-    original_image, t, device="cuda", noise_schedule: NoiseSchedule = SCHEDULE
+def get_noisy_batch_at_step_t(
+    original_batch: torch.Tensor, t: torch.Tensor, device="cuda", noise_schedule: NoiseSchedule = SCHEDULE
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    noise = torch.randn_like(original_image)
-    noisy_sample = (
-            original_image * noise_schedule.sqrt_alpha_cumulative_product[t]
-            + noise * noise_schedule.one_minus_sqrt_alpha_cumulative_product[t]
+    """
+    Take in an image batch and add noise according to diffusion step `t` of schedule `noise_schedule`.
+
+    :param original_batch: [n_img_batch, color, height, width] Batch of images to add noise to
+    :param t: [n_img_batch] Diffusion step `t` to be applied to each image
+    :param device: Device to use for calculation.
+    :param noise_schedule: Schedule according to which to add noise to the images.
+    :return: [n_img_batch, color, height, width] Noise used,
+        [n_img_batch, color, height, width] Noised batch of images
+    """
+    if original_batch.shape[0] != t.shape[0]:
+        raise ValueError(
+            f"Batch size {original_batch.shape[0]} does not match number of requested diffusion steps {t.shape[0]}."
+        )
+
+    noise = torch.randn(size=original_batch.shape, generator=RANDOM_NUMBER_GENERATOR)
+    noisy_batch = (
+            original_batch * noise_schedule.sqrt_alpha_cumulative_product[t][:, np.newaxis, np.newaxis, np.newaxis]
+            + noise * noise_schedule.one_minus_sqrt_alpha_cumulative_product[t][:, np.newaxis, np.newaxis, np.newaxis]
     )
 
-    return noisy_sample.to(device), noise.to(device)
+    return noisy_batch.to(device), noise.to(device)
 
 
 class ConvBlock(torch.nn.Module):
@@ -92,7 +110,7 @@ class Generator(torch.nn.Module):
                 residual_0_to_6 = x
             if layer_idx == 6:
                 x += residual_0_to_6
-            
+
             # skip connection 1 -> 5
             if layer_idx == 1:
                 residual_1_to_5 = x
