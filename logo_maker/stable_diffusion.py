@@ -1,7 +1,11 @@
 from dataclasses import dataclass
+import math
+from pathlib import Path
 
 import numpy as np
 import torch
+
+from logo_maker.data_loading import ImgFolderDataset
 
 
 @dataclass
@@ -46,6 +50,31 @@ def get_noisy_batch_at_step_t(
     return noisy_batch.to(device), noise.to(device)
 
 
+class SinusoidalPositionEmbeddings(torch.nn.Module):
+    """
+
+    [1]: https://machinelearningmastery.com/a-gentle-introduction-to-positional-encoding-in-transformer-models-part-1/
+    """
+    def __init__(self, embedding_dimension: int) -> None:
+        super().__init__()
+        self.embedding_dimension = embedding_dimension
+
+    def forward(self, time: torch.Tensor) -> torch.Tensor:
+        # see [1] for variable names
+        half_d = self.embedding_dimension // 2  # d/2
+        i_times_two_times_d = torch.arange(half_d) / (half_d - 1)  # i / (d/2) = 2*i/d
+        n = 10000  # n
+        denominator = torch.exp(math.log(n) * i_times_two_times_d)  # exp(ln(n) * 2 * i / d) = n ** (2 * i / d)
+        sin_cos_arg = time[:, np.newaxis] / denominator[np.newaxis, :]  # k / n ** (2 * i / d)
+        sin_embedding = sin_cos_arg.sin()
+        cos_embedding = sin_cos_arg.cos()
+        sin_cos_alternating = torch.zeros((sin_cos_arg.shape[0], sin_cos_arg.shape[1] * 2))
+        sin_cos_alternating[:, 0::2] = sin_embedding
+        sin_cos_alternating[:, 1::2] = cos_embedding
+        return sin_cos_alternating
+
+
+
 class ConvBlock(torch.nn.Module):
     def __init__(
         self,
@@ -84,7 +113,7 @@ class ConvBlock(torch.nn.Module):
         return self.activation(x)
 
 
-class Generator(torch.nn.Module):
+class Generator(torch.nn.Module):  # todo: still needs time embedding
     def __init__(self) -> None:
         super().__init__()
 
@@ -120,8 +149,23 @@ class Generator(torch.nn.Module):
         return x
 
 
-def train() -> None:
+def train(device="cuda", epochs: int = 10, n_diffusion_steps: int = 100, batch_size: int = 6) -> None:
+    dataset_location = Path(__file__).parents[1] / "data/logos"
+    dataset = ImgFolderDataset(dataset_location)
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
+
     model = Generator()
+    model.to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    for epoch in range(epochs):
+        for batch in data_loader:
+            # pytorch expects tuple for size here:
+            t = torch.randint(low=0, high=n_diffusion_steps - 1, size=(batch_size,), device=device)
+
+            noisy_batch, noise = get_noisy_batch_at_step_t(batch, t, device=device)
+            noise_pred = model() # todo: add time embedding to model
+
+
     test_tensor = torch.randn((1, 1, 64, 64))
     model(test_tensor)
     print(model)
