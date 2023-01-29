@@ -7,6 +7,7 @@ import torch
 
 from logo_maker.data_loading import ImgFolderDataset
 
+EMBEDDING_DIM = 32
 
 @dataclass
 class NoiseSchedule:
@@ -24,27 +25,31 @@ SCHEDULE = NoiseSchedule()
 
 
 def get_noisy_batch_at_step_t(
-    original_batch: torch.Tensor, t: torch.Tensor, device="cuda", noise_schedule: NoiseSchedule = SCHEDULE
+    original_batch: torch.Tensor, time_step: torch.Tensor, device="cuda", noise_schedule: NoiseSchedule = SCHEDULE
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Take in an image batch and add noise according to diffusion step `t` of schedule `noise_schedule`.
 
     :param original_batch: [n_img_batch, color, height, width] Batch of images to add noise to
-    :param t: [n_img_batch] Diffusion step `t` to be applied to each image
+    :param time_step: [n_img_batch] Diffusion step `t` to be applied to each image
     :param device: Device to use for calculation.
     :param noise_schedule: Schedule according to which to add noise to the images.
     :return: [n_img_batch, color, height, width] Noise used,
         [n_img_batch, color, height, width] Noised batch of images
     """
-    if original_batch.shape[0] != t.shape[0]:
+    if original_batch.shape[0] != time_step.shape[0]:
         raise ValueError(
-            f"Batch size {original_batch.shape[0]} does not match number of requested diffusion steps {t.shape[0]}."
+            f"Batch size {original_batch.shape[0]} does not match number of requested diffusion steps {time_step.shape[0]}."
         )
 
     noise = torch.randn(size=original_batch.shape, generator=RANDOM_NUMBER_GENERATOR)
     noisy_batch = (
-            original_batch * noise_schedule.sqrt_alpha_cumulative_product[t][:, np.newaxis, np.newaxis, np.newaxis]
-            + noise * noise_schedule.one_minus_sqrt_alpha_cumulative_product[t][:, np.newaxis, np.newaxis, np.newaxis]
+            original_batch * noise_schedule.sqrt_alpha_cumulative_product[time_step][
+                :, np.newaxis, np.newaxis, np.newaxis
+            ]
+            + noise * noise_schedule.one_minus_sqrt_alpha_cumulative_product[time_step][
+                :, np.newaxis, np.newaxis, np.newaxis
+            ]
     )
 
     return noisy_batch.to(device), noise.to(device)
@@ -59,20 +64,21 @@ class SinusoidalPositionEmbeddings(torch.nn.Module):
         super().__init__()
         self.embedding_dimension = embedding_dimension
 
-    def forward(self, time: torch.Tensor) -> torch.Tensor:
+    def forward(self, time_step: torch.Tensor) -> torch.Tensor:
+        """in: [n_time_steps] out: [n_time_steps, embedding_dimension]"""
         # see [1] for variable names
         half_d = self.embedding_dimension // 2  # d/2
-        i_times_two_times_d = torch.arange(half_d) / (half_d - 1)  # i / (d/2) = 2*i/d
+        i_times_two_times_d = torch.arange(half_d, device=time_step.device) / (half_d - 1)  # i / (d/2) = 2*i/d
         n = 10000  # n
         denominator = torch.exp(math.log(n) * i_times_two_times_d)  # exp(ln(n) * 2 * i / d) = n ** (2 * i / d)
-        sin_cos_arg = time[:, np.newaxis] / denominator[np.newaxis, :]  # k / n ** (2 * i / d)
+        sin_cos_arg = time_step[:, np.newaxis] / denominator[np.newaxis, :]  # k / n ** (2 * i / d)
         sin_embedding = sin_cos_arg.sin()
         cos_embedding = sin_cos_arg.cos()
-        sin_cos_alternating = torch.zeros((sin_cos_arg.shape[0], sin_cos_arg.shape[1] * 2))
+        # note ordering sin/cos in colab notebook not as in [1] -> use ordering from [1] here
+        sin_cos_alternating = torch.zeros((sin_cos_arg.shape[0], sin_cos_arg.shape[1] * 2), device=time_step.device)
         sin_cos_alternating[:, 0::2] = sin_embedding
         sin_cos_alternating[:, 1::2] = cos_embedding
         return sin_cos_alternating
-
 
 
 class ConvBlock(torch.nn.Module):
@@ -84,12 +90,13 @@ class ConvBlock(torch.nn.Module):
         stride: int = 1,
         padding: int | str = 0,
         activation: torch.nn.modules.activation = torch.nn.LeakyReLU(),
+        embedding_dim: int = EMBEDDING_DIM,
         do_norm: bool = True,
         do_dropout: bool = False,
         do_transpose: bool = False,
     ) -> None:
         super().__init__()
-        self.activation = activation
+        self.time_mlp = torch.nn.Linear(embedding_dim, channels_out)
 
         if do_norm:
             self.norm = torch.nn.LazyBatchNorm2d()
@@ -106,9 +113,12 @@ class ConvBlock(torch.nn.Module):
         else:
             self.conv = torch.nn.Conv2d(channels_in, channels_out, kernel, stride=stride, padding=padding)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.activation = activation
+
+    def forward(self, x: torch.Tensor, time_step_emb: torch.Tensor) -> torch.Tensor:
         x = self.conv(x)
         x = self.norm(x)
+        x += self.time_mlp(time_step_emb)[:, :, np.newaxis, np.newaxis]  # [n_batch, channels, n_height, n_width]
         x = self.dropout(x)
         return self.activation(x)
 
@@ -116,6 +126,12 @@ class ConvBlock(torch.nn.Module):
 class Generator(torch.nn.Module):  # todo: still needs time embedding
     def __init__(self) -> None:
         super().__init__()
+
+        self.time_mlp = torch.nn.Sequential(
+            SinusoidalPositionEmbeddings(EMBEDDING_DIM),
+            torch.nn.Linear(EMBEDDING_DIM, EMBEDDING_DIM),
+            torch.nn.LeakyReLU()
+        )
 
         self.layers = torch.nn.ModuleList([  # input: 1 x 64 x 64
             ConvBlock(1, 32, (3, 3), stride=2, padding=1),  # 32 x 32 x 32
@@ -126,13 +142,14 @@ class Generator(torch.nn.Module):  # todo: still needs time embedding
             ConvBlock(128, 64, (4, 4), stride=2, padding=1, do_transpose=True),  # 64 x 16 x 16
             ConvBlock(64, 32, (4, 4), stride=2, padding=1, do_transpose=True),  # 32 x 32 x 32
             ConvBlock(32, 1, (4, 4), stride=2, padding=1, do_transpose=True),  # 1 x 64 x 64
-            torch.nn.Sigmoid()  # 1x 256 x 256 -- 16
         ])
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        for layer_idx, layer in enumerate(self.layers):
-            x = layer(x)
-            print(x.shape)
+        self.sigmoid = torch.nn.Sigmoid()
+
+    def forward(self, x: torch.Tensor, time_step: torch.Tensor) -> torch.Tensor:
+        time_emb = self.time_mlp(time_step)
+        for layer_idx, layer in enumerate(self.layers): #
+            x = layer(x, time_emb)
 
             # skip connection 0 -> 6
             if layer_idx == 0:
@@ -146,7 +163,7 @@ class Generator(torch.nn.Module):  # todo: still needs time embedding
             if layer_idx == 5:
                 x += residual_1_to_5
 
-        return x
+        return self.sigmoid(x)
 
 
 def train(device="cuda", epochs: int = 10, n_diffusion_steps: int = 100, batch_size: int = 6) -> None:
@@ -163,7 +180,7 @@ def train(device="cuda", epochs: int = 10, n_diffusion_steps: int = 100, batch_s
             t = torch.randint(low=0, high=n_diffusion_steps - 1, size=(batch_size,), device=device)
 
             noisy_batch, noise = get_noisy_batch_at_step_t(batch, t, device=device)
-            noise_pred = model() # todo: add time embedding to model
+            noise_pred = model(noisy_batch, t)
 
 
     test_tensor = torch.randn((1, 1, 64, 64))

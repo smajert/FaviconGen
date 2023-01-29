@@ -38,12 +38,21 @@ def test_position_embeddings():
     embedder = sd.SinusoidalPositionEmbeddings(512)
     embeddings = embedder(time)
     torch.testing.assert_allclose(torch.mean(embeddings), 0.3579, rtol=0, atol=1e-4)
+    print(time.shape, embeddings.shape)
 
     do_plot = False
     if do_plot:
         plt.figure()
         plt.pcolormesh(embeddings.T)
         plt.show()
+
+
+def test_model_runs(device: str = "cuda"):
+    pseudo_batch = torch.rand((32, 1, 64, 64), device=device)
+    pseudo_time_steps = torch.randint(0, 10, size=(32,), device=device)
+    model = sd.Generator().to(device)
+    test_output = model(pseudo_batch, pseudo_time_steps)
+
 
 
 
