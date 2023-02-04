@@ -47,6 +47,11 @@ def test_position_embeddings():
         plt.show()
 
 
+def test_drawing_sample_from_module():
+    model = sd.Generator()
+    sd.draw_sample_from_generator(model, 10, (4, 1, 32, 32), seed=0)
+
+
 def test_model_runs(device: str = "cuda"):
     torch.random.manual_seed(0)
     random.seed(0)

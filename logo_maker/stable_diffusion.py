@@ -125,7 +125,7 @@ class ConvBlock(torch.nn.Module):
         return self.activation(x)
 
 
-class Generator(torch.nn.Module):  # todo: still needs time embedding
+class Generator(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
 
@@ -168,12 +168,24 @@ class Generator(torch.nn.Module):  # todo: still needs time embedding
         return self.sigmoid(x)
 
 
+@torch.no_grad()
+def draw_sample_from_generator(
+    model: Generator, n_diffusion_steps: int, batch_shape: tuple[int, ...], seed: int | None = None
+) -> None:
+    rand_generator = torch.Generator()
+    if seed is not None:
+        rand_generator.manual_seed(0)
+    batch = torch.randn(size=batch_shape, generator=rand_generator, device=model.layers[0].conv.weight.device)
+    for time_step in range(n_diffusion_steps):
+        t = torch.full((batch_shape[0],), fill_value=time_step)
+        noise = model(batch, t)
+        batch -= noise
+
+
 def train(device="cuda", n_epochs: int = 1, n_diffusion_steps: int = 100, batch_size: int = 32) -> None:
     dataset_location = Path(__file__).parents[1] / "data/logos"
     dataset = ImgFolderDataset(dataset_location)
-    print(len(dataset))
     data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
-    print(len(data_loader))
 
     model = Generator()
     model.to(device)
