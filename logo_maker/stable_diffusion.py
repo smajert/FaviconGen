@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from tqdm import tqdm
 
 from logo_maker.data_loading import ImgFolderDataset
 
@@ -11,7 +12,7 @@ EMBEDDING_DIM = 32
 
 @dataclass
 class NoiseSchedule:
-    def __init__(self, beta_start: float = 0.0001, beta_end: float = 0.02, n_time_steps: int = 100, ):
+    def __init__(self, beta_start: float = 0.0001, beta_end: float = 0.02, n_time_steps: int = 100):
         self.beta_schedule = torch.linspace(beta_start, beta_end, n_time_steps)
         alphas = 1 - self.beta_schedule
         alpha_cumulative_product = torch.cumprod(alphas, dim=0)
@@ -37,12 +38,13 @@ def get_noisy_batch_at_step_t(
     :return: [n_img_batch, color, height, width] Noise used,
         [n_img_batch, color, height, width] Noised batch of images
     """
+
     if original_batch.shape[0] != time_step.shape[0]:
         raise ValueError(
             f"Batch size {original_batch.shape[0]} does not match number of requested diffusion steps {time_step.shape[0]}."
         )
 
-    noise = torch.randn(size=original_batch.shape, generator=RANDOM_NUMBER_GENERATOR)
+    noise = torch.randn(size=original_batch.shape, generator=RANDOM_NUMBER_GENERATOR, device=original_batch.device)
     noisy_batch = (
             original_batch * noise_schedule.sqrt_alpha_cumulative_product[time_step][
                 :, np.newaxis, np.newaxis, np.newaxis
@@ -166,26 +168,34 @@ class Generator(torch.nn.Module):  # todo: still needs time embedding
         return self.sigmoid(x)
 
 
-def train(device="cuda", epochs: int = 10, n_diffusion_steps: int = 100, batch_size: int = 6) -> None:
+def train(device="cuda", n_epochs: int = 1, n_diffusion_steps: int = 100, batch_size: int = 32) -> None:
     dataset_location = Path(__file__).parents[1] / "data/logos"
     dataset = ImgFolderDataset(dataset_location)
+    print(len(dataset))
     data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
+    print(len(data_loader))
 
     model = Generator()
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    for epoch in range(epochs):
-        for batch in data_loader:
+    loss_fn = torch.nn.L1Loss()
+    running_loss = 0
+    for epoch in range(n_epochs):
+        for batch in tqdm(data_loader, total=len(data_loader), desc="Batches: "):
             # pytorch expects tuple for size here:
-            t = torch.randint(low=0, high=n_diffusion_steps - 1, size=(batch_size,), device=device)
-
+            t = torch.randint(low=0, high=n_diffusion_steps - 1, size=(batch_size,))
             noisy_batch, noise = get_noisy_batch_at_step_t(batch, t, device=device)
-            noise_pred = model(noisy_batch, t)
 
+            noise_pred = model(noisy_batch, t.to(device))
+            loss = loss_fn(noise_pred, noise)
 
-    test_tensor = torch.randn((1, 1, 64, 64))
-    model(test_tensor)
-    print(model)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+
+        print(f"Epoch {epoch}/{n_epochs}, running loss = {running_loss}")
+        running_loss = 0
 
 
 if __name__ == "__main__":
