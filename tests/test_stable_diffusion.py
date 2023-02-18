@@ -9,9 +9,13 @@ import logo_maker.stable_diffusion as sd
 
 
 @pytest.fixture()
-def LogoDataLoader(LogoDatasetLocation):
-    dataset = ImgFolderDataset(LogoDatasetLocation)
-    return torch.utils.data.DataLoader(dataset, batch_size=6, shuffle=False)
+def LogoDataset(LogoDatasetLocation):
+    return ImgFolderDataset(LogoDatasetLocation)
+
+
+@pytest.fixture()
+def LogoDataLoader(LogoDataset):
+    return torch.utils.data.DataLoader(LogoDataset, batch_size=6, shuffle=False)
 
 
 def test_noise_schedule_is_correct():
@@ -34,12 +38,30 @@ def test_make_batch_noisy(LogoDataLoader):
     )
     mean_of_image = torch.mean(noisy_tensor[4, ...])
     mean_of_noise = torch.mean(noise[4, ...])
-    torch.testing.assert_allclose(mean_of_image, -0.1451, rtol=0, atol=1e-4)
+    torch.testing.assert_allclose(mean_of_image, -0.1579, rtol=0, atol=1e-4)
     torch.testing.assert_allclose(mean_of_noise, -0.0346, rtol=0, atol=1e-4)
 
     do_plot = False
     if do_plot:
         show_image_grid(noisy_tensor)
+
+
+def test_values_in_noise_and_image_seem_sensible(LogoDataset):
+    data_loader = torch.utils.data.DataLoader(LogoDataset, batch_size=128, shuffle=False)
+    image_batch = next(iter(data_loader))
+    n_time_steps = 300
+    noise_schedule = sd.NoiseSchedule(n_time_steps=n_time_steps)
+    for t in range(0, n_time_steps, 30):
+        time_step = torch.full((image_batch.shape[0], ), fill_value=t)
+        noisy_tensor, noise = sd.get_noisy_batch_at_step_t(
+            image_batch, time_step, noise_schedule=noise_schedule, device="cpu"
+        )
+        if t == 0:
+            torch.testing.assert_allclose(torch.min(noisy_tensor), -1, atol=0.2, rtol=0)
+            torch.testing.assert_allclose(torch.max(noisy_tensor),  1, atol=0.2, rtol=0)
+        elif t > n_time_steps / 2:
+            assert torch.min(noisy_tensor) < -2
+            assert torch.max(noisy_tensor) > 2
 
 
 def test_position_embeddings():
