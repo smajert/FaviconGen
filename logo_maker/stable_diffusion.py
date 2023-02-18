@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from logo_maker.data_loading import ImgFolderDataset
+from logo_maker.data_loading import ImgFolderDataset, show_image_grid
 
 EMBEDDING_DIM = 32
 
@@ -17,7 +17,7 @@ class NoiseSchedule:
         alphas = 1 - self.beta_schedule
         alpha_cumulative_product = torch.cumprod(alphas, dim=0)
         self.sqrt_alpha_cumulative_product = torch.sqrt(alpha_cumulative_product)
-        self.one_minus_sqrt_alpha_cumulative_product = 1 - self.sqrt_alpha_cumulative_product
+        self.one_minus_sqrt_alpha_cumulative_product = torch.sqrt(1 - alpha_cumulative_product)
 
 
 RANDOM_NUMBER_GENERATOR = torch.Generator()
@@ -170,19 +170,35 @@ class Generator(torch.nn.Module):
 
 @torch.no_grad()
 def draw_sample_from_generator(
-    model: Generator, n_diffusion_steps: int, batch_shape: tuple[int, ...], seed: int | None = None
-) -> None:
-    rand_generator = torch.Generator()
+    model: Generator,
+    n_diffusion_steps: int,
+    batch_shape: tuple[int, ...],
+    seed: int | None = None,
+    do_plots: bool = False
+) -> torch.Tensor:
+    device = model.layers[0].conv.weight.device
+    rand_generator = torch.Generator(device=device)
     if seed is not None:
         rand_generator.manual_seed(0)
-    batch = torch.randn(size=batch_shape, generator=rand_generator, device=model.layers[0].conv.weight.device)
+    batch = torch.randn(size=batch_shape, generator=rand_generator, device=device)
+
+    if do_plots:
+        plot_batches = []
+
     for time_step in range(n_diffusion_steps):
-        t = torch.full((batch_shape[0],), fill_value=time_step)
+        t = torch.full((batch_shape[0],), fill_value=time_step, device=device)
         noise = model(batch, t)
         batch -= noise
+        if do_plots:
+            plot_batches.append(batch.cpu())
+
+    if do_plots:
+        show_image_grid(torch.concatenate(plot_batches, dim=0))
+
+    return batch
 
 
-def train(device="cuda", n_epochs: int = 1, n_diffusion_steps: int = 100, batch_size: int = 32) -> None:
+def train(device="cuda", n_epochs: int = 5, n_diffusion_steps: int = 100, batch_size: int = 32) -> None:
     dataset_location = Path(__file__).parents[1] / "data/logos"
     dataset = ImgFolderDataset(dataset_location)
     data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
@@ -193,7 +209,7 @@ def train(device="cuda", n_epochs: int = 1, n_diffusion_steps: int = 100, batch_
     loss_fn = torch.nn.L1Loss()
     running_loss = 0
     for epoch in range(n_epochs):
-        for batch in tqdm(data_loader, total=len(data_loader), desc="Batches: "):
+        for batch_idx, batch in enumerate(tqdm(data_loader, total=len(data_loader), desc="Batches: ")):
             # pytorch expects tuple for size here:
             t = torch.randint(low=0, high=n_diffusion_steps - 1, size=(batch_size,))
             noisy_batch, noise = get_noisy_batch_at_step_t(batch, t, device=device)
@@ -205,6 +221,10 @@ def train(device="cuda", n_epochs: int = 1, n_diffusion_steps: int = 100, batch_
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
+
+            if batch_idx % 100 == 0:
+                sample_shape = torch.Size((1, *batch.shape[1:]))
+                sample_image = draw_sample_from_generator(model, n_diffusion_steps, sample_shape, do_plots=True)
 
         print(f"Epoch {epoch}/{n_epochs}, running loss = {running_loss}")
         running_loss = 0

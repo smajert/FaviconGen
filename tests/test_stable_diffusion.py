@@ -14,6 +14,14 @@ def LogoDataLoader(LogoDatasetLocation):
     return torch.utils.data.DataLoader(dataset, batch_size=6, shuffle=False)
 
 
+def test_noise_schedule_is_correct():
+    noise_schedule = sd.NoiseSchedule(n_time_steps=300)
+    prod_1 = noise_schedule.sqrt_alpha_cumulative_product
+    prod_2 = noise_schedule.one_minus_sqrt_alpha_cumulative_product
+    np.testing.assert_allclose(np.array([prod_1[0], prod_1[-1]]), np.array([0.9999, 0.2192]), rtol=0, atol=1e-4)
+    np.testing.assert_allclose(np.array([prod_2[0], prod_2[-1]]), np.array([0.0100, 0.9757]), rtol=0, atol=1e-4)
+
+
 def test_make_batch_noisy(LogoDataLoader):
     image_batch = next(iter(LogoDataLoader))
     noise_schedule = sd.NoiseSchedule(
