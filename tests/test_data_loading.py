@@ -1,3 +1,4 @@
+from matplotlib import pyplot as plt
 import PIL
 import pytest
 from torch.utils.data import DataLoader
@@ -20,11 +21,12 @@ def test_tensor_to_image(LogoDatasetLocation):
     assert isinstance(image, PIL.Image.Image)
 
 
-@pytest.mark.skip(reason="should be run manually")
+#@pytest.mark.skip(reason="should be run manually")
 def test_image_grid(LogoDatasetLocation):
     file_loader = dl.ImgFolderDataset(LogoDatasetLocation)
     data_loader = DataLoader(file_loader, batch_size=32)
     batch = next(iter(data_loader))
     dl.show_image_grid(batch)
+    plt.show()
 
 

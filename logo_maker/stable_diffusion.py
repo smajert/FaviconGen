@@ -2,13 +2,17 @@ from dataclasses import dataclass
 import math
 from pathlib import Path
 
+import matplotlib
+from matplotlib import pyplot as plt
 import numpy as np
 import torch
 from tqdm import tqdm
 
 from logo_maker.data_loading import ImgFolderDataset, show_image_grid
 
+matplotlib.use("TkAgg")
 EMBEDDING_DIM = 32
+
 
 @dataclass
 class NoiseSchedule:
@@ -198,8 +202,8 @@ def draw_sample_from_generator(
     return batch
 
 
-def train(device="cuda", n_epochs: int = 5, n_diffusion_steps: int = 100, batch_size: int = 32) -> None:
-    dataset_location = Path(__file__).parents[1] / "data/logos"
+def train(device="cuda", n_epochs: int = 3, n_diffusion_steps: int = 100, batch_size: int = 64) -> None:
+    dataset_location = Path(r"C:\Temp\data\logos")
     dataset = ImgFolderDataset(dataset_location)
     data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
@@ -209,7 +213,7 @@ def train(device="cuda", n_epochs: int = 5, n_diffusion_steps: int = 100, batch_
     loss_fn = torch.nn.L1Loss()
     running_loss = 0
     for epoch in range(n_epochs):
-        for batch_idx, batch in enumerate(tqdm(data_loader, total=len(data_loader), desc="Batches: ")):
+        for batch_idx, batch in enumerate(tqdm(data_loader, total=len(data_loader), desc=f"Epoch {epoch}, Batches: ")):
             # pytorch expects tuple for size here:
             t = torch.randint(low=0, high=n_diffusion_steps - 1, size=(batch_size,))
             noisy_batch, noise = get_noisy_batch_at_step_t(batch, t, device=device)
@@ -222,12 +226,13 @@ def train(device="cuda", n_epochs: int = 5, n_diffusion_steps: int = 100, batch_
             optimizer.step()
             running_loss += loss.item()
 
-            if batch_idx % 100 == 0:
-                sample_shape = torch.Size((1, *batch.shape[1:]))
-                sample_image = draw_sample_from_generator(model, n_diffusion_steps, sample_shape, do_plots=True)
+        sample_shape = torch.Size((1, *batch.shape[1:]))
+        _ = draw_sample_from_generator(model, n_diffusion_steps, sample_shape, do_plots=True)
 
         print(f"Epoch {epoch}/{n_epochs}, running loss = {running_loss}")
         running_loss = 0
+
+    plt.show()
 
 
 if __name__ == "__main__":
