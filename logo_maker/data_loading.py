@@ -1,4 +1,6 @@
 from pathlib import Path
+import pickle
+import tempfile
 from typing import Any
 
 from matplotlib import pyplot as plt
@@ -45,8 +47,13 @@ class ImgFolderDataset(Dataset):
         self.img_file_locations = [file for file in dir_content if file.is_file() and file.suffix == ".png"]
         self.resizer = transforms.Resize(resize_to)
         self.cache_files = cache_files
-        if self.cache_files: #todo pickle cash into temporary direcotry so that loading is faster
-            self.images = [self.resizer(Image.open(file_loc).convert("L")) for file_loc in self.img_file_locations]
+        if self.cache_files:
+            cache_file = tempfile.gettempdir() / Path(f"{resize_to[0]}x{resize_to[1]}_logo_maker_cache.pkl")
+            if cache_file.exists():
+                self.images = pickle.load(open(cache_file, "rb"))
+            else:
+                self.images = [self.resizer(Image.open(file_loc).convert("L")) for file_loc in self.img_file_locations]
+                pickle.dump(self.images, open(cache_file, "wb"))
 
     def __len__(self) -> int:
         return len(self.img_file_locations)
