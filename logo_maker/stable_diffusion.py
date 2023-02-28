@@ -19,18 +19,20 @@ class NoiseSchedule:
     def __init__(self, beta_start: float = 0.0001, beta_end: float = 0.02, n_time_steps: int = 100):
         self.beta_schedule = torch.linspace(beta_start, beta_end, n_time_steps)
         alphas = 1 - self.beta_schedule
+        self.sqrt_reciprocal_alphas = torch.sqrt(1 / alphas)
         alpha_cumulative_product = torch.cumprod(alphas, dim=0)
         self.sqrt_alpha_cumulative_product = torch.sqrt(alpha_cumulative_product)
         self.one_minus_sqrt_alpha_cumulative_product = torch.sqrt(1 - alpha_cumulative_product)
+        alphas_cumprod_prev = torch.nn.functional.pad(alpha_cumulative_product[:-1], (1, 0), value=1)
+        self.posterior_variance = self.beta_schedule * (1 - alphas_cumprod_prev)/ (1 - alpha_cumulative_product)
 
 
 RANDOM_NUMBER_GENERATOR = torch.Generator()
 RANDOM_NUMBER_GENERATOR.manual_seed(0)
-SCHEDULE = NoiseSchedule()
 
 
 def get_noisy_batch_at_step_t(
-    original_batch: torch.Tensor, time_step: torch.Tensor, device="cuda", noise_schedule: NoiseSchedule = SCHEDULE
+    original_batch: torch.Tensor, time_step: torch.Tensor, noise_schedule: NoiseSchedule, device="cuda",
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Take in an image batch and add noise according to diffusion step `t` of schedule `noise_schedule`.
@@ -124,9 +126,10 @@ class ConvBlock(torch.nn.Module):
     def forward(self, x: torch.Tensor, time_step_emb: torch.Tensor) -> torch.Tensor:
         x = self.conv(x)
         x = self.norm(x)
-        x += self.time_mlp(time_step_emb)[:, :, np.newaxis, np.newaxis]  # [n_batch, channels, n_height, n_width]
+        time_emb = self.time_mlp(time_step_emb)[:, :, np.newaxis, np.newaxis]
+        x += self.activation(time_emb)  # [n_batch, channels, n_height, n_width]
         x = self.dropout(x)
-        return self.activation(x)
+        return self.activation(self.norm(x))
 
 
 class Generator(torch.nn.Module):
@@ -147,10 +150,8 @@ class Generator(torch.nn.Module):
             ConvBlock(256, 128, (4, 4), stride=2, padding=1, do_transpose=True),  # 128 x 8 x 8
             ConvBlock(128, 64, (4, 4), stride=2, padding=1, do_transpose=True),  # 64 x 16 x 16
             ConvBlock(64, 32, (4, 4), stride=2, padding=1, do_transpose=True),  # 32 x 32 x 32
-            ConvBlock(32, 1, (4, 4), stride=2, padding=1, do_transpose=True),  # 1 x 64 x 64
+            ConvBlock(32, 1, (4, 4), stride=2, padding=1, do_transpose=True, activation=torch.nn.Identity()),  # 1 x 64 x 64
         ])
-
-        self.sigmoid = torch.nn.Sigmoid()
 
     def forward(self, x: torch.Tensor, time_step: torch.Tensor) -> torch.Tensor:
         time_emb = self.time_mlp(time_step)
@@ -169,14 +170,15 @@ class Generator(torch.nn.Module):
             if layer_idx == 5:
                 x += residual_1_to_5
 
-        return self.sigmoid(x)
+        return x  # todo should get this into appropriate range
 
 
 @torch.no_grad()
-def draw_sample_from_generator(
+def draw_sample_from_generator(  #todo write test for draw sample
     model: Generator,
     n_diffusion_steps: int,
     batch_shape: tuple[int, ...],
+    noise_schedule: NoiseSchedule,
     seed: int | None = None,
     do_plots: bool = False
 ) -> torch.Tensor:
@@ -189,12 +191,20 @@ def draw_sample_from_generator(
     if do_plots:
         plot_batches = []
 
-    for time_step in range(n_diffusion_steps):
+    for time_step in list(range(0, n_diffusion_steps))[::-1]:
         t = torch.full((batch_shape[0],), fill_value=time_step, device=device)
-        noise = model(batch, t)
-        batch -= noise
+        beta = noise_schedule.beta_schedule[time_step]
+        one_minus_sqrt_alpha_cumprod = noise_schedule.one_minus_sqrt_alpha_cumulative_product[time_step]
+        sqrt_recip_alphas = noise_schedule.sqrt_reciprocal_alphas[time_step]
+        noise_pred = model(batch, t)
+        batch = sqrt_recip_alphas * (batch - beta * noise_pred / one_minus_sqrt_alpha_cumprod)
+        if time_step != 0:
+            noise = torch.randn_like(batch)
+            batch = batch + torch.sqrt(noise_schedule.posterior_variance[time_step]) * noise
+
         if do_plots:
-            plot_batches.append(batch.cpu())
+            if time_step % 5 == 0:
+                plot_batches.append(batch.cpu())
 
     if do_plots:
         show_image_grid(torch.concatenate(plot_batches, dim=0))
@@ -202,11 +212,13 @@ def draw_sample_from_generator(
     return batch
 
 
-def train(device="cuda", n_epochs: int = 3, n_diffusion_steps: int = 100, batch_size: int = 64) -> None:
-    dataset_location = Path(r"C:\Temp\data\logos")
+def train(device="cuda", n_epochs: int = 30, n_diffusion_steps: int = 300, batch_size: int = 64) -> None:
+    dataset_location = Path(__file__).parents[1] / "data/logos"
     dataset = ImgFolderDataset(dataset_location)
+    print(len(dataset))
     data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
+    schedule = NoiseSchedule(n_time_steps=n_diffusion_steps)
     model = Generator()
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -215,10 +227,12 @@ def train(device="cuda", n_epochs: int = 3, n_diffusion_steps: int = 100, batch_
     for epoch in range(n_epochs):
         for batch_idx, batch in enumerate(tqdm(data_loader, total=len(data_loader), desc=f"Epoch {epoch}, Batches: ")):
             # pytorch expects tuple for size here:
-            t = torch.randint(low=0, high=n_diffusion_steps - 1, size=(batch_size,))
-            noisy_batch, noise = get_noisy_batch_at_step_t(batch, t, device=device)
+            t = torch.randint(low=0, high=n_diffusion_steps, size=(batch_size,))
+            noisy_batch, noise = get_noisy_batch_at_step_t(batch, t, schedule, device=device)
+            #print("noise:", torch.max(noise), torch.min(noise), torch.mean(noise))  # todo check if output values okay
 
             noise_pred = model(noisy_batch, t.to(device))
+            #print("noise_pred", torch.max(noise_pred), torch.min(noise_pred), torch.mean(noise_pred))
             loss = loss_fn(noise_pred, noise)
 
             optimizer.zero_grad()
@@ -227,7 +241,8 @@ def train(device="cuda", n_epochs: int = 3, n_diffusion_steps: int = 100, batch_
             running_loss += loss.item()
 
         sample_shape = torch.Size((1, *batch.shape[1:]))
-        _ = draw_sample_from_generator(model, n_diffusion_steps, sample_shape, do_plots=True)
+        print("calling draw sample")
+        _ = draw_sample_from_generator(model, n_diffusion_steps, sample_shape, schedule, do_plots=True)
 
         print(f"Epoch {epoch}/{n_epochs}, running loss = {running_loss}")
         running_loss = 0
