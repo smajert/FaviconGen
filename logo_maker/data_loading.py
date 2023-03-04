@@ -26,10 +26,9 @@ def tensor_to_image(tensor: Tensor) -> Image.Image:
     return BACKWARD_TRANSFORMS(tensor)
 
 
-def show_image_grid(tensor: Tensor, block: bool = True) -> None:
+def show_image_grid(tensor: Tensor, save_as: Path | None = None ) -> None:
     img_grid = utils.make_grid(tensor)
     img_grid = BACKWARD_TRANSFORMS(img_grid.detach())
-    print("tada")
 
     ax = plt.gca()
     ax.imshow(img_grid)
@@ -37,7 +36,8 @@ def show_image_grid(tensor: Tensor, block: bool = True) -> None:
     fig = plt.gcf()
     fig.canvas.draw()
     fig.canvas.flush_events()
-    plt.show(block=block)
+    if save_as is not None:
+        plt.savefig(save_as)
 
 
 class ImgFolderDataset(Dataset):

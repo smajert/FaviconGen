@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import math
 from pathlib import Path
+import tempfile
 
 import matplotlib
 from matplotlib import pyplot as plt
@@ -180,7 +181,7 @@ def draw_sample_from_generator(  #todo write test for draw sample
     batch_shape: tuple[int, ...],
     noise_schedule: NoiseSchedule,
     seed: int | None = None,
-    do_plots: bool = False
+    save_sample_as: Path | None = None
 ) -> torch.Tensor:
     device = model.layers[0].conv.weight.device
     rand_generator = torch.Generator(device=device)
@@ -188,7 +189,7 @@ def draw_sample_from_generator(  #todo write test for draw sample
         rand_generator.manual_seed(0)
     batch = torch.randn(size=batch_shape, generator=rand_generator, device=device)
 
-    if do_plots:
+    if save_sample_as is not None:
         plot_batches = []
 
     for time_step in list(range(0, n_diffusion_steps))[::-1]:
@@ -202,21 +203,21 @@ def draw_sample_from_generator(  #todo write test for draw sample
             noise = torch.randn_like(batch)
             batch = batch + torch.sqrt(noise_schedule.posterior_variance[time_step]) * noise
 
-        if do_plots:
+        if save_sample_as is not None:
             if time_step % 5 == 0:
-                plot_batches.append(batch.cpu())
+                plot_batches.append(batch.detach().cpu())
 
-    if do_plots:
-        show_image_grid(torch.concatenate(plot_batches, dim=0))
+    if save_sample_as is not None:
+        show_image_grid(torch.concatenate(plot_batches, dim=0), save_as=save_sample_as)
 
     return batch
 
 
-def train(device="cuda", n_epochs: int = 30, n_diffusion_steps: int = 300, batch_size: int = 64) -> None:
+def train(device="cuda", n_epochs: int = 100, n_diffusion_steps: int = 300, batch_size: int = 64) -> None:
     dataset_location = Path(__file__).parents[1] / "data/logos"
     dataset = ImgFolderDataset(dataset_location)
-    print(len(dataset))
     data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
+    tempdir = Path(tempfile.mkdtemp(prefix="logo_"))
 
     schedule = NoiseSchedule(n_time_steps=n_diffusion_steps)
     model = Generator()
@@ -229,10 +230,10 @@ def train(device="cuda", n_epochs: int = 30, n_diffusion_steps: int = 300, batch
             # pytorch expects tuple for size here:
             t = torch.randint(low=0, high=n_diffusion_steps, size=(batch_size,))
             noisy_batch, noise = get_noisy_batch_at_step_t(batch, t, schedule, device=device)
-            #print("noise:", torch.max(noise), torch.min(noise), torch.mean(noise))  # todo check if output values okay
+            # print("noise:", torch.max(noise), torch.mean(noise),  torch.min(noise))
 
             noise_pred = model(noisy_batch, t.to(device))
-            #print("noise_pred", torch.max(noise_pred), torch.min(noise_pred), torch.mean(noise_pred))
+            # print("noise_pred", torch.max(noise_pred), torch.mean(noise_pred), torch.min(noise_pred))
             loss = loss_fn(noise_pred, noise)
 
             optimizer.zero_grad()
@@ -241,8 +242,13 @@ def train(device="cuda", n_epochs: int = 30, n_diffusion_steps: int = 300, batch
             running_loss += loss.item()
 
         sample_shape = torch.Size((1, *batch.shape[1:]))
-        print("calling draw sample")
-        _ = draw_sample_from_generator(model, n_diffusion_steps, sample_shape, schedule, do_plots=True)
+        _ = draw_sample_from_generator(
+            model,
+            n_diffusion_steps,
+            sample_shape,
+            schedule,
+            save_sample_as=tempdir / f"epoch_{epoch}.png"
+        )
 
         print(f"Epoch {epoch}/{n_epochs}, running loss = {running_loss}")
         running_loss = 0
