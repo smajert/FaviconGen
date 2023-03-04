@@ -19,11 +19,28 @@ def LogoDataLoader(LogoDataset):
 
 
 def test_noise_schedule_is_correct():
-    noise_schedule = sd.NoiseSchedule(n_time_steps=300)
+    noise_schedule = sd.NoiseSchedule(n_time_steps=5)
+    beta = noise_schedule.beta_schedule
     prod_1 = noise_schedule.sqrt_alpha_cumulative_product
     prod_2 = noise_schedule.one_minus_sqrt_alpha_cumulative_product
-    np.testing.assert_allclose(np.array([prod_1[0], prod_1[-1]]), np.array([0.9999, 0.2192]), rtol=0, atol=1e-4)
-    np.testing.assert_allclose(np.array([prod_2[0], prod_2[-1]]), np.array([0.0100, 0.9757]), rtol=0, atol=1e-4)
+    post = noise_schedule.posterior_variance
+    sqrt_recip = noise_schedule.sqrt_reciprocal_alphas
+
+    np.testing.assert_allclose(
+        beta, np.array([1.0000e-04, 5.0750e-03, 1.0050e-02, 1.5025e-02, 2.0000e-02]), rtol=0, atol=1e-5
+    )
+    np.testing.assert_allclose(
+        prod_1, np.array([0.9999, 0.9974, 0.9924, 0.9849, 0.9750]), rtol=0, atol=1e-4
+    )
+    np.testing.assert_allclose(
+        prod_2, np.array([0.0100, 0.0719, 0.1232, 0.1731, 0.2222]), rtol=0, atol=1e-4
+    )
+    np.testing.assert_allclose(
+        post, np.array([0.0000e+00, 9.8094e-05, 3.4275e-03, 7.6066e-03, 1.2141e-02]), rtol=0, atol=1e-5
+    )
+    np.testing.assert_allclose(
+        sqrt_recip, np.array([1.0000, 1.0025, 1.0051, 1.0076, 1.0102]), rtol=0, atol=1e-4
+    )
 
 
 def test_make_batch_noisy(LogoDataLoader):
