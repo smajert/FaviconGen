@@ -108,9 +108,11 @@ class ConvBlock(torch.nn.Module):
         self.time_mlp = torch.nn.Linear(embedding_dim, channels_out)
 
         if do_norm:
-            self.norm = torch.nn.LazyBatchNorm2d()
+            self.norm_1 = torch.nn.LazyBatchNorm2d()
+            self.norm_2 = torch.nn.LazyBatchNorm2d()
         else:
-            self.norm = torch.nn.Identity()
+            self.norm_1 = torch.nn.Identity()
+            self.norm_2 = torch.nn.Identity()
 
         if do_dropout:
             self.dropout = torch.nn.Dropout2d(p=0.5)
@@ -126,11 +128,11 @@ class ConvBlock(torch.nn.Module):
 
     def forward(self, x: torch.Tensor, time_step_emb: torch.Tensor) -> torch.Tensor:
         x = self.conv(x)
-        x = self.norm(x)
+        x = self.norm_1(x)
         time_emb = self.time_mlp(time_step_emb)[:, :, np.newaxis, np.newaxis]
         x += self.activation(time_emb)  # [n_batch, channels, n_height, n_width]
         x = self.dropout(x)
-        return self.activation(self.norm(x))
+        return self.activation(self.norm_2(x))
 
 
 class Generator(torch.nn.Module):
@@ -144,14 +146,14 @@ class Generator(torch.nn.Module):
         )
 
         self.layers = torch.nn.ModuleList([  # input: 1 x 64 x 64
-            ConvBlock(1, 32, (3, 3), stride=2, padding=1),  # 32 x 32 x 32
-            ConvBlock(32, 64, (3, 3), stride=2, padding=1),  # 64 x 16 x 16
-            ConvBlock(64, 128, (3, 3), stride=2, padding=1),  # 128 x 8 x 8
-            ConvBlock(128, 256, (3, 3), stride=2, padding=1),  # 256 x 4 x 4
-            ConvBlock(256, 128, (4, 4), stride=2, padding=1, do_transpose=True),  # 128 x 8 x 8
-            ConvBlock(128, 64, (4, 4), stride=2, padding=1, do_transpose=True),  # 64 x 16 x 16
-            ConvBlock(64, 32, (4, 4), stride=2, padding=1, do_transpose=True),  # 32 x 32 x 32
-            ConvBlock(32, 1, (4, 4), stride=2, padding=1, do_transpose=True, activation=torch.nn.Identity()),  # 1 x 64 x 64
+            ConvBlock(1, 64, (3, 3), stride=2, padding=1),  # 32 x 32 x 32
+            ConvBlock(64, 128, (3, 3), stride=2, padding=1),  # 64 x 16 x 16
+            ConvBlock(128, 256, (3, 3), stride=2, padding=1),  # 128 x 8 x 8
+            ConvBlock(256, 512, (3, 3), stride=2, padding=1),  # 256 x 4 x 4
+            ConvBlock(512, 256, (4, 4), stride=2, padding=1, do_transpose=True),  # 128 x 8 x 8
+            ConvBlock(256, 128, (4, 4), stride=2, padding=1, do_transpose=True),  # 64 x 16 x 16
+            ConvBlock(128, 64, (4, 4), stride=2, padding=1, do_transpose=True),  # 32 x 32 x 32
+            ConvBlock(64, 1, (4, 4), stride=2, padding=1, do_transpose=True, do_norm=False, activation=torch.nn.Identity()),  # 1 x 64 x 64
         ])
 
     def forward(self, x: torch.Tensor, time_step: torch.Tensor) -> torch.Tensor:
@@ -192,6 +194,7 @@ def draw_sample_from_generator(  #todo write test for draw sample
     if save_sample_as is not None:
         plot_batches = []
 
+    model.eval()
     for time_step in list(range(0, n_diffusion_steps))[::-1]:
         t = torch.full((batch_shape[0],), fill_value=time_step, device=device)
         beta = noise_schedule.beta_schedule[time_step]
@@ -210,6 +213,7 @@ def draw_sample_from_generator(  #todo write test for draw sample
     if save_sample_as is not None:
         show_image_grid(torch.concatenate(plot_batches, dim=0), save_as=save_sample_as)
 
+    model.train()
     return batch
 
 
