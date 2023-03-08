@@ -17,6 +17,7 @@ FORWARD_TRANSFORMS = transforms.Compose([
 ])
 
 BACKWARD_TRANSFORMS = transforms.Compose([
+    transforms.RandomInvert(p=0.5),
     transforms.Lambda(lambda t: (t + 1) / 2),  # Undo scaling between [-1, 1]
     transforms.ToPILImage()
 ])

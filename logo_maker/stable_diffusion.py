@@ -3,7 +3,6 @@ import math
 from pathlib import Path
 import tempfile
 
-import matplotlib
 from matplotlib import pyplot as plt
 import numpy as np
 import torch
@@ -11,7 +10,6 @@ from tqdm import tqdm
 
 from logo_maker.data_loading import ImgFolderDataset, show_image_grid
 
-matplotlib.use("TkAgg")
 EMBEDDING_DIM = 32
 
 
@@ -98,7 +96,7 @@ class ConvBlock(torch.nn.Module):
         kernel: tuple[int, int],
         stride: int = 1,
         padding: int | str = 0,
-        activation: torch.nn.modules.activation = torch.nn.LeakyReLU(),
+        activation: torch.nn.modules.activation = torch.nn.ReLU(),
         embedding_dim: int = EMBEDDING_DIM,
         do_norm: bool = True,
         do_dropout: bool = False,
@@ -165,13 +163,19 @@ class Generator(torch.nn.Module):
             if layer_idx == 0:
                 residual_0_to_6 = x
             if layer_idx == 6:
-                x += residual_0_to_6
+                x = x + residual_0_to_6
 
             # skip connection 1 -> 5
             if layer_idx == 1:
                 residual_1_to_5 = x
             if layer_idx == 5:
-                x += residual_1_to_5
+                x = x + residual_1_to_5
+
+            # skip connection 2 -> 4
+            if layer_idx == 2:
+                residual_2_to_4 = x
+            if layer_idx == 4:
+                x = x + residual_2_to_4
 
         return x  # todo should get this into appropriate range
 
@@ -226,13 +230,15 @@ def train(device="cuda", n_epochs: int = 100, n_diffusion_steps: int = 300, batc
     schedule = NoiseSchedule(n_time_steps=n_diffusion_steps)
     model = Generator()
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.002)
     loss_fn = torch.nn.L1Loss()
     running_loss = 0
     for epoch in range(n_epochs):
         for batch_idx, batch in enumerate(tqdm(data_loader, total=len(data_loader), desc=f"Epoch {epoch}, Batches: ")):
+            optimizer.zero_grad()
             # pytorch expects tuple for size here:
-            t = torch.randint(low=0, high=n_diffusion_steps, size=(batch_size,))
+            actual_batch_size = batch.shape[0]
+            t = torch.randint(low=0, high=n_diffusion_steps, size=(actual_batch_size,))
             noisy_batch, noise = get_noisy_batch_at_step_t(batch, t, schedule, device=device)
             # print("noise:", torch.max(noise), torch.mean(noise),  torch.min(noise))
 
@@ -240,7 +246,6 @@ def train(device="cuda", n_epochs: int = 100, n_diffusion_steps: int = 300, batc
             # print("noise_pred", torch.max(noise_pred), torch.mean(noise_pred), torch.min(noise_pred))
             loss = loss_fn(noise_pred, noise)
 
-            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
