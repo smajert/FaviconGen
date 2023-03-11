@@ -99,7 +99,6 @@ class ConvBlock(torch.nn.Module):
         activation: torch.nn.modules.activation = torch.nn.ReLU(),
         embedding_dim: int = EMBEDDING_DIM,
         do_norm: bool = True,
-        do_dropout: bool = False,
         do_transpose: bool = False,
     ) -> None:
         super().__init__()
@@ -112,11 +111,6 @@ class ConvBlock(torch.nn.Module):
             self.norm_1 = torch.nn.Identity()
             self.norm_2 = torch.nn.Identity()
 
-        if do_dropout:
-            self.dropout = torch.nn.Dropout2d(p=0.5)
-        else:
-            self.dropout = torch.nn.Identity()
-
         if do_transpose:
             self.conv = torch.nn.ConvTranspose2d(channels_in, channels_out, kernel, stride=stride, padding=padding)
         else:
@@ -125,12 +119,10 @@ class ConvBlock(torch.nn.Module):
         self.activation = activation
 
     def forward(self, x: torch.Tensor, time_step_emb: torch.Tensor) -> torch.Tensor:
-        x = self.conv(x)
-        x = self.norm_1(x)
-        time_emb = self.time_mlp(time_step_emb)[:, :, np.newaxis, np.newaxis]
-        x += self.activation(time_emb)  # [n_batch, channels, n_height, n_width]
-        x = self.dropout(x)
-        return self.activation(self.norm_2(x))
+        x = self.activation(self.norm_1(self.conv(x)))
+        time_emb = self.activation(self.time_mlp(time_step_emb))[:, :, np.newaxis, np.newaxis]
+        x = x + time_emb  # [n_batch, channels, n_height, n_width]
+        return x
 
 
 class Generator(torch.nn.Module):
@@ -144,19 +136,20 @@ class Generator(torch.nn.Module):
         )
 
         self.layers = torch.nn.ModuleList([  # input: 1 x 64 x 64
-            ConvBlock(1, 64, (3, 3), stride=2, padding=1),  # 32 x 32 x 32
-            ConvBlock(64, 128, (3, 3), stride=2, padding=1),  # 64 x 16 x 16
-            ConvBlock(128, 256, (3, 3), stride=2, padding=1),  # 128 x 8 x 8
-            ConvBlock(256, 512, (3, 3), stride=2, padding=1),  # 256 x 4 x 4
-            ConvBlock(512, 256, (4, 4), stride=2, padding=1, do_transpose=True),  # 128 x 8 x 8
-            ConvBlock(256, 128, (4, 4), stride=2, padding=1, do_transpose=True),  # 64 x 16 x 16
-            ConvBlock(128, 64, (4, 4), stride=2, padding=1, do_transpose=True),  # 32 x 32 x 32
-            ConvBlock(64, 1, (4, 4), stride=2, padding=1, do_transpose=True, do_norm=False, activation=torch.nn.Identity()),  # 1 x 64 x 64
+            ConvBlock(1, 32, (3, 3), stride=2, padding=1),  # 32 x 32 x 32
+            ConvBlock(32, 64, (3, 3), stride=2, padding=1),  # 64 x 16 x 16
+            ConvBlock(64, 128, (3, 3), stride=2, padding=1),  # 128 x 8 x 8
+            ConvBlock(128, 256, (3, 3), stride=2, padding=1),  # 256 x 4 x 4
+            ConvBlock(256, 128, (4, 4), stride=2, padding=1, do_transpose=True),  # 128 x 8 x 8
+            ConvBlock(128, 64, (4, 4), stride=2, padding=1, do_transpose=True),  # 64 x 16 x 16
+            ConvBlock(64, 32, (4, 4), stride=2, padding=1, do_transpose=True),  # 32 x 32 x 32
+            ConvBlock(32, 16, (4, 4), stride=2, padding=1, do_transpose=True),  # 1 x 64 x 64
         ])
+        self.last_conv = torch.nn.Conv2d(16, 1, (4, 4), padding="same")
 
     def forward(self, x: torch.Tensor, time_step: torch.Tensor) -> torch.Tensor:
         time_emb = self.time_mlp(time_step)
-        for layer_idx, layer in enumerate(self.layers): #
+        for layer_idx, layer in enumerate(self.layers):
             x = layer(x, time_emb)
 
             # skip connection 0 -> 6
@@ -177,7 +170,7 @@ class Generator(torch.nn.Module):
             if layer_idx == 4:
                 x = x + residual_2_to_4
 
-        return x  # todo should get this into appropriate range
+        return self.last_conv(x)  # todo should get this into appropriate range
 
 
 @torch.no_grad()
@@ -221,8 +214,8 @@ def draw_sample_from_generator(  #todo write test for draw sample
     return batch
 
 
-def train(device="cuda", n_epochs: int = 100, n_diffusion_steps: int = 300, batch_size: int = 64) -> None:
-    dataset_location = Path(__file__).parents[1] / "data/logos"
+def train(device="cuda", n_epochs: int = 100, n_diffusion_steps: int = 300, batch_size: int = 128) -> None:
+    dataset_location = Path(__file__).parents[1] / "data/mnist_png"
     dataset = ImgFolderDataset(dataset_location)
     data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
     tempdir = Path(tempfile.mkdtemp(prefix="logo_"))
