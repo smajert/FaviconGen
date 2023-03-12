@@ -7,13 +7,13 @@ import logo_maker.data_loading as dl
 
 
 def test_all_files_found(LogoDatasetLocation):
-    file_loader = dl.ImgFolderDataset(LogoDatasetLocation)
-    assert len(file_loader) == 17216
+    file_loader = dl.LargeLogoDataset(LogoDatasetLocation)
+    assert len(file_loader) == 486377
 
 
 def test_tensor_to_image(LogoDatasetLocation):
-    file_loader = dl.ImgFolderDataset(LogoDatasetLocation)
-    tensor = file_loader[1000]
+    file_loader = dl.LargeLogoDataset(LogoDatasetLocation)
+    tensor = file_loader[5]
     image = dl.tensor_to_image(tensor)
     do_plot = False
     if do_plot:
@@ -23,8 +23,8 @@ def test_tensor_to_image(LogoDatasetLocation):
 
 #@pytest.mark.skip(reason="should be run manually")
 def test_image_grid(LogoDatasetLocation):
-    file_loader = dl.ImgFolderDataset(LogoDatasetLocation)
-    data_loader = DataLoader(file_loader, batch_size=32)
+    file_loader = dl.LargeLogoDataset(LogoDatasetLocation)
+    data_loader = DataLoader(file_loader, batch_size=64)
     batch = next(iter(data_loader))
     dl.show_image_grid(batch)
     plt.show()

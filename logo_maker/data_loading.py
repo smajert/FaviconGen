@@ -3,7 +3,9 @@ import pickle
 import tempfile
 from typing import Any
 
+import h5py
 from matplotlib import pyplot as plt
+import numpy as np
 from PIL import Image
 from torch import Tensor
 from torch.utils.data import Dataset, DataLoader, Subset
@@ -17,7 +19,6 @@ FORWARD_TRANSFORMS = transforms.Compose([
 ])
 
 BACKWARD_TRANSFORMS = transforms.Compose([
-    transforms.RandomInvert(p=0.5),
     transforms.Lambda(lambda t: (t + 1) / 2),  # Undo scaling between [-1, 1]
     transforms.ToPILImage()
 ])
@@ -41,28 +42,30 @@ def show_image_grid(tensor: Tensor, save_as: Path | None = None ) -> None:
         plt.savefig(save_as)
 
 
-class ImgFolderDataset(Dataset):
-    def __init__(self, img_dir: Path, resize_to: tuple[int, int] = (64, 64), cache_files: bool = True) -> None:
-        self.img_dir = img_dir
+class LargeLogoDataset(Dataset):
+    def __init__(self, hdf5_file_location: Path, cache_files: bool = True) -> None:
         self.transform = FORWARD_TRANSFORMS
-        dir_content = img_dir.glob('**/*')
-        self.img_file_locations = [file for file in dir_content if file.is_file() and file.suffix == ".png"]
-        self.resizer = transforms.Resize(resize_to)
         self.cache_files = cache_files
+        self.images = None
+        cache_file = tempfile.gettempdir() / Path(f"LargeLogoDataset.pkl")
+
         if self.cache_files:
-            cache_file = tempfile.gettempdir() / Path(f"{resize_to[0]}x{resize_to[1]}_logo_maker_cache.pkl")
             if cache_file.exists():
                 self.images = pickle.load(open(cache_file, "rb"))
-            else:
-                self.images = [self.resizer(Image.open(file_loc).convert("L")) for file_loc in self.img_file_locations]
+
+        if self.images is None:
+            with h5py.File(hdf5_file_location) as file:
+                stacked_images = file['data'][()]
+                self.images = [
+                    np.swapaxes(np.squeeze(arr), 0, -1)
+                    for arr in np.split(stacked_images, stacked_images.shape[0], axis=0)
+                ]
+            if self.cache_files and not cache_file.exists():
                 pickle.dump(self.images, open(cache_file, "wb"))
 
     def __len__(self) -> int:
-        return len(self.img_file_locations)
+        return len(self.images)
 
     def __getitem__(self, idx) -> Tensor:
-        if self.cache_files:
-            return self.transform(self.images[idx])
-        else:
-            return self.transform(self.resizer(Image.open(self.img_file_locations[idx]).convert("L")))
+        return self.transform(self.images[idx])
 

@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from logo_maker.data_loading import ImgFolderDataset, show_image_grid
+from logo_maker.data_loading import LargeLogoDataset, show_image_grid
 
 EMBEDDING_DIM = 32
 
@@ -135,17 +135,17 @@ class Generator(torch.nn.Module):
             torch.nn.LeakyReLU()
         )
 
-        self.layers = torch.nn.ModuleList([  # input: 1 x 64 x 64
-            ConvBlock(1, 32, (3, 3), stride=2, padding=1),  # 32 x 32 x 32
-            ConvBlock(32, 64, (3, 3), stride=2, padding=1),  # 64 x 16 x 16
-            ConvBlock(64, 128, (3, 3), stride=2, padding=1),  # 128 x 8 x 8
-            ConvBlock(128, 256, (3, 3), stride=2, padding=1),  # 256 x 4 x 4
-            ConvBlock(256, 128, (4, 4), stride=2, padding=1, do_transpose=True),  # 128 x 8 x 8
-            ConvBlock(128, 64, (4, 4), stride=2, padding=1, do_transpose=True),  # 64 x 16 x 16
+        self.layers = torch.nn.ModuleList([  # input: 3 x 32 x 32
+            ConvBlock(3, 32, (3, 3), stride=2, padding=1),  # 32 x 16 x 16
+            ConvBlock(32, 64, (3, 3), stride=2, padding=1),  # 64 x 8 x 8
+            ConvBlock(64, 128, (3, 3), stride=2, padding=1),  # 128 x 4 x 4
+            ConvBlock(128, 256, (3, 3), stride=2, padding=1),  # 256 x 2 x 2
+            ConvBlock(256, 128, (4, 4), stride=2, padding=1, do_transpose=True),  # 128 x 4 x 4
+            ConvBlock(128, 64, (4, 4), stride=2, padding=1, do_transpose=True),  # 64 x 8 x 8
             ConvBlock(64, 32, (4, 4), stride=2, padding=1, do_transpose=True),  # 32 x 32 x 32
-            ConvBlock(32, 16, (4, 4), stride=2, padding=1, do_transpose=True),  # 1 x 64 x 64
+            ConvBlock(32, 16, (4, 4), stride=2, padding=1, do_transpose=True),  # 16 x 64 x 64
         ])
-        self.last_conv = torch.nn.Conv2d(16, 1, (4, 4), padding="same")
+        self.last_conv = torch.nn.Conv2d(16, 3, (4, 4), padding="same")
 
     def forward(self, x: torch.Tensor, time_step: torch.Tensor) -> torch.Tensor:
         time_emb = self.time_mlp(time_step)
@@ -214,9 +214,9 @@ def draw_sample_from_generator(  #todo write test for draw sample
     return batch
 
 
-def train(device="cuda", n_epochs: int = 100, n_diffusion_steps: int = 300, batch_size: int = 128) -> None:
-    dataset_location = Path(__file__).parents[1] / "data/mnist_png"
-    dataset = ImgFolderDataset(dataset_location)
+def train(device="cuda", n_epochs: int = 10, n_diffusion_steps: int = 300, batch_size: int = 512) -> None:
+    dataset_location = Path(__file__).parents[1] / "data/LLD-icon.hdf5"
+    dataset = LargeLogoDataset(dataset_location)
     data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
     tempdir = Path(tempfile.mkdtemp(prefix="logo_"))
 
@@ -256,6 +256,8 @@ def train(device="cuda", n_epochs: int = 100, n_diffusion_steps: int = 300, batc
         running_loss = 0
 
     plt.show()
+
+    torch.save(model.state_dict(), tempdir / "model.pt" )
 
 
 if __name__ == "__main__":

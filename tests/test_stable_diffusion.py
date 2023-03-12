@@ -4,13 +4,13 @@ import pytest
 import random
 import torch
 
-from logo_maker.data_loading import ImgFolderDataset, show_image_grid
+from logo_maker.data_loading import LargeLogoDataset, show_image_grid
 import logo_maker.stable_diffusion as sd
 
 
 @pytest.fixture()
 def LogoDataset(LogoDatasetLocation):
-    return ImgFolderDataset(LogoDatasetLocation)
+    return LargeLogoDataset(LogoDatasetLocation)
 
 
 @pytest.fixture()
@@ -99,15 +99,16 @@ def test_drawing_sample_from_module():
     sd.draw_sample_from_generator(model, 10, (4, 1, 32, 32), seed=0)
 
 
-def test_model_runs(device: str = "cuda"):
+def test_model_runs(device: str = "cpu"):
     torch.random.manual_seed(0)
     random.seed(0)
-    pseudo_batch = torch.rand((32, 1, 64, 64), device=device)
+    pseudo_batch = torch.rand((32, 3, 32, 32), device=device)
     pseudo_time_steps = torch.randint(0, 10, size=(32,), device=device)
     model = sd.Generator().to(device)
     test_output = model(pseudo_batch, pseudo_time_steps)
+    print(torch.mean(test_output))
     if device == "cpu":
-        torch.testing.assert_allclose(torch.mean(test_output), torch.tensor(0.6791, device=device), rtol=0, atol=1e-4)
+        torch.testing.assert_allclose(torch.mean(test_output), torch.tensor(-0.3250, device=device), rtol=0, atol=1e-4)
     else:
-        torch.testing.assert_allclose(torch.mean(test_output), torch.tensor(0.5986, device=device), rtol=0, atol=1e-4)
+        torch.testing.assert_allclose(torch.mean(test_output), torch.tensor(-0.0192, device=device), rtol=0, atol=1e-4)
 
