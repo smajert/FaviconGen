@@ -43,7 +43,7 @@ def show_image_grid(tensor: Tensor, save_as: Path | None = None ) -> None:
 
 
 class LargeLogoDataset(Dataset):
-    def __init__(self, hdf5_file_location: Path, cache_files: bool = True) -> None:
+    def __init__(self, hdf5_file_location: Path, cache_files: bool = True, n_images: int | None = None) -> None:
         self.transform = FORWARD_TRANSFORMS
         self.cache_files = cache_files
         self.images = None
@@ -62,6 +62,9 @@ class LargeLogoDataset(Dataset):
                 ]
             if self.cache_files and not cache_file.exists():
                 pickle.dump(self.images, open(cache_file, "wb"))
+
+        if n_images is not None:
+            self.images = self.images[:n_images]
 
     def __len__(self) -> int:
         return len(self.images)

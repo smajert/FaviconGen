@@ -99,7 +99,7 @@ def test_drawing_sample_from_module():
     sd.draw_sample_from_generator(model, 10, (4, 1, 32, 32), seed=0)
 
 
-def test_model_runs(device: str = "cpu"):
+def test_model_runs(device: str = "cuda"):
     torch.random.manual_seed(0)
     random.seed(0)
     pseudo_batch = torch.rand((32, 3, 32, 32), device=device)
@@ -108,7 +108,7 @@ def test_model_runs(device: str = "cpu"):
     test_output = model(pseudo_batch, pseudo_time_steps)
     print(torch.mean(test_output))
     if device == "cpu":
-        torch.testing.assert_allclose(torch.mean(test_output), torch.tensor(-0.3250, device=device), rtol=0, atol=1e-4)
+        torch.testing.assert_allclose(torch.mean(test_output), torch.tensor(0.1251, device=device), rtol=0, atol=1e-4)
     else:
-        torch.testing.assert_allclose(torch.mean(test_output), torch.tensor(-0.0192, device=device), rtol=0, atol=1e-4)
+        torch.testing.assert_allclose(torch.mean(test_output), torch.tensor(-0.0187, device=device), rtol=0, atol=1e-4)
 

@@ -24,7 +24,7 @@ def test_tensor_to_image(LogoDatasetLocation):
 #@pytest.mark.skip(reason="should be run manually")
 def test_image_grid(LogoDatasetLocation):
     file_loader = dl.LargeLogoDataset(LogoDatasetLocation)
-    data_loader = DataLoader(file_loader, batch_size=64)
+    data_loader = DataLoader(file_loader, batch_size=64, shuffle=True)
     batch = next(iter(data_loader))
     dl.show_image_grid(batch)
     plt.show()

@@ -93,15 +93,12 @@ class ConvBlock(torch.nn.Module):
         self,
         channels_in: int,
         channels_out: int,
-        kernel: tuple[int, int],
-        stride: int = 1,
-        padding: int | str = 0,
         activation: torch.nn.modules.activation = torch.nn.ReLU(),
         embedding_dim: int = EMBEDDING_DIM,
         do_norm: bool = True,
         do_transpose: bool = False,
     ) -> None:
-        super().__init__()
+        super().__init__()  # todo add more neutral convs
         self.time_mlp = torch.nn.Linear(embedding_dim, channels_out)
 
         if do_norm:
@@ -111,18 +108,25 @@ class ConvBlock(torch.nn.Module):
             self.norm_1 = torch.nn.Identity()
             self.norm_2 = torch.nn.Identity()
 
+        self.conv_1 = torch.nn.Conv2d(channels_in, channels_out, kernel_size=3, padding=1)  # width/height stay same
+        self.conv_2 = torch.nn.Conv2d(channels_out, channels_out, kernel_size=3, padding=1)  # width/height stay same
         if do_transpose:
-            self.conv = torch.nn.ConvTranspose2d(channels_in, channels_out, kernel, stride=stride, padding=padding)
+            self.conv_3 = torch.nn.ConvTranspose2d(
+                channels_out, channels_out, kernel_size=4, stride=2, padding=1
+            )
         else:
-            self.conv = torch.nn.Conv2d(channels_in, channels_out, kernel, stride=stride, padding=padding)
+            self.conv_3 = torch.nn.Conv2d(
+                channels_out, channels_out, kernel_size=4, stride=2, padding=1
+            )
 
         self.activation = activation
 
     def forward(self, x: torch.Tensor, time_step_emb: torch.Tensor) -> torch.Tensor:
-        x = self.activation(self.norm_1(self.conv(x)))
+        x = self.activation(self.norm_1(self.conv_1(x)))
         time_emb = self.activation(self.time_mlp(time_step_emb))[:, :, np.newaxis, np.newaxis]
         x = x + time_emb  # [n_batch, channels, n_height, n_width]
-        return x
+        x = self.norm_2(self.activation(self.conv_2(x)))
+        return self.activation(self.conv_3(x))
 
 
 class Generator(torch.nn.Module):
@@ -136,16 +140,17 @@ class Generator(torch.nn.Module):
         )
 
         self.layers = torch.nn.ModuleList([  # input: 3 x 32 x 32
-            ConvBlock(3, 32, (3, 3), stride=2, padding=1),  # 32 x 16 x 16
-            ConvBlock(32, 64, (3, 3), stride=2, padding=1),  # 64 x 8 x 8
-            ConvBlock(64, 128, (3, 3), stride=2, padding=1),  # 128 x 4 x 4
-            ConvBlock(128, 256, (3, 3), stride=2, padding=1),  # 256 x 2 x 2
-            ConvBlock(256, 128, (4, 4), stride=2, padding=1, do_transpose=True),  # 128 x 4 x 4
-            ConvBlock(128, 64, (4, 4), stride=2, padding=1, do_transpose=True),  # 64 x 8 x 8
-            ConvBlock(64, 32, (4, 4), stride=2, padding=1, do_transpose=True),  # 32 x 32 x 32
-            ConvBlock(32, 16, (4, 4), stride=2, padding=1, do_transpose=True),  # 16 x 64 x 64
+            ConvBlock(3, 32),  # 32 x 16 x 16
+            ConvBlock(32, 64),  # 64 x 8 x 8
+            ConvBlock(64, 128),  # 128 x 4 x 4
+            ConvBlock(128, 256),  # 256 x 2 x 2
+            ConvBlock(256, 128, do_transpose=True),  # 128 x 4 x 4
+            ConvBlock(128, 64, do_transpose=True),  # 64 x 8 x 8
+            ConvBlock(64, 32, do_transpose=True),  # 32 x 16 x 16
+            ConvBlock(32, 32, do_transpose=True),  # 32 x 32 x 32
         ])
-        self.last_conv = torch.nn.Conv2d(16, 3, (4, 4), padding="same")
+        self.end_conv_1 = torch.nn.Conv2d(32, 16, 1)
+        self.end_conv_2 = torch.nn.Conv2d(16, 3, 1)
 
     def forward(self, x: torch.Tensor, time_step: torch.Tensor) -> torch.Tensor:
         time_emb = self.time_mlp(time_step)
@@ -170,7 +175,8 @@ class Generator(torch.nn.Module):
             if layer_idx == 4:
                 x = x + residual_2_to_4
 
-        return self.last_conv(x)  # todo should get this into appropriate range
+        x = torch.nn.LeakyReLU()(self.end_conv_1(x))
+        return self.end_conv_2(x)
 
 
 @torch.no_grad()
@@ -182,7 +188,7 @@ def draw_sample_from_generator(  #todo write test for draw sample
     seed: int | None = None,
     save_sample_as: Path | None = None
 ) -> torch.Tensor:
-    device = model.layers[0].conv.weight.device
+    device = model.layers[0].conv_1.weight.device
     rand_generator = torch.Generator(device=device)
     if seed is not None:
         rand_generator.manual_seed(0)
@@ -214,17 +220,18 @@ def draw_sample_from_generator(  #todo write test for draw sample
     return batch
 
 
-def train(device="cuda", n_epochs: int = 10, n_diffusion_steps: int = 300, batch_size: int = 512) -> None:
+def train(device="cuda", n_epochs: int = 20, n_diffusion_steps: int = 300, batch_size: int = 128) -> None:
     dataset_location = Path(__file__).parents[1] / "data/LLD-icon.hdf5"
-    dataset = LargeLogoDataset(dataset_location)
+    dataset = LargeLogoDataset(dataset_location, n_images=8000)
     data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
     tempdir = Path(tempfile.mkdtemp(prefix="logo_"))
 
     schedule = NoiseSchedule(n_time_steps=n_diffusion_steps)
     model = Generator()
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.002)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     loss_fn = torch.nn.L1Loss()
+    running_losses = []
     running_loss = 0
     for epoch in range(n_epochs):
         for batch_idx, batch in enumerate(tqdm(data_loader, total=len(data_loader), desc=f"Epoch {epoch}, Batches: ")):
@@ -242,22 +249,30 @@ def train(device="cuda", n_epochs: int = 10, n_diffusion_steps: int = 300, batch
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
-
-        sample_shape = torch.Size((1, *batch.shape[1:]))
-        _ = draw_sample_from_generator(
-            model,
-            n_diffusion_steps,
-            sample_shape,
-            schedule,
-            save_sample_as=tempdir / f"epoch_{epoch}.png"
-        )
+        if (epoch + 1) % 10 == 0:
+            sample_shape = torch.Size((1, *batch.shape[1:]))
+            _ = draw_sample_from_generator(
+                model,
+                n_diffusion_steps,
+                sample_shape,
+                schedule,
+                save_sample_as=tempdir / f"epoch_{epoch}.png"
+            )
 
         print(f"Epoch {epoch}/{n_epochs}, running loss = {running_loss}")
+        running_losses.append(running_loss)
         running_loss = 0
 
+    torch.save(model.state_dict(), tempdir / "model.pt" )
+
+    plt.figure()
+    plt.plot(np.array(running_losses))
+    plt.grid()
+    plt.xlabel("Number of epochs")
+    plt.ylabel(f"Loss for batch size {batch_size}")
+    plt.savefig(tempdir / "loss_curve.pdf")
     plt.show()
 
-    torch.save(model.state_dict(), tempdir / "model.pt" )
 
 
 if __name__ == "__main__":
