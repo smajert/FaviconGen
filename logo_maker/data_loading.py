@@ -43,10 +43,18 @@ def show_image_grid(tensor: Tensor, save_as: Path | None = None ) -> None:
 
 
 class LargeLogoDataset(Dataset):
-    def __init__(self, hdf5_file_location: Path, cache_files: bool = True, n_images: int | None = None) -> None:
+    def __init__(
+        self,
+        hdf5_file_location: Path,
+        cache_files: bool = True,
+        n_images: int | None = None,
+        cluster: int | None = None
+    ) -> None:
         self.transform = FORWARD_TRANSFORMS
         self.cache_files = cache_files
         self.images = None
+        self.cluster = cluster
+
         cache_file = tempfile.gettempdir() / Path(f"LargeLogoDataset.pkl")
 
         if self.cache_files:
@@ -56,6 +64,9 @@ class LargeLogoDataset(Dataset):
         if self.images is None:
             with h5py.File(hdf5_file_location) as file:
                 stacked_images = file['data'][()]
+                clusters = file['labels/ae_grayscale'][()]
+                if self.cluster is not None:
+                    stacked_images = stacked_images[clusters == self.cluster, ...]
                 self.images = [
                     np.swapaxes(np.squeeze(arr), 0, -1)
                     for arr in np.split(stacked_images, stacked_images.shape[0], axis=0)

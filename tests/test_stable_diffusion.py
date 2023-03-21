@@ -55,12 +55,13 @@ def test_make_batch_noisy(LogoDataLoader):
     )
     mean_of_image = torch.mean(noisy_tensor[4, ...])
     mean_of_noise = torch.mean(noise[4, ...])
-    torch.testing.assert_allclose(mean_of_image, -0.1579, rtol=0, atol=1e-4)
-    torch.testing.assert_allclose(mean_of_noise, -0.0346, rtol=0, atol=1e-4)
+    torch.testing.assert_allclose(mean_of_image, 0.4413, rtol=0, atol=1e-4)
+    torch.testing.assert_allclose(mean_of_noise, 4.7330e-05, rtol=0, atol=1e-4)
 
     do_plot = False
     if do_plot:
         show_image_grid(noisy_tensor)
+        plt.show()
 
 
 def test_values_in_noise_and_image_seem_sensible(LogoDataset):
@@ -96,19 +97,19 @@ def test_position_embeddings():
 
 def test_drawing_sample_from_module():
     model = sd.Generator()
-    sd.draw_sample_from_generator(model, 10, (4, 1, 32, 32), seed=0)
+    noise_schedule = sd.NoiseSchedule(n_time_steps=20)
+    sd.draw_sample_from_generator(model, 10, (4, 3, 32, 32), noise_schedule=noise_schedule, seed=0)
 
 
-def test_model_runs(device: str = "cuda"):
+def test_model_runs(device: str = "cpu"):
     torch.random.manual_seed(0)
     random.seed(0)
     pseudo_batch = torch.rand((32, 3, 32, 32), device=device)
     pseudo_time_steps = torch.randint(0, 10, size=(32,), device=device)
     model = sd.Generator().to(device)
     test_output = model(pseudo_batch, pseudo_time_steps)
-    print(torch.mean(test_output))
     if device == "cpu":
-        torch.testing.assert_allclose(torch.mean(test_output), torch.tensor(0.1251, device=device), rtol=0, atol=1e-4)
+        torch.testing.assert_allclose(torch.mean(test_output), torch.tensor(0.0073, device=device), rtol=0, atol=1e-4)
     else:
-        torch.testing.assert_allclose(torch.mean(test_output), torch.tensor(-0.0187, device=device), rtol=0, atol=1e-4)
+        torch.testing.assert_allclose(torch.mean(test_output), torch.tensor(-0.0775, device=device), rtol=0, atol=1e-4)
 

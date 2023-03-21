@@ -98,7 +98,7 @@ class ConvBlock(torch.nn.Module):
         do_norm: bool = True,
         do_transpose: bool = False,
     ) -> None:
-        super().__init__()  # todo add more neutral convs
+        super().__init__()
         self.time_mlp = torch.nn.Linear(embedding_dim, channels_out)
 
         if do_norm:
@@ -180,7 +180,7 @@ class Generator(torch.nn.Module):
 
 
 @torch.no_grad()
-def draw_sample_from_generator(  #todo write test for draw sample
+def draw_sample_from_generator(
     model: Generator,
     n_diffusion_steps: int,
     batch_shape: tuple[int, ...],
@@ -213,6 +213,7 @@ def draw_sample_from_generator(  #todo write test for draw sample
             if time_step % 5 == 0:
                 plot_batches.append(batch.detach().cpu())
 
+    #batch = torch.clamp(batch, -1, 1)
     if save_sample_as is not None:
         show_image_grid(torch.concatenate(plot_batches, dim=0), save_as=save_sample_as)
 
@@ -220,16 +221,25 @@ def draw_sample_from_generator(  #todo write test for draw sample
     return batch
 
 
-def train(device="cuda", n_epochs: int = 20, n_diffusion_steps: int = 300, batch_size: int = 128) -> None:
+def train(
+    device="cuda",
+    n_epochs: int = 200,
+    n_diffusion_steps: int = 300,
+    batch_size: int = 512,
+    model_file: Path | None = None
+) -> None:
     dataset_location = Path(__file__).parents[1] / "data/LLD-icon.hdf5"
-    dataset = LargeLogoDataset(dataset_location, n_images=8000)
+    dataset = LargeLogoDataset(dataset_location, n_images=25000, cluster=2)
     data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
     tempdir = Path(tempfile.mkdtemp(prefix="logo_"))
 
     schedule = NoiseSchedule(n_time_steps=n_diffusion_steps)
     model = Generator()
+    if model_file is not None:
+        model.load_state_dict(torch.load(model_file))
+
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.005)
     loss_fn = torch.nn.L1Loss()
     running_losses = []
     running_loss = 0
@@ -274,8 +284,8 @@ def train(device="cuda", n_epochs: int = 20, n_diffusion_steps: int = 300, batch
     plt.show()
 
 
-
 if __name__ == "__main__":
-    train()
+    model_file = None
+    train(model_file=model_file)
 
 
