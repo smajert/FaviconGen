@@ -16,14 +16,11 @@ EMBEDDING_DIM = 32
 @dataclass
 class NoiseSchedule:
     def __init__(self, beta_start: float = 0.0001, beta_end: float = 0.02, n_time_steps: int = 100):
-        self.beta_schedule = torch.linspace(beta_start, beta_end, n_time_steps)
-        alphas = 1 - self.beta_schedule
-        self.sqrt_reciprocal_alphas = torch.sqrt(1 / alphas)
-        alpha_cumulative_product = torch.cumprod(alphas, dim=0)
-        self.sqrt_alpha_cumulative_product = torch.sqrt(alpha_cumulative_product)
-        self.one_minus_sqrt_alpha_cumulative_product = torch.sqrt(1 - alpha_cumulative_product)
-        alphas_cumprod_prev = torch.nn.functional.pad(alpha_cumulative_product[:-1], (1, 0), value=1)
-        self.posterior_variance = self.beta_schedule * (1 - alphas_cumprod_prev)/ (1 - alpha_cumulative_product)
+        self.beta_t = torch.linspace(beta_start, beta_end, n_time_steps)
+        self.alpha_t = 1 - self.beta_t
+        self.alpha_bar_t = torch.cumprod(self.alpha_t, dim=0)
+        alpha_bar_t_minus_1 = torch.nn.functional.pad(self.alpha_bar_t[:-1], (1, 0), value=1)
+        self.beta_tilde_t = (1 - alpha_bar_t_minus_1) / (1 - self.alpha_bar_t) * self.beta_t
 
 
 RANDOM_NUMBER_GENERATOR = torch.Generator()
@@ -51,10 +48,10 @@ def get_noisy_batch_at_step_t(
 
     noise = torch.randn(size=original_batch.shape, generator=RANDOM_NUMBER_GENERATOR, device=original_batch.device)
     noisy_batch = (
-            original_batch * noise_schedule.sqrt_alpha_cumulative_product[time_step][
+            original_batch * torch.sqrt(noise_schedule.alpha_bar_t[time_step])[
                 :, np.newaxis, np.newaxis, np.newaxis
             ]
-            + noise * noise_schedule.one_minus_sqrt_alpha_cumulative_product[time_step][
+            + noise * torch.sqrt(1 - noise_schedule.alpha_bar_t[time_step])[
                 :, np.newaxis, np.newaxis, np.newaxis
             ]
     )
@@ -200,20 +197,31 @@ def draw_sample_from_generator(
     model.eval()
     for time_step in list(range(0, n_diffusion_steps))[::-1]:
         t = torch.full((batch_shape[0],), fill_value=time_step, device=device)
-        beta = noise_schedule.beta_schedule[time_step]
-        one_minus_sqrt_alpha_cumprod = noise_schedule.one_minus_sqrt_alpha_cumulative_product[time_step]
-        sqrt_recip_alphas = noise_schedule.sqrt_reciprocal_alphas[time_step]
+        beta = noise_schedule.beta_t[time_step]
+        alpha = noise_schedule.alpha_t[time_step]
+        alpha_bar = noise_schedule.alpha_bar_t[time_step]
         noise_pred = model(batch, t)
-        batch = sqrt_recip_alphas * (batch - beta * noise_pred / one_minus_sqrt_alpha_cumprod)
+        batch = 1 / torch.sqrt(alpha) * (batch - beta / torch.sqrt(1 - alpha_bar) * noise_pred)
         if time_step != 0:
             noise = torch.randn_like(batch)
-            batch = batch + torch.sqrt(noise_schedule.posterior_variance[time_step]) * noise
+            batch = batch + torch.sqrt(beta) * noise
+        if time_step == 0:
+            batch = torch.clamp(batch, -1, 1)
+
+
+        # beta = noise_schedule.beta_t[time_step]
+        # one_minus_sqrt_alpha_cumprod = torch.sqrt(1 - noise_schedule.alpha_bar_t)[time_step]
+        # sqrt_recip_alphas = torch.sqrt(1 / noise_schedule.alpha_t)
+        # noise_pred = model(batch, t)
+        # batch = sqrt_recip_alphas * (batch - beta * noise_pred / one_minus_sqrt_alpha_cumprod)
+        # if time_step != 0:
+        #     noise = torch.randn_like(batch)
+        #     batch = batch + torch.sqrt(noise_schedule.posterior_variance[time_step]) * noise
 
         if save_sample_as is not None:
             if time_step % 5 == 0:
                 plot_batches.append(batch.detach().cpu())
 
-    #batch = torch.clamp(batch, -1, 1)
     if save_sample_as is not None:
         show_image_grid(torch.concatenate(plot_batches, dim=0), save_as=save_sample_as)
 
@@ -225,11 +233,11 @@ def train(
     device="cuda",
     n_epochs: int = 200,
     n_diffusion_steps: int = 300,
-    batch_size: int = 512,
+    batch_size: int = 128,
     model_file: Path | None = None
 ) -> None:
     dataset_location = Path(__file__).parents[1] / "data/LLD-icon.hdf5"
-    dataset = LargeLogoDataset(dataset_location, n_images=25000, cluster=2)
+    dataset = LargeLogoDataset(dataset_location, cluster=2)
     data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
     tempdir = Path(tempfile.mkdtemp(prefix="logo_"))
 
@@ -239,8 +247,8 @@ def train(
         model.load_state_dict(torch.load(model_file))
 
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.005)
-    loss_fn = torch.nn.L1Loss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    loss_fn = torch.nn.MSELoss()
     running_losses = []
     running_loss = 0
     for epoch in range(n_epochs):

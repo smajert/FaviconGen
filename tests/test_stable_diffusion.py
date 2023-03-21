@@ -20,11 +20,11 @@ def LogoDataLoader(LogoDataset):
 
 def test_noise_schedule_is_correct():
     noise_schedule = sd.NoiseSchedule(n_time_steps=5)
-    beta = noise_schedule.beta_schedule
-    prod_1 = noise_schedule.sqrt_alpha_cumulative_product
-    prod_2 = noise_schedule.one_minus_sqrt_alpha_cumulative_product
-    post = noise_schedule.posterior_variance
-    sqrt_recip = noise_schedule.sqrt_reciprocal_alphas
+    beta = noise_schedule.beta_t
+    prod_1 = torch.sqrt(noise_schedule.alpha_bar_t)
+    prod_2 = torch.sqrt(1 - noise_schedule.alpha_bar_t)
+    post = noise_schedule.beta_tilde_t
+    sqrt_recip = torch.sqrt(1 / noise_schedule.alpha_t)
 
     np.testing.assert_allclose(
         beta, np.array([1.0000e-04, 5.0750e-03, 1.0050e-02, 1.5025e-02, 2.0000e-02]), rtol=0, atol=1e-5
@@ -58,7 +58,7 @@ def test_make_batch_noisy(LogoDataLoader):
     torch.testing.assert_allclose(mean_of_image, 0.4413, rtol=0, atol=1e-4)
     torch.testing.assert_allclose(mean_of_noise, 4.7330e-05, rtol=0, atol=1e-4)
 
-    do_plot = False
+    do_plot = True
     if do_plot:
         show_image_grid(noisy_tensor)
         plt.show()
@@ -97,8 +97,9 @@ def test_position_embeddings():
 
 def test_drawing_sample_from_module():
     model = sd.Generator()
-    noise_schedule = sd.NoiseSchedule(n_time_steps=20)
-    sd.draw_sample_from_generator(model, 10, (4, 3, 32, 32), noise_schedule=noise_schedule, seed=0)
+    n_time_steps = 20
+    noise_schedule = sd.NoiseSchedule(n_time_steps=n_time_steps)
+    sd.draw_sample_from_generator(model, n_time_steps, (4, 3, 32, 32), noise_schedule=noise_schedule, seed=0)
 
 
 def test_model_runs(device: str = "cpu"):
