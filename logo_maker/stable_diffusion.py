@@ -40,7 +40,6 @@ def get_noisy_batch_at_step_t(
     :return: [n_img_batch, color, height, width] Noise used,
         [n_img_batch, color, height, width] Noised batch of images
     """
-
     if original_batch.shape[0] != time_step.shape[0]:
         raise ValueError(
             f"Batch size {original_batch.shape[0]} does not match number of requested diffusion steps {time_step.shape[0]}."
@@ -90,7 +89,7 @@ class ConvBlock(torch.nn.Module):
         self,
         channels_in: int,
         channels_out: int,
-        activation: torch.nn.modules.activation = torch.nn.ReLU(),
+        activation: torch.nn.modules.activation = torch.nn.LeakyReLU(),
         embedding_dim: int = EMBEDDING_DIM,
         do_norm: bool = True,
         do_transpose: bool = False,
@@ -137,17 +136,17 @@ class Generator(torch.nn.Module):
         )
 
         self.layers = torch.nn.ModuleList([  # input: 3 x 32 x 32
-            ConvBlock(3, 32),  # 32 x 16 x 16
-            ConvBlock(32, 64),  # 64 x 8 x 8
-            ConvBlock(64, 128),  # 128 x 4 x 4
-            ConvBlock(128, 256),  # 256 x 2 x 2
-            ConvBlock(256, 128, do_transpose=True),  # 128 x 4 x 4
-            ConvBlock(128, 64, do_transpose=True),  # 64 x 8 x 8
-            ConvBlock(64, 32, do_transpose=True),  # 32 x 16 x 16
-            ConvBlock(32, 32, do_transpose=True),  # 32 x 32 x 32
+            ConvBlock(3, 64),  # 32 x 16 x 16
+            ConvBlock(64, 128),  # 64 x 8 x 8
+            ConvBlock(128, 256),  # 128 x 4 x 4
+            ConvBlock(256, 512),  # 256 x 2 x 2
+            ConvBlock(512, 256, do_transpose=True),  # 128 x 4 x 4
+            ConvBlock(256, 128, do_transpose=True),  # 64 x 8 x 8
+            ConvBlock(128, 64, do_transpose=True),  # 32 x 16 x 16
+            ConvBlock(64, 64, do_transpose=True),  # 32 x 32 x 32
         ])
-        self.end_conv_1 = torch.nn.Conv2d(32, 16, 1)
-        self.end_conv_2 = torch.nn.Conv2d(16, 3, 1)
+        self.end_conv_1 = torch.nn.Conv2d(64, 32, 1)
+        self.end_conv_2 = torch.nn.Conv2d(32, 3, 1)
 
     def forward(self, x: torch.Tensor, time_step: torch.Tensor) -> torch.Tensor:
         time_emb = self.time_mlp(time_step)
@@ -200,23 +199,22 @@ def draw_sample_from_generator(
         beta = noise_schedule.beta_t[time_step]
         alpha = noise_schedule.alpha_t[time_step]
         alpha_bar = noise_schedule.alpha_bar_t[time_step]
+        beta_tilde = noise_schedule.beta_tilde_t[time_step]
         noise_pred = model(batch, t)
+
         batch = 1 / torch.sqrt(alpha) * (batch - beta / torch.sqrt(1 - alpha_bar) * noise_pred)
         if time_step != 0:
             noise = torch.randn_like(batch)
-            batch = batch + torch.sqrt(beta) * noise
+            batch = batch + torch.sqrt(beta_tilde) * noise
         if time_step == 0:
             batch = torch.clamp(batch, -1, 1)
 
-
-        # beta = noise_schedule.beta_t[time_step]
-        # one_minus_sqrt_alpha_cumprod = torch.sqrt(1 - noise_schedule.alpha_bar_t)[time_step]
-        # sqrt_recip_alphas = torch.sqrt(1 / noise_schedule.alpha_t)
-        # noise_pred = model(batch, t)
-        # batch = sqrt_recip_alphas * (batch - beta * noise_pred / one_minus_sqrt_alpha_cumprod)
+        # batch = torch.clamp(1 / torch.sqrt(alpha_bar) * (batch - torch.sqrt(1 - alpha_bar) * noise_pred), -1, 1)
         # if time_step != 0:
+        #     alpha_bar_prev = noise_schedule.alpha_bar_t[time_step - 1]
         #     noise = torch.randn_like(batch)
-        #     batch = batch + torch.sqrt(noise_schedule.posterior_variance[time_step]) * noise
+        #     batch = torch.sqrt(alpha_bar_prev) * batch + torch.sqrt(1 - alpha_bar_prev) * noise
+        #     # batch = batch + torch.sqrt(1 - alpha_bar_prev) * noise
 
         if save_sample_as is not None:
             if time_step % 5 == 0:
@@ -231,7 +229,7 @@ def draw_sample_from_generator(
 
 def train(
     device="cuda",
-    n_epochs: int = 200,
+    n_epochs: int = 300,
     n_diffusion_steps: int = 300,
     batch_size: int = 128,
     model_file: Path | None = None
@@ -267,7 +265,7 @@ def train(
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
-        if (epoch + 1) % 10 == 0:
+        if (epoch + 1) % 50 == 0:
             sample_shape = torch.Size((1, *batch.shape[1:]))
             _ = draw_sample_from_generator(
                 model,

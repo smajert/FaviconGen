@@ -18,5 +18,5 @@ def probe_model(model_file: Path, n_samples: int = 32, n_diffusion_steps: int = 
 
 
 if __name__ == "__main__":
-    model_file = Path(r"C:\Users\steph\AppData\Local\Temp\logo_mh8g9cka\model.pt")
+    model_file = Path(r"C:\Users\steph\AppData\Local\Temp\logo_p8fn35v8\model.pt")
     probe_model(model_file)

@@ -10,7 +10,7 @@ import logo_maker.stable_diffusion as sd
 
 @pytest.fixture()
 def LogoDataset(LogoDatasetLocation):
-    return LargeLogoDataset(LogoDatasetLocation)
+    return LargeLogoDataset(LogoDatasetLocation, cluster=2, cache_files=False)
 
 
 @pytest.fixture()

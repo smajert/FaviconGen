@@ -24,10 +24,6 @@ BACKWARD_TRANSFORMS = transforms.Compose([
 ])
 
 
-def tensor_to_image(tensor: Tensor) -> Image.Image:
-    return BACKWARD_TRANSFORMS(tensor)
-
-
 def show_image_grid(tensor: Tensor, save_as: Path | None = None ) -> None:
     img_grid = utils.make_grid(tensor)
     img_grid = BACKWARD_TRANSFORMS(img_grid.detach())
@@ -63,10 +59,12 @@ class LargeLogoDataset(Dataset):
 
         if self.images is None:
             with h5py.File(hdf5_file_location) as file:
-                stacked_images = file['data'][()]
+                stacked_images = file['data']
                 clusters = file['labels/ae_grayscale'][()]
                 if self.cluster is not None:
                     stacked_images = stacked_images[clusters == self.cluster, ...]
+                else:
+                    stacked_images = stacked_images[()]
                 self.images = [
                     np.swapaxes(np.squeeze(arr), 0, -1)
                     for arr in np.split(stacked_images, stacked_images.shape[0], axis=0)
