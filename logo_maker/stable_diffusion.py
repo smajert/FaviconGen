@@ -11,12 +11,24 @@ from tqdm import tqdm
 from logo_maker.data_loading import LargeLogoDataset, show_image_grid
 
 EMBEDDING_DIM = 32
-
+# todo naming convetions see paper XXXX (0.0001, 0.02)
 
 @dataclass
 class NoiseSchedule:
-    def __init__(self, beta_start: float = 0.0001, beta_end: float = 0.02, n_time_steps: int = 100):
-        self.beta_t = torch.linspace(beta_start, beta_end, n_time_steps)
+    def __init__(
+        self, linear_schedule_beta_start_end: tuple[float, float] | None = None, n_time_steps: int = 300
+    ) -> None:
+        if linear_schedule_beta_start_end is None:
+            # todo naming convention see XXX
+            s = 0.008
+            t = torch.arange(1, n_time_steps + 1)
+            f_t = torch.cos(0.5 * np.pi * (t / n_time_steps + s) / (1 + s)) ** 2
+            self.beta_t = torch.nn.functional.pad(1 - f_t[1:] / f_t[0:-1], (1, 0), value=0)
+            self.beta_t = torch.clamp(self.beta_t, None, 0.999)
+        else:
+            beta_start = linear_schedule_beta_start_end[0]
+            beta_end = linear_schedule_beta_start_end[1]
+            self.beta_t = torch.linspace(beta_start, beta_end, n_time_steps)
         self.alpha_t = 1 - self.beta_t
         self.alpha_bar_t = torch.cumprod(self.alpha_t, dim=0)
         alpha_bar_t_minus_1 = torch.nn.functional.pad(self.alpha_bar_t[:-1], (1, 0), value=1)
@@ -209,13 +221,6 @@ def draw_sample_from_generator(
         if time_step == 0:
             batch = torch.clamp(batch, -1, 1)
 
-        # batch = torch.clamp(1 / torch.sqrt(alpha_bar) * (batch - torch.sqrt(1 - alpha_bar) * noise_pred), -1, 1)
-        # if time_step != 0:
-        #     alpha_bar_prev = noise_schedule.alpha_bar_t[time_step - 1]
-        #     noise = torch.randn_like(batch)
-        #     batch = torch.sqrt(alpha_bar_prev) * batch + torch.sqrt(1 - alpha_bar_prev) * noise
-        #     # batch = batch + torch.sqrt(1 - alpha_bar_prev) * noise
-
         if save_sample_as is not None:
             if time_step % 5 == 0:
                 plot_batches.append(batch.detach().cpu())
@@ -230,7 +235,7 @@ def draw_sample_from_generator(
 def train(
     device="cuda",
     n_epochs: int = 300,
-    n_diffusion_steps: int = 300,
+    n_diffusion_steps: int = 1000,
     batch_size: int = 128,
     model_file: Path | None = None
 ) -> None:
@@ -239,7 +244,7 @@ def train(
     data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
     tempdir = Path(tempfile.mkdtemp(prefix="logo_"))
 
-    schedule = NoiseSchedule(n_time_steps=n_diffusion_steps)
+    schedule = NoiseSchedule(n_time_steps=n_diffusion_steps, linear_schedule_beta_start_end=(0.0001, 0.02))
     model = Generator()
     if model_file is not None:
         model.load_state_dict(torch.load(model_file))
