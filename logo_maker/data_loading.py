@@ -6,9 +6,8 @@ from typing import Any
 import h5py
 from matplotlib import pyplot as plt
 import numpy as np
-from PIL import Image
 from torch import Tensor
-from torch.utils.data import Dataset, DataLoader, Subset
+from torch.utils.data import Dataset
 from torchvision import transforms, utils
 
 pytorch_transforms = Any
@@ -24,7 +23,7 @@ BACKWARD_TRANSFORMS = transforms.Compose([
 ])
 
 
-def show_image_grid(tensor: Tensor, save_as: Path | None = None ) -> None:
+def show_image_grid(tensor: Tensor, save_as: Path | None = None) -> None:
     img_grid = utils.make_grid(tensor)
     img_grid = BACKWARD_TRANSFORMS(img_grid.detach())
 

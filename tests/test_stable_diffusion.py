@@ -18,42 +18,8 @@ def LogoDataLoader(LogoDataset):
     return torch.utils.data.DataLoader(LogoDataset, batch_size=6, shuffle=False)
 
 
-def test_cosine_noise_schedule_is_correct():
-    n_time_steps = 1000
-
-    s = 0.008
-    t = torch.arange(1, n_time_steps + 1)
-    f_t = torch.cos(0.5 * np.pi * (t / n_time_steps + s) / (1 + s)) ** 2
-    noise_schedule_cosine = sd.NoiseSchedule(n_time_steps=n_time_steps)
-    assert noise_schedule_cosine.beta_t[-1] == 0.999
-    torch.testing.assert_allclose(noise_schedule_cosine.alpha_bar_t[:-1], f_t[:-1] / f_t[0], rtol=0, atol=1e-5)
-
-    do_plots = True
-    if do_plots:
-        noise_schedule_linear = sd.NoiseSchedule(
-            linear_schedule_beta_start_end=(0.0001, 0.02), n_time_steps=n_time_steps
-        )
-        plt.figure()
-        plt.plot(noise_schedule_linear.beta_t, label="linear_schedule")
-        plt.plot(noise_schedule_cosine.beta_t, label="cosine schedule")
-        plt.xlabel("Time step t")
-        plt.ylabel(r"$\beta_t$")
-        plt.grid()
-        plt.legend()
-        plt.show()
-
-        plt.figure()
-        plt.plot(noise_schedule_linear.alpha_bar_t, label="linear_schedule")
-        plt.plot(noise_schedule_cosine.alpha_bar_t, label="cosine schedule")
-        plt.xlabel("Time step t")
-        plt.ylabel(r"$\overline{\alpha}_t$")
-        plt.grid()
-        plt.legend()
-        plt.show()
-
-
-def test_linear_noise_schedule_is_correct():
-    noise_schedule = sd.NoiseSchedule(linear_schedule_beta_start_end=(0.0001, 0.02), n_time_steps=5)
+def test_noise_schedule_is_correct():
+    noise_schedule = sd.VarianceSchedule(beta_start_end=(0.0001, 0.02), n_time_steps=5)
     beta = noise_schedule.beta_t
     prod_1 = torch.sqrt(noise_schedule.alpha_bar_t)
     prod_2 = torch.sqrt(1 - noise_schedule.alpha_bar_t)
@@ -83,7 +49,7 @@ def test_make_batch_noisy(LogoDataset):
     image_batch = next(iter(loader))
 
     n_time_steps = 1000
-    noise_schedule = sd.NoiseSchedule(
+    noise_schedule = sd.VarianceSchedule(
         #linear_schedule_beta_start_end=(0.0001, 0.02),
         n_time_steps=n_time_steps
     )
@@ -107,7 +73,7 @@ def test_values_in_noise_and_image_seem_sensible(LogoDataset):
     data_loader = torch.utils.data.DataLoader(LogoDataset, batch_size=128, shuffle=False)
     image_batch = next(iter(data_loader))
     n_time_steps = 300
-    noise_schedule = sd.NoiseSchedule(n_time_steps=n_time_steps)
+    noise_schedule = sd.VarianceSchedule(n_time_steps=n_time_steps)
     for t in range(0, n_time_steps, 30):
         time_step = torch.full((image_batch.shape[0], ), fill_value=t)
         noisy_tensor, noise = sd.get_noisy_batch_at_step_t(
@@ -137,7 +103,7 @@ def test_position_embeddings():
 def test_drawing_sample_from_module():
     model = sd.Generator()
     n_time_steps = 20
-    noise_schedule = sd.NoiseSchedule(n_time_steps=n_time_steps)
+    noise_schedule = sd.VarianceSchedule(n_time_steps=n_time_steps)
     sd.draw_sample_from_generator(model, n_time_steps, (4, 3, 32, 32), noise_schedule=noise_schedule, seed=0)
 
 

@@ -13,22 +13,30 @@ from logo_maker.data_loading import LargeLogoDataset, show_image_grid
 EMBEDDING_DIM = 32
 # todo naming convetions see paper XXXX (0.0001, 0.02)
 
+
 @dataclass
-class NoiseSchedule:
+class VarianceSchedule:
     def __init__(
-        self, linear_schedule_beta_start_end: tuple[float, float] | None = None, n_time_steps: int = 300
+        self,
+        beta_start_end: tuple[float, float] = (0.0001, 0.02),
+        n_time_steps: int = 1000
     ) -> None:
-        if linear_schedule_beta_start_end is None:
-            # todo naming convention see XXX
-            s = 0.008
-            t = torch.arange(1, n_time_steps + 1)
-            f_t = torch.cos(0.5 * np.pi * (t / n_time_steps + s) / (1 + s)) ** 2
-            self.beta_t = torch.nn.functional.pad(1 - f_t[1:] / f_t[0:-1], (1, 0), value=0)
-            self.beta_t = torch.clamp(self.beta_t, None, 0.999)
-        else:
-            beta_start = linear_schedule_beta_start_end[0]
-            beta_end = linear_schedule_beta_start_end[1]
-            self.beta_t = torch.linspace(beta_start, beta_end, n_time_steps)
+        """
+        Linear variance schedule for the Denoising Diffusion Probabilistic Model (DDPM).
+        The naming scheme is the same as in [1]. In particular, `beta_t` is the
+        variance of the Gaussian noise added at time step t.
+
+        [1] J. Ho, A. Jain, and P. Abbeel, “Denoising Diffusion Probabilistic Models.” arXiv, Dec. 16, 2020.
+            Accessed: Mar. 20, 2023. [Online]. Available: http://arxiv.org/abs/2006.11239
+
+        :param beta_start_end: Start and end values of the variance during the noising process.
+            Defaults to values used in [1]
+        :param n_time_steps: Amount of noising steps in the model. Defaults to value used in [1].
+        """
+        self.n_steps = n_time_steps
+        beta_start = beta_start_end[0]
+        beta_end = beta_start_end[1]
+        self.beta_t = torch.linspace(beta_start, beta_end, n_time_steps)
         self.alpha_t = 1 - self.beta_t
         self.alpha_bar_t = torch.cumprod(self.alpha_t, dim=0)
         alpha_bar_t_minus_1 = torch.nn.functional.pad(self.alpha_bar_t[:-1], (1, 0), value=1)
@@ -40,7 +48,7 @@ RANDOM_NUMBER_GENERATOR.manual_seed(0)
 
 
 def get_noisy_batch_at_step_t(
-    original_batch: torch.Tensor, time_step: torch.Tensor, noise_schedule: NoiseSchedule, device="cuda",
+    original_batch: torch.Tensor, time_step: torch.Tensor, noise_schedule: VarianceSchedule, device="cuda",
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Take in an image batch and add noise according to diffusion step `t` of schedule `noise_schedule`.
@@ -138,8 +146,9 @@ class ConvBlock(torch.nn.Module):
 
 
 class Generator(torch.nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, variance_schedule: VarianceSchedule) -> None:
         super().__init__()
+        self.variance_schedule = variance_schedule
 
         self.time_mlp = torch.nn.Sequential(
             SinusoidalPositionEmbeddings(EMBEDDING_DIM),
@@ -148,17 +157,17 @@ class Generator(torch.nn.Module):
         )
 
         self.layers = torch.nn.ModuleList([  # input: 3 x 32 x 32
-            ConvBlock(3, 64),  # 32 x 16 x 16
-            ConvBlock(64, 128),  # 64 x 8 x 8
-            ConvBlock(128, 256),  # 128 x 4 x 4
-            ConvBlock(256, 512),  # 256 x 2 x 2
-            ConvBlock(512, 256, do_transpose=True),  # 128 x 4 x 4
-            ConvBlock(256, 128, do_transpose=True),  # 64 x 8 x 8
-            ConvBlock(128, 64, do_transpose=True),  # 32 x 16 x 16
-            ConvBlock(64, 64, do_transpose=True),  # 32 x 32 x 32
+            ConvBlock(3, 64),  # 64 x 16 x 16
+            ConvBlock(64, 128),  # 128 x 8 x 8
+            ConvBlock(128, 256),  # 256 x 4 x 4
+            ConvBlock(256, 512),  # 512 x 2 x 2
+            ConvBlock(512, 256, do_transpose=True),  # 256 x 4 x 4
+            ConvBlock(256, 128, do_transpose=True),  # 128 x 8 x 8
+            ConvBlock(128, 64, do_transpose=True),  # 64 x 16 x 16
+            ConvBlock(64, 64, do_transpose=True),  # 64 x 32 x 32
         ])
-        self.end_conv_1 = torch.nn.Conv2d(64, 32, 1)
-        self.end_conv_2 = torch.nn.Conv2d(32, 3, 1)
+        self.end_conv_1 = torch.nn.Conv2d(64, 32, 1)  # 32 x 32 x 32
+        self.end_conv_2 = torch.nn.Conv2d(32, 3, 1)  # 3 x 32 x 32
 
     def forward(self, x: torch.Tensor, time_step: torch.Tensor) -> torch.Tensor:
         time_emb = self.time_mlp(time_step)
@@ -190,9 +199,7 @@ class Generator(torch.nn.Module):
 @torch.no_grad()
 def draw_sample_from_generator(
     model: Generator,
-    n_diffusion_steps: int,
     batch_shape: tuple[int, ...],
-    noise_schedule: NoiseSchedule,
     seed: int | None = None,
     save_sample_as: Path | None = None
 ) -> torch.Tensor:
@@ -201,17 +208,18 @@ def draw_sample_from_generator(
     if seed is not None:
         rand_generator.manual_seed(0)
     batch = torch.randn(size=batch_shape, generator=rand_generator, device=device)
+    variance_schedule = model.variance_schedule
 
     if save_sample_as is not None:
         plot_batches = []
 
     model.eval()
-    for time_step in list(range(0, n_diffusion_steps))[::-1]:
+    for time_step in list(range(0, variance_schedule.n_steps))[::-1]:
         t = torch.full((batch_shape[0],), fill_value=time_step, device=device)
-        beta = noise_schedule.beta_t[time_step]
-        alpha = noise_schedule.alpha_t[time_step]
-        alpha_bar = noise_schedule.alpha_bar_t[time_step]
-        beta_tilde = noise_schedule.beta_tilde_t[time_step]
+        beta = variance_schedule.beta_t[time_step]
+        alpha = variance_schedule.alpha_t[time_step]
+        alpha_bar = variance_schedule.alpha_bar_t[time_step]
+        beta_tilde = variance_schedule.beta_tilde_t[time_step]
         noise_pred = model(batch, t)
 
         batch = 1 / torch.sqrt(alpha) * (batch - beta / torch.sqrt(1 - alpha_bar) * noise_pred)
@@ -222,7 +230,7 @@ def draw_sample_from_generator(
             batch = torch.clamp(batch, -1, 1)
 
         if save_sample_as is not None:
-            if time_step % 5 == 0:
+            if time_step % 10 == 0:
                 plot_batches.append(batch.detach().cpu())
 
     if save_sample_as is not None:
@@ -240,12 +248,12 @@ def train(
     model_file: Path | None = None
 ) -> None:
     dataset_location = Path(__file__).parents[1] / "data/LLD-icon.hdf5"
-    dataset = LargeLogoDataset(dataset_location, cluster=2)
+    dataset = LargeLogoDataset(dataset_location, cluster=3)
     data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
     tempdir = Path(tempfile.mkdtemp(prefix="logo_"))
 
-    schedule = NoiseSchedule(n_time_steps=n_diffusion_steps, linear_schedule_beta_start_end=(0.0001, 0.02))
-    model = Generator()
+    schedule = VarianceSchedule(n_time_steps=n_diffusion_steps)
+    model = Generator(schedule)
     if model_file is not None:
         model.load_state_dict(torch.load(model_file))
 
@@ -276,7 +284,6 @@ def train(
                 model,
                 n_diffusion_steps,
                 sample_shape,
-                schedule,
                 save_sample_as=tempdir / f"epoch_{epoch}.png"
             )
 
@@ -284,7 +291,7 @@ def train(
         running_losses.append(running_loss)
         running_loss = 0
 
-    torch.save(model.state_dict(), tempdir / "model.pt" )
+    torch.save(model.state_dict(), tempdir / "model.pt")
 
     plt.figure()
     plt.plot(np.array(running_losses))
