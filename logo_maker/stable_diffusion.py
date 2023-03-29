@@ -11,7 +11,6 @@ from tqdm import tqdm
 from logo_maker.data_loading import LargeLogoDataset, show_image_grid
 
 EMBEDDING_DIM = 32
-# todo naming convetions see paper XXXX (0.0001, 0.02)
 
 
 @dataclass
@@ -48,7 +47,7 @@ RANDOM_NUMBER_GENERATOR.manual_seed(0)
 
 
 def get_noisy_batch_at_step_t(
-    original_batch: torch.Tensor, time_step: torch.Tensor, noise_schedule: VarianceSchedule, device="cuda",
+    original_batch: torch.Tensor, time_step: torch.Tensor, schedule: VarianceSchedule, device="cuda",
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Take in an image batch and add noise according to diffusion step `t` of schedule `noise_schedule`.
@@ -56,7 +55,7 @@ def get_noisy_batch_at_step_t(
     :param original_batch: [n_img_batch, color, height, width] Batch of images to add noise to
     :param time_step: [n_img_batch] Diffusion step `t` to be applied to each image
     :param device: Device to use for calculation.
-    :param noise_schedule: Schedule according to which to add noise to the images.
+    :param schedule: Variance schedule according to which to add noise to the images.
     :return: [n_img_batch, color, height, width] Noise used,
         [n_img_batch, color, height, width] Noised batch of images
     """
@@ -67,10 +66,10 @@ def get_noisy_batch_at_step_t(
 
     noise = torch.randn(size=original_batch.shape, generator=RANDOM_NUMBER_GENERATOR, device=original_batch.device)
     noisy_batch = (
-            original_batch * torch.sqrt(noise_schedule.alpha_bar_t[time_step])[
+            original_batch * torch.sqrt(schedule.alpha_bar_t[time_step])[
                 :, np.newaxis, np.newaxis, np.newaxis
             ]
-            + noise * torch.sqrt(1 - noise_schedule.alpha_bar_t[time_step])[
+            + noise * torch.sqrt(1 - schedule.alpha_bar_t[time_step])[
                 :, np.newaxis, np.newaxis, np.newaxis
             ]
     )
@@ -282,7 +281,6 @@ def train(
             sample_shape = torch.Size((1, *batch.shape[1:]))
             _ = draw_sample_from_generator(
                 model,
-                n_diffusion_steps,
                 sample_shape,
                 save_sample_as=tempdir / f"epoch_{epoch}.png"
             )
