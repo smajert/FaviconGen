@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from logo_maker.data_loading import show_image_grid
-from logo_maker.stable_diffusion import Generator, draw_sample_from_generator, VarianceSchedule
+from logo_maker.denoising_diffusion import Generator, draw_sample_from_generator, VarianceSchedule
 from matplotlib import pyplot as plt
 import torch
 

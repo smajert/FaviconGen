@@ -5,7 +5,7 @@ import random
 import torch
 
 from logo_maker.data_loading import LargeLogoDataset, show_image_grid
-import logo_maker.stable_diffusion as sd
+import logo_maker.denoising_diffusion as sd
 
 
 @pytest.fixture()
