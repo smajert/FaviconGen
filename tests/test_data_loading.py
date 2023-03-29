@@ -1,5 +1,4 @@
 from matplotlib import pyplot as plt
-import PIL
 import pytest
 from torch.utils.data import DataLoader
 

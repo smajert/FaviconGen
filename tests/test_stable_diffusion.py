@@ -15,7 +15,7 @@ def LogoDataset(LogoDatasetLocation):
 
 @pytest.fixture()
 def LogoDataLoader(LogoDataset):
-    return torch.utils.data.DataLoader(LogoDataset, batch_size=6, shuffle=False)
+    return torch.utils.data.DataLoader(LogoDataset, batch_size=6, shuffle=False, cache_files=False)
 
 
 def test_noise_schedule_is_correct():
@@ -59,8 +59,6 @@ def test_make_batch_noisy(LogoDataset):
     )
     mean_of_image = torch.mean(noisy_tensor[4, ...])
     mean_of_noise = torch.mean(noise[4, ...])
-    print(mean_of_image)
-    print(mean_of_noise)
     torch.testing.assert_allclose(mean_of_image, -0.6392, rtol=0, atol=1e-4)
     torch.testing.assert_allclose(mean_of_noise, 4.7330e-05, rtol=0, atol=1e-4)
 

@@ -12,8 +12,7 @@ def probe_model(model_file: Path, n_samples: int = 32) -> None:
     model.load_state_dict(torch.load(model_file))
     model.eval()
 
-    schedule = model.variance_schedule
-    batch = draw_sample_from_generator(model, (n_samples, 3, 32, 32), schedule)
+    batch = draw_sample_from_generator(model, (n_samples, 3, 32, 32))
     show_image_grid(batch)
     plt.show()
 

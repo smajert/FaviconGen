@@ -1,3 +1,4 @@
+from enum import Enum
 from pathlib import Path
 import pickle
 import tempfile
@@ -21,6 +22,8 @@ BACKWARD_TRANSFORMS = transforms.Compose([
     transforms.Lambda(lambda t: (t + 1) / 2),  # Undo scaling between [-1, 1]
     transforms.ToPILImage()
 ])
+# todo see XXX for definition
+ClusterMethod = Enum("ClusterMethod", ["ae_grayscale", "rc_32", "rc_64", "rc_128"])
 
 
 def show_image_grid(tensor: Tensor, save_as: Path | None = None) -> None:
@@ -43,7 +46,8 @@ class LargeLogoDataset(Dataset):
         hdf5_file_location: Path,
         cache_files: bool = True,
         n_images: int | None = None,
-        cluster: int | None = None
+        cluster: int | None = None,
+        cluster_type: ClusterMethod = ClusterMethod.ae_grayscale
     ) -> None:
         self.transform = FORWARD_TRANSFORMS
         self.cache_files = cache_files
@@ -58,9 +62,13 @@ class LargeLogoDataset(Dataset):
 
         if self.images is None:
             with h5py.File(hdf5_file_location) as file:
-                stacked_images = file['data']
-                clusters = file['labels/ae_grayscale'][()]
+                stacked_images = file["data"]
+                if cluster_type == ClusterMethod.ae_grayscale:
+                    clusters = file[f"labels/{cluster_type.name}"][()]
+                else:
+                    clusters = file[f"labels/resnet/{cluster_type.name}"][()]
                 if self.cluster is not None:
+                    stacked_images = stacked_images[:len(clusters)]
                     stacked_images = stacked_images[clusters == self.cluster, ...]
                 else:
                     stacked_images = stacked_images[()]
