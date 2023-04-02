@@ -22,8 +22,17 @@ BACKWARD_TRANSFORMS = transforms.Compose([
     transforms.Lambda(lambda t: (t + 1) / 2),  # Undo scaling between [-1, 1]
     transforms.ToPILImage()
 ])
-# todo see XXX for definition
+# For explanation of clustering methods and process see:
+# [2] A. Sage, E. Agustsson, R. Timofte, and L. Van Gool,
+#    “Logo Synthesis and Manipulation with Clustered Generative Adversarial Networks,”
+#     in 2018 IEEE/CVF Conference on Computer Vision and Pattern Recognition, Jun. 2018,
+#     pp. 5879–5888. doi: 10.1109/CVPR.2018.00616.
 ClusterMethod = Enum("ClusterMethod", ["ae_grayscale", "rc_32", "rc_64", "rc_128"])
+
+
+class ClusterNamesAeGrayscale(Enum):
+    writing_on_black = 2
+    round_on_white = 25
 
 
 def show_image_grid(tensor: Tensor, save_as: Path | None = None) -> None:
@@ -46,7 +55,7 @@ class LargeLogoDataset(Dataset):
         hdf5_file_location: Path,
         cache_files: bool = True,
         n_images: int | None = None,
-        cluster: int | None = None,
+        cluster: ClusterNamesAeGrayscale | None = None,
         cluster_type: ClusterMethod = ClusterMethod.ae_grayscale
     ) -> None:
         self.transform = FORWARD_TRANSFORMS
@@ -69,7 +78,7 @@ class LargeLogoDataset(Dataset):
                     clusters = file[f"labels/resnet/{cluster_type.name}"][()]
                 if self.cluster is not None:
                     stacked_images = stacked_images[:len(clusters)]
-                    stacked_images = stacked_images[clusters == self.cluster, ...]
+                    stacked_images = stacked_images[clusters == self.cluster.value, ...]
                 else:
                     stacked_images = stacked_images[()]
                 self.images = [

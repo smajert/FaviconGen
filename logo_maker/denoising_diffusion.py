@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from logo_maker.data_loading import LargeLogoDataset, show_image_grid
+from logo_maker.data_loading import ClusterNamesAeGrayscale, LargeLogoDataset, show_image_grid
 
 EMBEDDING_DIM = 32
 
@@ -240,16 +240,18 @@ def draw_sample_from_generator(
 
 
 def train(
+    cluster: int | None,
     device="cuda",
-    n_epochs: int = 300,
+    n_epochs: int = 250,
     n_diffusion_steps: int = 1000,
     batch_size: int = 128,
     model_file: Path | None = None
 ) -> None:
     dataset_location = Path(__file__).parents[1] / "data/LLD-icon.hdf5"
-    dataset = LargeLogoDataset(dataset_location, cluster=3)
-    data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
+    dataset = LargeLogoDataset(dataset_location, cluster=cluster, cache_files=False)
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
     tempdir = Path(tempfile.mkdtemp(prefix="logo_"))
+    print(f"Saving model in directory {tempdir} ...")
 
     schedule = VarianceSchedule(n_time_steps=n_diffusion_steps)
     model = Generator(schedule)
@@ -268,10 +270,8 @@ def train(
             actual_batch_size = batch.shape[0]
             t = torch.randint(low=0, high=n_diffusion_steps, size=(actual_batch_size,))
             noisy_batch, noise = get_noisy_batch_at_step_t(batch, t, schedule, device=device)
-            # print("noise:", torch.max(noise), torch.mean(noise),  torch.min(noise))
 
             noise_pred = model(noisy_batch, t.to(device))
-            # print("noise_pred", torch.max(noise_pred), torch.mean(noise_pred), torch.min(noise_pred))
             loss = loss_fn(noise_pred, noise)
 
             loss.backward()
@@ -302,6 +302,6 @@ def train(
 
 if __name__ == "__main__":
     model_file = None
-    train(model_file=model_file)
+    train(ClusterNamesAeGrayscale.round_on_white, model_file=model_file)
 
 
