@@ -10,7 +10,7 @@ import logo_maker.denoising_diffusion as sd
 
 @pytest.fixture()
 def LogoDataset(LogoDatasetLocation):
-    return LargeLogoDataset(LogoDatasetLocation, cluster=2, cache_files=False)
+    return LargeLogoDataset(LogoDatasetLocation, cluster=sd.ClusterNamesAeGrayscale.round_on_white, cache_files=False)
 
 
 @pytest.fixture()
@@ -59,7 +59,7 @@ def test_make_batch_noisy(LogoDataset):
     )
     mean_of_image = torch.mean(noisy_tensor[4, ...])
     mean_of_noise = torch.mean(noise[4, ...])
-    torch.testing.assert_allclose(mean_of_image, -0.6392, rtol=0, atol=1e-4)
+    torch.testing.assert_allclose(mean_of_image, 0.3424, rtol=0, atol=1e-4)
     torch.testing.assert_allclose(mean_of_noise, 4.7330e-05, rtol=0, atol=1e-4)
 
     do_plot = False
