@@ -10,7 +10,7 @@ CLUSTER = ClusterNamesAeGrayscale.round_on_white
 
 
 class AutoEncoderParams:
-    N_EPOCHS = 150
+    N_EPOCHS = 300
     BATCH_SIZE = 128
-    LEARNING_RATE = 0.0003
+    LEARNING_RATE = 0.0004
     MODEL_FILE = None

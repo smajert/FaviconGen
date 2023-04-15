@@ -132,7 +132,7 @@ def train(
 if __name__ == "__main__":
     model_file = None
     train(
-        cluster=params.AutoEncoderParams.CLUSTER,
+        cluster=params.CLUSTER,
         n_epochs=params.AutoEncoderParams.N_EPOCHS,
         batch_size=params.AutoEncoderParams.BATCH_SIZE,
         learning_rate=params.AutoEncoderParams.LEARNING_RATE,
