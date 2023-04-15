@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 import shutil
 
@@ -8,36 +7,7 @@ import torch
 from tqdm import tqdm
 
 import logo_maker.params as params
-from logo_maker.data_loading import ClusterNamesAeGrayscale, LargeLogoDataset, show_image_grid
-
-
-class ResidualBlock(torch.nn.Module):
-    def __init__(
-        self,
-        channels: int,
-        kernel_size: int | tuple[int, int],
-        activation: torch.nn.modules.activation,
-        do_norm: bool = True
-    ) -> None:
-        super().__init__()
-        self.activation = activation
-
-        self.conv_1 = torch.nn.Conv2d(channels, channels, kernel_size, padding="same")
-        self.conv_2 = torch.nn.Conv2d(channels, channels, kernel_size, padding="same")
-
-        if do_norm:
-            self.norm_1 = torch.nn.LazyBatchNorm2d()
-            self.norm_2 = torch.nn.LazyBatchNorm2d()
-        else:
-            self.norm_1 = torch.nn.Identity()
-            self.norm_2 = torch.nn.Identity()
-
-    def forward(self, x):
-        residual = x
-        x = self.norm_1(self.activation(self.conv_1(x)))
-        x += residual
-        x = self.norm_2(self.activation(self.conv_2(x)))
-        return x
+from logo_maker.data_loading import LargeLogoDataset, show_image_grid
 
 
 class AutoEncoderConvBlock(torch.nn.Module):
@@ -82,15 +52,11 @@ class AutoEncoder(torch.nn.Module):
         super().__init__()
         self.activation = torch.nn.LeakyReLU()
         self.encoder = torch.nn.ModuleList([  # input: 3 x 32 x 32
-            ResidualBlock(3, 3, self.activation),
             AutoEncoderConvBlock(3, 8, self.activation),  # 16 x 16 x 16
-            ResidualBlock(8, 3, self.activation),
             AutoEncoderConvBlock(8, 16, self.activation),  # 32 x 8 x 8
         ])
         self.decoder = torch.nn.ModuleList([  # input: 3 x 8 x 8
-            ResidualBlock(16, 3, self.activation),
             AutoEncoderConvBlock(16, 8, self.activation, do_transpose=True),  # 16 x 16 x 16
-            ResidualBlock(8, 3, self.activation),
             AutoEncoderConvBlock(8, 3, self.activation, do_transpose=True),  # 3 x 32 x 32
         ])
         self.last_conv = torch.nn.Conv2d(3, 3, 1)
@@ -108,10 +74,11 @@ class AutoEncoder(torch.nn.Module):
 
 def train(
     cluster: int | None,
-    device="cuda",
-    n_epochs: int = 300,
-    batch_size: int = 128,
-    model_file: Path | None = None
+    n_epochs: int,
+    batch_size: int,
+    learning_rate: float,
+    model_file: Path | None,
+    device="cuda"
 ) -> None:
     dataset_location = Path(__file__).parents[1] / "data/LLD-icon.hdf5"
     dataset = LargeLogoDataset(dataset_location, cluster=cluster, cache_files=False)
@@ -128,12 +95,12 @@ def train(
         model.load_state_dict(torch.load(model_file))
 
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     loss_fn = torch.nn.MSELoss(reduction="sum")
     average_losses = []
     running_loss = 0
-    for epoch in range(n_epochs):
-        for batch_idx, batch in enumerate(tqdm(data_loader, total=len(data_loader), desc=f"Epoch {epoch}, Batches: ")):
+    for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
+        for batch_idx, batch in enumerate(data_loader):
             batch = batch.to(device)
             optimizer.zero_grad()
             # pytorch expects tuple for size here:
@@ -149,7 +116,7 @@ def train(
             show_image_grid(batch, save_as=model_storage_directory / f"original_{epoch}.png")
 
         average_loss = running_loss / len(dataset)
-        print(f"Epoch {epoch}/{n_epochs}, average loss = {average_loss}")
+        pbar.set_description(f"Current avg. loss: {average_loss:.3f}, Epochs")
         average_losses.append(average_loss)
         running_loss = 0
 
@@ -165,7 +132,9 @@ def train(
 if __name__ == "__main__":
     model_file = None
     train(
-        ClusterNamesAeGrayscale.round_on_white,
+        cluster=params.AutoEncoderParams.CLUSTER,
         n_epochs=params.AutoEncoderParams.N_EPOCHS,
-        model_file=model_file
+        batch_size=params.AutoEncoderParams.BATCH_SIZE,
+        learning_rate=params.AutoEncoderParams.LEARNING_RATE,
+        model_file=params.AutoEncoderParams.MODEL_FILE
     )

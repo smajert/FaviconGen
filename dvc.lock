@@ -8,12 +8,15 @@ stages:
       size: 798927457
     params:
       logo_maker/params.py:
-        AutoEncoderParams.BATCH_SIZE: 128
-        AutoEncoderParams.N_EPOCHS: 150
+        AutoEncoderParams:
+          N_EPOCHS: 150
+          BATCH_SIZE: 128
+          LEARNING_RATE: 0.0003
+          MODEL_FILE:
     outs:
     - path: outs/autoencoder/loss.csv
-      md5: 89f26abf8005c2f6044160e2d1d40cd7
-      size: 3412
+      md5: 7ecc8d3156cfa3bb5fb794e85b682e36
+      size: 3431
     - path: outs/autoencoder/model.pt
-      md5: 164fdf1c84059fa12f2a8115614f7795
-      size: 117205
+      md5: 598328ad6d1656639c29b30d59d3cfa1
+      size: 71063

@@ -7,8 +7,7 @@ stages:
       - outs/autoencoder/model.pt
     params:
       - logo_maker/params.py:
-        - AutoEncoderParams.N_EPOCHS
-        - AutoEncoderParams.BATCH_SIZE
+        - AutoEncoderParams
     plots:
       - outs/autoencoder/loss.csv:
           x: Epoch
