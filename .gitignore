@@ -104,3 +104,8 @@ venv.bak/
 .mypy_cache/
 /data
 /plots
+
+# DVC
+/data
+/outs
+/dvc_plots

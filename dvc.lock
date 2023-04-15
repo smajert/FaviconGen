@@ -1,0 +1,19 @@
+schema: '2.0'
+stages:
+  train_autoencoder:
+    cmd: python logo_maker/autoencoder.py
+    deps:
+    - path: data/LLD-icon.hdf5
+      md5: 91f56af2235117e44629fa608fed59ef
+      size: 798927457
+    params:
+      logo_maker/params.py:
+        AutoEncoderParams.BATCH_SIZE: 128
+        AutoEncoderParams.N_EPOCHS: 150
+    outs:
+    - path: outs/autoencoder/loss.csv
+      md5: 89f26abf8005c2f6044160e2d1d40cd7
+      size: 3412
+    - path: outs/autoencoder/model.pt
+      md5: 164fdf1c84059fa12f2a8115614f7795
+      size: 117205

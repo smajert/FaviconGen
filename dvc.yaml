@@ -1,0 +1,15 @@
+stages:
+  train_autoencoder:
+    cmd: python logo_maker/autoencoder.py
+    deps:
+      - data/LLD-icon.hdf5
+    outs:
+      - outs/autoencoder/model.pt
+    params:
+      - logo_maker/params.py:
+        - AutoEncoderParams.N_EPOCHS
+        - AutoEncoderParams.BATCH_SIZE
+    plots:
+      - outs/autoencoder/loss.csv:
+          x: Epoch
+          y: Loss
