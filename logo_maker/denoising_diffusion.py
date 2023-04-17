@@ -103,7 +103,7 @@ class SinusoidalPositionEmbeddings(torch.nn.Module):
         return sin_cos_alternating
 
 
-class ConvBlock(torch.nn.Module):
+class TimeEmbeddingConvBlock(torch.nn.Module):
     def __init__(
         self,
         channels_in: int,
@@ -156,14 +156,14 @@ class Generator(torch.nn.Module):
         )
 
         self.layers = torch.nn.ModuleList([  # input: 3 x 32 x 32
-            ConvBlock(3, 64),  # 64 x 16 x 16
-            ConvBlock(64, 128),  # 128 x 8 x 8
-            ConvBlock(128, 256),  # 256 x 4 x 4
-            ConvBlock(256, 512),  # 512 x 2 x 2
-            ConvBlock(512, 256, do_transpose=True),  # 256 x 4 x 4
-            ConvBlock(256, 128, do_transpose=True),  # 128 x 8 x 8
-            ConvBlock(128, 64, do_transpose=True),  # 64 x 16 x 16
-            ConvBlock(64, 64, do_transpose=True),  # 64 x 32 x 32
+            TimeEmbeddingConvBlock(3, 64),  # 64 x 16 x 16
+            TimeEmbeddingConvBlock(64, 128),  # 128 x 8 x 8
+            TimeEmbeddingConvBlock(128, 256),  # 256 x 4 x 4
+            TimeEmbeddingConvBlock(256, 512),  # 512 x 2 x 2
+            TimeEmbeddingConvBlock(512, 256, do_transpose=True),  # 256 x 4 x 4
+            TimeEmbeddingConvBlock(256, 128, do_transpose=True),  # 128 x 8 x 8
+            TimeEmbeddingConvBlock(128, 64, do_transpose=True),  # 64 x 16 x 16
+            TimeEmbeddingConvBlock(64, 64, do_transpose=True),  # 64 x 32 x 32
         ])
         self.end_conv_1 = torch.nn.Conv2d(64, 32, 1)  # 32 x 32 x 32
         self.end_conv_2 = torch.nn.Conv2d(32, 3, 1)  # 3 x 32 x 32
