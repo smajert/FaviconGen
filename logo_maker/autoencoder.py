@@ -117,9 +117,11 @@ def train(
         model_storage_directory.mkdir()
 
     # prepare discriminator
-    patch_disc = PatchDiscriminator()
-    patch_disc.to(device)
-    optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=learning_rate)
+    use_patch_discriminator = params.AutoEncoderParams.ADVERSARIAL_LOSS_WEIGHT is not None
+    if use_patch_discriminator:
+        patch_disc = PatchDiscriminator()
+        patch_disc.to(device)
+        optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=learning_rate)
 
     # prepare autoencoder
     autoencoder = AutoEncoder()
@@ -135,26 +137,30 @@ def train(
     value_for_reconstructed = torch.tensor([0], device=device, dtype=torch.float)
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
         for batch_idx, batch in enumerate(data_loader):
-            batch = batch.to(device) # batch does not track gradients -> does not need to be detached ever
-
-            optimizer_discriminator.zero_grad()
-            reconst_batch = autoencoder(batch)
-            disc_pred_original = patch_disc(batch)
-            disc_pred_reconstructed = patch_disc(reconst_batch.detach()) # needs to be detached so that autoencoder params aren't optimized at the same time
-            is_original = torch.broadcast_to(value_for_original, disc_pred_original.shape)
-            is_reconstructed = torch.broadcast_to(value_for_reconstructed, disc_pred_reconstructed.shape)
-            disc_loss = loss_fn(disc_pred_original, is_original) + loss_fn(disc_pred_reconstructed, is_reconstructed)
-            disc_loss.backward()
-            optimizer_discriminator.step()
+            batch = batch.to(device)  # batch does not track gradients -> does not need to be detached ever
 
             optimizer_generator.zero_grad()
-            #reconst_batch = autoencoder(batch)
+            reconst_batch = autoencoder(batch)
             reconstruction_loss = loss_fn(reconst_batch, batch)
-            disc_pred_reconstructed = patch_disc(reconst_batch)
-            adversarial_loss = loss_fn(disc_pred_reconstructed, is_original)  # needs to be detached so that discriminator params aren't optimized at the same time
-            generator_loss = reconstruction_loss + adversarial_loss
+            if use_patch_discriminator:
+                disc_pred_reconstructed = patch_disc(reconst_batch)
+                is_original = torch.broadcast_to(value_for_original, disc_pred_reconstructed.shape)
+                is_reconstructed = torch.broadcast_to(value_for_reconstructed, disc_pred_reconstructed.shape)
+                adversarial_loss = loss_fn(disc_pred_reconstructed, is_original)
+            else:
+                adversarial_loss = 0
+            generator_loss = reconstruction_loss + adversarial_loss * params.AutoEncoderParams.ADVERSARIAL_LOSS_WEIGHT
             generator_loss.backward()
             optimizer_generator.step()
+
+            if use_patch_discriminator:
+                optimizer_discriminator.zero_grad()
+                disc_pred_original = patch_disc(batch)
+                # reconst_batch = autoencoder(batch)
+                disc_pred_reconstructed = patch_disc(reconst_batch.detach())
+                disc_loss = loss_fn(disc_pred_original, is_original) + loss_fn(disc_pred_reconstructed, is_reconstructed)
+                disc_loss.backward()
+                optimizer_discriminator.step()
 
             running_loss += generator_loss.item()
         if (epoch + 1) % 50 == 0:
