@@ -19,35 +19,38 @@ class ConvBlock(torch.nn.Module):
         kernel: int | tuple[int, int] = 4,
         stride: int = 2,
         padding: int = 1,
+        n_non_transform_conv_layers: int = 2,
         do_norm: bool = True,
         do_transpose: bool = False,
     ) -> None:
         super().__init__()
-
         if do_norm:
-            self.norm_1 = torch.nn.LazyBatchNorm2d()
-            self.norm_2 = torch.nn.LazyBatchNorm2d()
+            norm_fn = torch.nn.LazyBatchNorm2d
         else:
-            self.norm_1 = torch.nn.Identity()
-            self.norm_2 = torch.nn.Identity()
+            norm_fn = torch.nn.Identity()
 
-        self.conv_1 = torch.nn.Conv2d(channels_in, channels_out, kernel_size=3, padding=1)  # width/height stay same
-        self.conv_2 = torch.nn.Conv2d(channels_out, channels_out, kernel_size=3, padding=1)  # width/height stay same
+        self.non_transform_layers = torch.nn.ModuleList()
+        for _ in range(n_non_transform_conv_layers):
+            self.non_transform_layers.extend([
+                torch.nn.Conv2d(channels_in, channels_in, kernel_size=3, padding=1),
+                norm_fn()
+            ])
+
         if do_transpose:
-            self.conv_3 = torch.nn.ConvTranspose2d(
-                channels_out, channels_out, kernel_size=kernel, stride=stride, padding=padding
+            self.conv_transform = torch.nn.ConvTranspose2d(
+                channels_in, channels_out, kernel_size=kernel, stride=stride, padding=padding
             )
         else:
-            self.conv_3 = torch.nn.Conv2d(
-                channels_out, channels_out, kernel_size=kernel, stride=stride, padding=padding
+            self.conv_transform = torch.nn.Conv2d(
+                channels_in, channels_out, kernel_size=kernel, stride=stride, padding=padding
             )
 
         self.activation = activation
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.activation(self.norm_1(self.conv_1(x)))
-        x = self.activation(self.norm_2(self.conv_2(x)))
-        return self.activation(self.conv_3(x))
+        for layer in self.non_transform_layers:
+            x = layer(x)
+        return self.activation(self.conv_transform(x))
 
 
 class AutoEncoder(torch.nn.Module):
@@ -57,10 +60,12 @@ class AutoEncoder(torch.nn.Module):
         self.encoder = torch.nn.ModuleList([  # input: 3 x 32 x 32
             ConvBlock(3, 8, self.activation),  # 8 x 16 x 16
             ConvBlock(8, 16, self.activation),  # 16 x 8 x 8
+            ConvBlock(16, 3, self.activation, kernel=3, padding=1, stride=1)  # 3 x 8 x 8
         ])
-        self.decoder = torch.nn.ModuleList([  # input: 16 x 8 x 8
-            ConvBlock(16, 8, self.activation, do_transpose=True),  # 8 x 16 x 16
-            ConvBlock(8, 3, self.activation, do_transpose=True),  # 3 x 32 x 32
+        self.decoder = torch.nn.ModuleList([  # input: 3 x 8 x 8
+            ConvBlock(3, 16, self.activation, do_transpose=True),  # 16 x 16 x 16
+            ConvBlock(16, 8, self.activation, do_transpose=True),  # 8 x 32 x 32
+            ConvBlock(8, 3, self.activation, kernel=3, padding=1, stride=1)  # 3 x 32 x 32
         ])
         self.last_conv = torch.nn.Conv2d(3, 3, 1)
         self.last_activation = torch.nn.Tanh()
@@ -80,11 +85,11 @@ class PatchDiscriminator(torch.nn.Module):
         super().__init__()
         self.activation = torch.nn.LeakyReLU()
         self.layers = torch.nn.ModuleList([  # input: 3 x 32 x 32
-            ConvBlock(3, 16, self.activation),  # 16 x 16 x 16
-            ConvBlock(16, 32, self.activation),  # 32 x 8 x 8
-            ConvBlock(32, 8, self.activation, kernel=3, stride=1, padding=1),  # 8 x 8 x 8
-            torch.nn.Conv2d(8, 1, kernel_size=3, padding=1), # 1 x 8 x 8
-            torch.nn.Softmax()
+            ConvBlock(3, 16, self.activation, n_non_transform_conv_layers=0),  # 16 x 16 x 16
+            ConvBlock(16, 32, self.activation, n_non_transform_conv_layers=1, kernel=3, padding=1),  # 32 x 16 x 16
+            ConvBlock(32, 8, self.activation, kernel=3, stride=1, padding=1, n_non_transform_conv_layers=1), # 8 x 16 x 16
+            torch.nn.Conv2d(8, 1, kernel_size=3, padding=1),  # 1 x 16 x 16
+            torch.nn.Sigmoid()
         ])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -111,40 +116,48 @@ def train(
         shutil.rmtree(model_storage_directory)
         model_storage_directory.mkdir()
 
+    # prepare discriminator
+    patch_disc = PatchDiscriminator()
+    patch_disc.to(device)
+    optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=learning_rate)
+
+    # prepare autoencoder
     autoencoder = AutoEncoder()
     if model_file is not None:
         autoencoder.load_state_dict(torch.load(model_file))
-
-    patch_disc = PatchDiscriminator()
-
     autoencoder.to(device)
-    patch_disc.to(device)
-    optimizer = torch.optim.Adam(list(autoencoder.parameters()) + list(patch_disc.parameters()), lr=learning_rate)
+    optimizer_generator = torch.optim.Adam(autoencoder.parameters(), lr=learning_rate)
     loss_fn = torch.nn.MSELoss(reduction="sum")
+
     average_losses = []
     running_loss = 0
     value_for_original = torch.tensor([1], device=device, dtype=torch.float)
     value_for_reconstructed = torch.tensor([0], device=device, dtype=torch.float)
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
         for batch_idx, batch in enumerate(data_loader):
-            batch = batch.to(device)
-            optimizer.zero_grad()
-            # pytorch expects tuple for size here:
+            batch = batch.to(device) # batch does not track gradients -> does not need to be detached ever
 
+            optimizer_discriminator.zero_grad()
             reconst_batch = autoencoder(batch)
-            reconstruction_loss = loss_fn(reconst_batch, batch)
             disc_pred_original = patch_disc(batch)
-            disc_pred_reconstructed = patch_disc(reconst_batch)
+            disc_pred_reconstructed = patch_disc(reconst_batch.detach()) # needs to be detached so that autoencoder params aren't optimized at the same time
             is_original = torch.broadcast_to(value_for_original, disc_pred_original.shape)
             is_reconstructed = torch.broadcast_to(value_for_reconstructed, disc_pred_reconstructed.shape)
             disc_loss = loss_fn(disc_pred_original, is_original) + loss_fn(disc_pred_reconstructed, is_reconstructed)
+            disc_loss.backward()
+            optimizer_discriminator.step()
 
-            loss = reconstruction_loss + disc_loss
+            optimizer_generator.zero_grad()
+            #reconst_batch = autoencoder(batch)
+            reconstruction_loss = loss_fn(reconst_batch, batch)
+            disc_pred_reconstructed = patch_disc(reconst_batch)
+            adversarial_loss = loss_fn(disc_pred_reconstructed, is_original)  # needs to be detached so that discriminator params aren't optimized at the same time
+            generator_loss = reconstruction_loss + adversarial_loss
+            generator_loss.backward()
+            optimizer_generator.step()
 
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-        if (epoch + 1) % 5 == 0:
+            running_loss += generator_loss.item()
+        if (epoch + 1) % 50 == 0:
             show_image_grid(reconst_batch, save_as=model_storage_directory / f"reconstruction_epoch_{epoch}.png")
             show_image_grid(batch, save_as=model_storage_directory / f"original_{epoch}.png")
 
