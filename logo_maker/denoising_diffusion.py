@@ -1,24 +1,23 @@
 from dataclasses import dataclass
 import math
 from pathlib import Path
-import tempfile
+import shutil
 
-from matplotlib import pyplot as plt
 import numpy as np
 import torch
 from tqdm import tqdm
 
+from logo_maker.blocks import ConvBlock
 from logo_maker.data_loading import ClusterNamesAeGrayscale, LargeLogoDataset, show_image_grid
-
-EMBEDDING_DIM = 32
+import logo_maker.params as params
 
 
 @dataclass
 class VarianceSchedule:
     def __init__(
         self,
-        beta_start_end: tuple[float, float] = (0.0001, 0.02),
-        n_time_steps: int = 1000
+        beta_start_end: tuple[float, float],
+        n_time_steps: int
     ) -> None:
         """
         Linear variance schedule for the Denoising Diffusion Probabilistic Model (DDPM).
@@ -103,67 +102,27 @@ class SinusoidalPositionEmbeddings(torch.nn.Module):
         return sin_cos_alternating
 
 
-class TimeEmbeddingConvBlock(torch.nn.Module):
-    def __init__(
-        self,
-        channels_in: int,
-        channels_out: int,
-        activation: torch.nn.modules.activation = torch.nn.LeakyReLU(),
-        embedding_dim: int = EMBEDDING_DIM,
-        do_norm: bool = True,
-        do_transpose: bool = False,
-    ) -> None:
-        super().__init__()
-        self.time_mlp = torch.nn.Linear(embedding_dim, channels_out)
-
-        if do_norm:
-            self.norm_1 = torch.nn.LazyBatchNorm2d()
-            self.norm_2 = torch.nn.LazyBatchNorm2d()
-        else:
-            self.norm_1 = torch.nn.Identity()
-            self.norm_2 = torch.nn.Identity()
-
-        self.conv_1 = torch.nn.Conv2d(channels_in, channels_out, kernel_size=3, padding=1)  # width/height stay same
-        self.conv_2 = torch.nn.Conv2d(channels_out, channels_out, kernel_size=3, padding=1)  # width/height stay same
-        if do_transpose:
-            self.conv_3 = torch.nn.ConvTranspose2d(
-                channels_out, channels_out, kernel_size=4, stride=2, padding=1
-            )
-        else:
-            self.conv_3 = torch.nn.Conv2d(
-                channels_out, channels_out, kernel_size=4, stride=2, padding=1
-            )
-
-        self.activation = activation
-
-    def forward(self, x: torch.Tensor, time_step_emb: torch.Tensor) -> torch.Tensor:
-        x = self.activation(self.norm_1(self.conv_1(x)))
-        time_emb = self.activation(self.time_mlp(time_step_emb))[:, :, np.newaxis, np.newaxis]
-        x = x + time_emb  # [n_batch, channels, n_height, n_width]
-        x = self.norm_2(self.activation(self.conv_2(x)))
-        return self.activation(self.conv_3(x))
-
-
 class Generator(torch.nn.Module):
-    def __init__(self, variance_schedule: VarianceSchedule) -> None:
+    def __init__(self, variance_schedule: VarianceSchedule, embedding_dim: int) -> None:
         super().__init__()
         self.variance_schedule = variance_schedule
 
         self.time_mlp = torch.nn.Sequential(
-            SinusoidalPositionEmbeddings(EMBEDDING_DIM),
-            torch.nn.Linear(EMBEDDING_DIM, EMBEDDING_DIM),
+            SinusoidalPositionEmbeddings(embedding_dim),
+            torch.nn.Linear(embedding_dim, embedding_dim),
             torch.nn.LeakyReLU()
         )
 
+        self.activation = torch.nn.LeakyReLU()
         self.layers = torch.nn.ModuleList([  # input: 3 x 32 x 32
-            TimeEmbeddingConvBlock(3, 64),  # 64 x 16 x 16
-            TimeEmbeddingConvBlock(64, 128),  # 128 x 8 x 8
-            TimeEmbeddingConvBlock(128, 256),  # 256 x 4 x 4
-            TimeEmbeddingConvBlock(256, 512),  # 512 x 2 x 2
-            TimeEmbeddingConvBlock(512, 256, do_transpose=True),  # 256 x 4 x 4
-            TimeEmbeddingConvBlock(256, 128, do_transpose=True),  # 128 x 8 x 8
-            TimeEmbeddingConvBlock(128, 64, do_transpose=True),  # 64 x 16 x 16
-            TimeEmbeddingConvBlock(64, 64, do_transpose=True),  # 64 x 32 x 32
+            ConvBlock(3, 64, self.activation, time_embedding_dimension=embedding_dim),  # 64 x 16 x 16
+            ConvBlock(64, 128, self.activation, time_embedding_dimension=embedding_dim),  # 128 x 8 x 8
+            ConvBlock(128, 256, self.activation, time_embedding_dimension=embedding_dim),  # 256 x 4 x 4
+            ConvBlock(256, 512, self.activation, time_embedding_dimension=embedding_dim),  # 512 x 2 x 2
+            ConvBlock(512, 256, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 256 x 4 x 4
+            ConvBlock(256, 128, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 128 x 8 x 8
+            ConvBlock(128, 64, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 16 x 16
+            ConvBlock(64, 64, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 32 x 32
         ])
         self.end_conv_1 = torch.nn.Conv2d(64, 32, 1)  # 32 x 32 x 32
         self.end_conv_2 = torch.nn.Conv2d(32, 3, 1)  # 3 x 32 x 32
@@ -202,7 +161,7 @@ def draw_sample_from_generator(
     seed: int | None = None,
     save_sample_as: Path | None = None
 ) -> torch.Tensor:
-    device = model.layers[0].conv_1.weight.device
+    device = model.layers[0].non_transform_layers[0].weight.device
     rand_generator = torch.Generator(device=device)
     if seed is not None:
         rand_generator.manual_seed(0)
@@ -240,31 +199,38 @@ def draw_sample_from_generator(
 
 
 def train(
-    cluster: int | None,
-    device="cuda",
-    n_epochs: int = 250,
-    n_diffusion_steps: int = 1000,
-    batch_size: int = 128,
+    batch_size: int,
+    beta_start_end: tuple[float, float],
+    cluster: ClusterNamesAeGrayscale | None,
+    device: str,
+    embedding_dim: int,
+    learning_rate: float,
+    n_epochs: int,
+    n_diffusion_steps: int,
     model_file: Path | None = None
 ) -> None:
     dataset_location = Path(__file__).parents[1] / "data/LLD-icon.hdf5"
     dataset = LargeLogoDataset(dataset_location, cluster=cluster, cache_files=False)
     data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    tempdir = Path(tempfile.mkdtemp(prefix="logo_"))
-    print(f"Saving model in directory {tempdir} ...")
+    model_storage_directory = params.OUTS_BASE_DIR / "train_diffusion_model"
 
-    schedule = VarianceSchedule(n_time_steps=n_diffusion_steps)
-    model = Generator(schedule)
+    print(f"Cleaning output directory {model_storage_directory} ...")
+    if model_storage_directory.exists():
+        shutil.rmtree(model_storage_directory)
+    model_storage_directory.mkdir(exist_ok=True)
+
+    schedule = VarianceSchedule(beta_start_end, n_diffusion_steps)
+    model = Generator(schedule, embedding_dim)
     if model_file is not None:
         model.load_state_dict(torch.load(model_file))
 
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    loss_fn = torch.nn.MSELoss()
-    running_losses = []
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    loss_fn = torch.nn.MSELoss(reduction="sum")
+    average_losses = []
     running_loss = 0
-    for epoch in range(n_epochs):
-        for batch_idx, batch in enumerate(tqdm(data_loader, total=len(data_loader), desc=f"Epoch {epoch}, Batches: ")):
+    for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
+        for batch_idx, batch in enumerate(data_loader):
             optimizer.zero_grad()
             # pytorch expects tuple for size here:
             actual_batch_size = batch.shape[0]
@@ -277,31 +243,38 @@ def train(
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
-        if (epoch + 1) % 50 == 0:
+        if (epoch + 1) % 10 == 0:
             sample_shape = torch.Size((1, *batch.shape[1:]))
             _ = draw_sample_from_generator(
                 model,
                 sample_shape,
-                save_sample_as=tempdir / f"epoch_{epoch}.png"
+                save_sample_as=model_storage_directory / f"epoch_{epoch}.png"
             )
 
-        print(f"Epoch {epoch}/{n_epochs}, running loss = {running_loss}")
-        running_losses.append(running_loss)
+        average_loss = running_loss / len(dataset)
+        pbar.set_description(f"Current avg. loss: {average_loss:.3f}, Epochs")
+        average_losses.append(average_loss)
         running_loss = 0
 
-    torch.save(model.state_dict(), tempdir / "model.pt")
+    torch.save(model.state_dict(), model_storage_directory / "model.pt")
 
-    plt.figure()
-    plt.plot(np.array(running_losses))
-    plt.grid()
-    plt.xlabel("Number of epochs")
-    plt.ylabel(f"Loss for batch size {batch_size}")
-    plt.savefig(tempdir / "loss_curve.pdf")
-    plt.show()
+    with open(model_storage_directory / "loss.csv", "w") as file:
+        file.write("Epoch,Loss\n")
+        for epoch, loss in enumerate(average_losses):
+            file.write(f"{epoch},{loss}\n")
 
 
 if __name__ == "__main__":
     model_file = None
-    train(ClusterNamesAeGrayscale.round_on_white, model_file=model_file)
+    train(
+        batch_size=params.DiffusionModelParams.BATCH_SIZE,
+        beta_start_end=(params.DiffusionModelParams.VAR_SCHEDULE_START, params.DiffusionModelParams.VAR_SCHEDULE_END),
+        cluster=params.CLUSTER,
+        device=params.DEVICE,
+        embedding_dim=params.DiffusionModelParams.EMBEDDING_DIMENSION,
+        learning_rate=params.DiffusionModelParams.LEARNING_RATE,
+        n_epochs=params.DiffusionModelParams.EPOCHS,
+        n_diffusion_steps=params.DiffusionModelParams.DIFFUSION_STEPS
+    )
 
 

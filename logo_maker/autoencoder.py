@@ -1,74 +1,12 @@
 from pathlib import Path
 import shutil
 
-from matplotlib import pyplot as plt
-import numpy as np
 import torch
 from tqdm import tqdm
 
+from logo_maker.blocks import ConvBlock
+from logo_maker.data_loading import ClusterNamesAeGrayscale, LargeLogoDataset, show_image_grid
 import logo_maker.params as params
-from logo_maker.data_loading import LargeLogoDataset, show_image_grid
-
-
-class ConvBlock(torch.nn.Module):
-    """
-    Simple convolutional block, adding `n_non_transform_conv_layers` before
-    a conv layer that reduces/increases width and height by a factor of two, depending
-    on whether `do_transpose` is set or not.
-
-    """
-    def __init__(
-        self,
-        channels_in: int,
-        channels_out: int,
-        activation: torch.nn.modules.activation,
-        kernel: int | tuple[int, int] = 4,
-        stride: int = 2,
-        padding: int = 1,
-        n_non_transform_conv_layers: int = 2,
-        time_embedding_dimension: int | None = None,
-        do_norm: bool = True,
-        do_transpose: bool = False,
-    ) -> None:
-        super().__init__()
-        self.time_embedding_dimension = time_embedding_dimension
-        if time_embedding_dimension is not None:
-            self.time_mlp = torch.nn.Linear(self.time_embedding_dimension, channels_out)
-
-        if do_norm:
-            norm_fn = torch.nn.LazyBatchNorm2d
-        else:
-            norm_fn = torch.nn.Identity()
-
-        self.non_transform_layers = torch.nn.ModuleList()
-        for _ in range(n_non_transform_conv_layers):
-            self.non_transform_layers.extend([
-                torch.nn.Conv2d(channels_in, channels_in, kernel_size=3, padding=1),
-                norm_fn()
-            ])
-
-        if do_transpose:
-            self.conv_transform = torch.nn.ConvTranspose2d(
-                channels_in, channels_out, kernel_size=kernel, stride=stride, padding=padding
-            )
-        else:
-            self.conv_transform = torch.nn.Conv2d(
-                channels_in, channels_out, kernel_size=kernel, stride=stride, padding=padding
-            )
-
-        self.activation = activation
-
-    def forward(self, x: torch.Tensor, time_step_emb: torch.Tensor | None = None) -> torch.Tensor:
-        if time_step_emb is not None:
-            if self.time_embedding_dimension is None:
-                raise ValueError("Time step given, but not embedding dimension specified")
-            time_emb = self.activation(self.time_mlp(time_step_emb))[:, :, np.newaxis, np.newaxis]
-        else:
-            time_emb = 0
-
-        for layer in self.non_transform_layers:
-            x = self.activation(layer(x + time_emb))
-        return self.activation(self.conv_transform(x))
 
 
 class AutoEncoder(torch.nn.Module):
@@ -117,12 +55,12 @@ class PatchDiscriminator(torch.nn.Module):
 
 
 def train(
-    cluster: int | None,
+    cluster: ClusterNamesAeGrayscale | None,
     n_epochs: int,
     batch_size: int,
     learning_rate: float,
     model_file: Path | None,
-    device="cuda"
+    device: str
 ) -> None:
     dataset_location = Path(__file__).parents[1] / "data/LLD-icon.hdf5"
     dataset = LargeLogoDataset(dataset_location, cluster=cluster, cache_files=False)
@@ -132,7 +70,7 @@ def train(
     print(f"Cleaning output directory {model_storage_directory} ...")
     if model_storage_directory.exists():
         shutil.rmtree(model_storage_directory)
-        model_storage_directory.mkdir()
+    model_storage_directory.mkdir(exist_ok=True)
 
     # prepare discriminator
     use_patch_discriminator = params.AutoEncoderParams.ADVERSARIAL_LOSS_WEIGHT is not None
@@ -207,8 +145,9 @@ if __name__ == "__main__":
     model_file = None
     train(
         cluster=params.CLUSTER,
-        n_epochs=params.AutoEncoderParams.N_EPOCHS,
+        n_epochs=params.AutoEncoderParams.EPOCHS,
         batch_size=params.AutoEncoderParams.BATCH_SIZE,
         learning_rate=params.AutoEncoderParams.LEARNING_RATE,
-        model_file=params.AutoEncoderParams.MODEL_FILE
+        model_file=params.AutoEncoderParams.MODEL_FILE,
+        device=params.DEVICE
     )

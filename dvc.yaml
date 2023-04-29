@@ -12,3 +12,17 @@ stages:
       - outs/train_autoencoder/loss.csv:
           x: Epoch
           y: Loss
+
+  train_diffusion_model:
+    cmd: python logo_maker/denoising_diffusion.py
+    deps:
+      - data/LLD-icon.hdf5
+    outs:
+      - outs/train_diffusion_model/model.pt
+    params:
+      - logo_maker/params.py:
+        - DiffusionModelParams
+    plots:
+      - outs/train_diffusion_model/loss.csv:
+          x: Epoch
+          y: Loss

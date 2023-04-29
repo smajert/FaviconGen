@@ -114,7 +114,9 @@ def test_model_runs(device: str = "cuda"):
     random.seed(0)
     pseudo_batch = torch.rand((32, 3, 32, 32), device=device)
     pseudo_time_steps = torch.randint(0, 10, size=(32,), device=device)
-    model = sd.Generator(sd.VarianceSchedule(n_time_steps=1000)).to(device)
+    model = sd.Generator(
+        sd.VarianceSchedule(n_time_steps=1000, beta_start_end=(0.0001, 0.02)), 32
+    ).to(device)
     test_output = model(pseudo_batch, pseudo_time_steps)
     if device == "cpu":
         torch.testing.assert_allclose(torch.mean(test_output), torch.tensor(-0.0508, device=device), rtol=0, atol=1e-4)
