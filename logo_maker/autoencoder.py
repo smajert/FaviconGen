@@ -11,6 +11,12 @@ from logo_maker.data_loading import LargeLogoDataset, show_image_grid
 
 
 class ConvBlock(torch.nn.Module):
+    """
+    Simple convolutional block, adding `n_non_transform_conv_layers` before
+    a conv layer that reduces/increases width and height by a factor of two, depending
+    on whether `do_transpose` is set or not.
+
+    """
     def __init__(
         self,
         channels_in: int,
@@ -20,10 +26,15 @@ class ConvBlock(torch.nn.Module):
         stride: int = 2,
         padding: int = 1,
         n_non_transform_conv_layers: int = 2,
+        time_embedding_dimension: int | None = None,
         do_norm: bool = True,
         do_transpose: bool = False,
     ) -> None:
         super().__init__()
+        self.time_embedding_dimension = time_embedding_dimension
+        if time_embedding_dimension is not None:
+            self.time_mlp = torch.nn.Linear(self.time_embedding_dimension, channels_out)
+
         if do_norm:
             norm_fn = torch.nn.LazyBatchNorm2d
         else:
@@ -47,9 +58,16 @@ class ConvBlock(torch.nn.Module):
 
         self.activation = activation
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, time_step_emb: torch.Tensor | None = None) -> torch.Tensor:
+        if time_step_emb is not None:
+            if self.time_embedding_dimension is None:
+                raise ValueError("Time step given, but not embedding dimension specified")
+            time_emb = self.activation(self.time_mlp(time_step_emb))[:, :, np.newaxis, np.newaxis]
+        else:
+            time_emb = 0
+
         for layer in self.non_transform_layers:
-            x = layer(x)
+            x = self.activation(layer(x + time_emb))
         return self.activation(self.conv_transform(x))
 
 
@@ -60,10 +78,10 @@ class AutoEncoder(torch.nn.Module):
         self.encoder = torch.nn.ModuleList([  # input: 3 x 32 x 32
             ConvBlock(3, 8, self.activation),  # 8 x 16 x 16
             ConvBlock(8, 16, self.activation),  # 16 x 8 x 8
-            ConvBlock(16, 3, self.activation, kernel=3, padding=1, stride=1)  # 3 x 8 x 8
+            ConvBlock(16, 8, self.activation, kernel=3, padding=1, stride=1)  # 8 x 8 x 8
         ])
-        self.decoder = torch.nn.ModuleList([  # input: 3 x 8 x 8
-            ConvBlock(3, 16, self.activation, do_transpose=True),  # 16 x 16 x 16
+        self.decoder = torch.nn.ModuleList([  # input: 8 x 8 x 8
+            ConvBlock(8, 16, self.activation, do_transpose=True),  # 16 x 16 x 16
             ConvBlock(16, 8, self.activation, do_transpose=True),  # 8 x 32 x 32
             ConvBlock(8, 3, self.activation, kernel=3, padding=1, stride=1)  # 3 x 32 x 32
         ])
@@ -86,9 +104,9 @@ class PatchDiscriminator(torch.nn.Module):
         self.activation = torch.nn.LeakyReLU()
         self.layers = torch.nn.ModuleList([  # input: 3 x 32 x 32
             ConvBlock(3, 16, self.activation, n_non_transform_conv_layers=0),  # 16 x 16 x 16
-            ConvBlock(16, 32, self.activation, n_non_transform_conv_layers=1, kernel=3, padding=1),  # 32 x 16 x 16
-            ConvBlock(32, 8, self.activation, kernel=3, stride=1, padding=1, n_non_transform_conv_layers=1), # 8 x 16 x 16
-            torch.nn.Conv2d(8, 1, kernel_size=3, padding=1),  # 1 x 16 x 16
+            ConvBlock(16, 32, self.activation, n_non_transform_conv_layers=1, kernel=7, padding=3),  # 32 x 16 x 16
+            #ConvBlock(32, 8, self.activation, kernel=3, stride=1, padding=1, n_non_transform_conv_layers=1), # 8 x 16 x 16
+            torch.nn.Conv2d(32, 1, kernel_size=5, padding=2),  # 1 x 16 x 16
             torch.nn.Sigmoid()
         ])
 
@@ -147,18 +165,22 @@ def train(
                 is_original = torch.broadcast_to(value_for_original, disc_pred_reconstructed.shape)
                 is_reconstructed = torch.broadcast_to(value_for_reconstructed, disc_pred_reconstructed.shape)
                 adversarial_loss = loss_fn(disc_pred_reconstructed, is_original)
+                adversarial_loss_weight = params.AutoEncoderParams.ADVERSARIAL_LOSS_WEIGHT
             else:
                 adversarial_loss = 0
-            generator_loss = reconstruction_loss + adversarial_loss * params.AutoEncoderParams.ADVERSARIAL_LOSS_WEIGHT
+                adversarial_loss_weight = 0
+            generator_loss = reconstruction_loss + adversarial_loss * adversarial_loss_weight
             generator_loss.backward()
             optimizer_generator.step()
 
             if use_patch_discriminator:
                 optimizer_discriminator.zero_grad()
                 disc_pred_original = patch_disc(batch)
-                # reconst_batch = autoencoder(batch)
+                reconst_batch = autoencoder(batch)
                 disc_pred_reconstructed = patch_disc(reconst_batch.detach())
-                disc_loss = loss_fn(disc_pred_original, is_original) + loss_fn(disc_pred_reconstructed, is_reconstructed)
+                disc_loss = (
+                    loss_fn(disc_pred_original, is_original) + loss_fn(disc_pred_reconstructed, is_reconstructed)
+                )
                 disc_loss.backward()
                 optimizer_discriminator.step()
 

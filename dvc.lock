@@ -9,15 +9,15 @@ stages:
     params:
       logo_maker/params.py:
         AutoEncoderParams:
-          ADVERSARIAL_LOSS_WEIGHT: 10
-          N_EPOCHS: 100
+          ADVERSARIAL_LOSS_WEIGHT: 3
+          N_EPOCHS: 200
           BATCH_SIZE: 128
           LEARNING_RATE: 0.0004
           MODEL_FILE:
     outs:
     - path: outs/train_autoencoder/loss.csv
-      md5: d6a1f3aeb4b17ebbc75e6d9c6a159bf8
-      size: 2208
+      md5: 0125a246fbc3273ecc9b55c948367810
+      size: 4564
     - path: outs/train_autoencoder/model.pt
-      md5: 7169bcaefb5f35ca868ef464982df338
-      size: 104119
+      md5: 73465a6ff221a41fcf806bb0e6946e76
+      size: 115959

@@ -17,8 +17,8 @@ CLUSTER = ClusterNamesAeGrayscale.round_on_white
 
 
 class AutoEncoderParams:
-    ADVERSARIAL_LOSS_WEIGHT: float | None = 10
-    N_EPOCHS: int = 100
+    ADVERSARIAL_LOSS_WEIGHT: float | None = 3
+    N_EPOCHS: int = 200
     BATCH_SIZE: int = 128
     LEARNING_RATE: float = 0.0004
     MODEL_FILE: Path | None = None
