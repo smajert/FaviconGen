@@ -13,27 +13,24 @@ class AutoEncoder(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
         self.activation = torch.nn.LeakyReLU()
-        self.encoder = torch.nn.ModuleList([  # input: 3 x 32 x 32
+        self.encoder = torch.nn.Sequential(  # input: 3 x 32 x 32
             ConvBlock(3, 8, self.activation),  # 8 x 16 x 16
             ConvBlock(8, 16, self.activation),  # 16 x 8 x 8
-            ConvBlock(16, 8, self.activation, kernel=3, padding=1, stride=1)  # 8 x 8 x 8
-        ])
-        self.decoder = torch.nn.ModuleList([  # input: 8 x 8 x 8
-            ConvBlock(8, 16, self.activation, do_transpose=True),  # 16 x 16 x 16
+            ConvBlock(16, 3, self.activation, kernel=3, padding=1, stride=1)  # 3 x 8 x 8
+        )
+        self.decoder = torch.nn.Sequential(  # input: 8 x 8 x 8
+            ConvBlock(3, 16, self.activation, do_transpose=True),  # 16 x 16 x 16
             ConvBlock(16, 8, self.activation, do_transpose=True),  # 8 x 32 x 32
-            ConvBlock(8, 3, self.activation, kernel=3, padding=1, stride=1)  # 3 x 32 x 32
-        ])
-        self.last_conv = torch.nn.Conv2d(3, 3, 1)
-        self.last_activation = torch.nn.Tanh()
+            ConvBlock(8, 3, self.activation, kernel=3, padding=1, stride=1),  # 3 x 32 x 32
+            torch.nn.Conv2d(3, 3, 1),  # 3 x 32 x 32
+            torch.nn.Tanh()  # 3 x 32 x 32
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        for encode_layer in self.encoder:
-            x = encode_layer(x)
+        x = self.encoder(x)
+        x = self.decoder(x)
 
-        for decode_layer in self.decoder:
-            x = decode_layer(x)
-
-        return self.last_activation(self.last_conv(x))
+        return x
 
 
 class PatchDiscriminator(torch.nn.Module):

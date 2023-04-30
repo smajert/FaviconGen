@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
+from logo_maker.autoencoder import AutoEncoder
 from logo_maker.blocks import ConvBlock
 from logo_maker.data_loading import ClusterNamesAeGrayscale, LargeLogoDataset, show_image_grid
 import logo_maker.params as params
@@ -17,7 +18,8 @@ class VarianceSchedule:
     def __init__(
         self,
         beta_start_end: tuple[float, float],
-        n_time_steps: int
+        n_time_steps: int,
+        device: str = "cpu"
     ) -> None:
         """
         Linear variance schedule for the Denoising Diffusion Probabilistic Model (DDPM).
@@ -31,10 +33,11 @@ class VarianceSchedule:
             Defaults to values used in [1]
         :param n_time_steps: Amount of noising steps in the model. Defaults to value used in [1].
         """
+        super().__init__()
         self.n_steps = n_time_steps
         beta_start = beta_start_end[0]
         beta_end = beta_start_end[1]
-        self.beta_t = torch.linspace(beta_start, beta_end, n_time_steps)
+        self.beta_t = torch.linspace(beta_start, beta_end, n_time_steps, device=device)
         self.alpha_t = 1 - self.beta_t
         self.alpha_bar_t = torch.cumprod(self.alpha_t, dim=0)
         alpha_bar_t_minus_1 = torch.nn.functional.pad(self.alpha_bar_t[:-1], (1, 0), value=1)
@@ -46,7 +49,7 @@ RANDOM_NUMBER_GENERATOR.manual_seed(0)
 
 
 def get_noisy_batch_at_step_t(
-    original_batch: torch.Tensor, time_step: torch.Tensor, schedule: VarianceSchedule, device="cuda",
+    original_batch: torch.Tensor, time_step: torch.Tensor, schedule: VarianceSchedule,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Take in an image batch and add noise according to diffusion step `t` of schedule `noise_schedule`.
@@ -63,7 +66,7 @@ def get_noisy_batch_at_step_t(
             f"Batch size {original_batch.shape[0]} does not match number of requested diffusion steps {time_step.shape[0]}."
         )
 
-    noise = torch.randn(size=original_batch.shape, generator=RANDOM_NUMBER_GENERATOR, device=original_batch.device)
+    noise = torch.randn(size=original_batch.shape, device=original_batch.device)
     noisy_batch = (
             original_batch * torch.sqrt(schedule.alpha_bar_t[time_step])[
                 :, np.newaxis, np.newaxis, np.newaxis
@@ -73,7 +76,7 @@ def get_noisy_batch_at_step_t(
             ]
     )
 
-    return noisy_batch.to(device), noise.to(device)
+    return noisy_batch, noise
 
 
 class SinusoidalPositionEmbeddings(torch.nn.Module):
@@ -105,6 +108,7 @@ class SinusoidalPositionEmbeddings(torch.nn.Module):
 class Generator(torch.nn.Module):
     def __init__(self, variance_schedule: VarianceSchedule, embedding_dim: int) -> None:
         super().__init__()
+
         self.variance_schedule = variance_schedule
 
         self.time_mlp = torch.nn.Sequential(
@@ -114,58 +118,50 @@ class Generator(torch.nn.Module):
         )
 
         self.activation = torch.nn.LeakyReLU()
-        self.layers = torch.nn.ModuleList([  # input: 3 x 32 x 32
-            ConvBlock(3, 64, self.activation, time_embedding_dimension=embedding_dim),  # 64 x 16 x 16
-            ConvBlock(64, 128, self.activation, time_embedding_dimension=embedding_dim),  # 128 x 8 x 8
-            ConvBlock(128, 256, self.activation, time_embedding_dimension=embedding_dim),  # 256 x 4 x 4
-            ConvBlock(256, 512, self.activation, time_embedding_dimension=embedding_dim),  # 512 x 2 x 2
-            ConvBlock(512, 256, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 256 x 4 x 4
-            ConvBlock(256, 128, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 128 x 8 x 8
-            ConvBlock(128, 64, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 16 x 16
-            ConvBlock(64, 64, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 32 x 32
+        self.layers_with_emb = torch.nn.ModuleList([  # input: 3 x 8 x 8
+            ConvBlock(3, 64, self.activation, time_embedding_dimension=embedding_dim),  # 64 x 4 x 4
+            ConvBlock(64, 128, self.activation, time_embedding_dimension=embedding_dim), # 128 x 2 x 2
+            ConvBlock(128, 64, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 4 x 4
+            ConvBlock(64, 64, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 8 x 8
         ])
-        self.end_conv_1 = torch.nn.Conv2d(64, 32, 1)  # 32 x 32 x 32
-        self.end_conv_2 = torch.nn.Conv2d(32, 3, 1)  # 3 x 32 x 32
+
+        self.last_layers = torch.nn.ModuleList([
+            torch.nn.Conv2d(64, 32, 1),
+            torch.nn.LeakyReLU(),
+            torch.nn.Conv2d(32, 3, 1),
+            torch.nn.Tanh()
+        ])
 
     def forward(self, x: torch.Tensor, time_step: torch.Tensor) -> torch.Tensor:
         time_emb = self.time_mlp(time_step)
-        for layer_idx, layer in enumerate(self.layers):
+        for layer_idx, layer in enumerate(self.layers_with_emb):
             x = layer(x, time_emb)
-
-            # skip connection 0 -> 6
+            # skip connection 0 -> 2
             if layer_idx == 0:
-                residual_0_to_6 = x
-            if layer_idx == 6:
-                x = x + residual_0_to_6
-
-            # skip connection 1 -> 5
-            if layer_idx == 1:
-                residual_1_to_5 = x
-            if layer_idx == 5:
-                x = x + residual_1_to_5
-
-            # skip connection 2 -> 4
+                residual_0_to_2 = x
             if layer_idx == 2:
-                residual_2_to_4 = x
-            if layer_idx == 4:
-                x = x + residual_2_to_4
+                x = x + residual_0_to_2
 
-        x = torch.nn.LeakyReLU()(self.end_conv_1(x))
-        return self.end_conv_2(x)
+        for layer in self.last_layers:
+            x = layer(x)
+
+        return x
 
 
 @torch.no_grad()
 def draw_sample_from_generator(
     model: Generator,
+    autoencoder: AutoEncoder,
     batch_shape: tuple[int, ...],
     seed: int | None = None,
     save_sample_as: Path | None = None
 ) -> torch.Tensor:
-    device = model.layers[0].non_transform_layers[0].weight.device
+    device = model.layers_with_emb[0].non_transform_layers[0].weight.device
     rand_generator = torch.Generator(device=device)
     if seed is not None:
         rand_generator.manual_seed(0)
     batch = torch.randn(size=batch_shape, generator=rand_generator, device=device)
+
     variance_schedule = model.variance_schedule
 
     if save_sample_as is not None:
@@ -189,13 +185,14 @@ def draw_sample_from_generator(
 
         if save_sample_as is not None:
             if time_step % 10 == 0:
-                plot_batches.append(batch.detach().cpu())
+                decoded_batch = autoencoder.decoder(batch)
+                plot_batches.append(decoded_batch.detach().cpu())
 
     if save_sample_as is not None:
         show_image_grid(torch.concatenate(plot_batches, dim=0), save_as=save_sample_as)
 
     model.train()
-    return batch
+    return autoencoder.decoder(batch)
 
 
 def train(
@@ -219,23 +216,33 @@ def train(
         shutil.rmtree(model_storage_directory)
     model_storage_directory.mkdir(exist_ok=True)
 
-    schedule = VarianceSchedule(beta_start_end, n_diffusion_steps)
+    autoencoder = AutoEncoder()
+    autoencoder.load_state_dict(torch.load(params.OUTS_BASE_DIR / "train_autoencoder/model.pt"))
+    autoencoder.eval()
+    for param in autoencoder.parameters():
+        param.requires_grad = False
+    autoencoder.to(device)
+
+    schedule = VarianceSchedule(beta_start_end, n_diffusion_steps, device=device)
     model = Generator(schedule, embedding_dim)
     if model_file is not None:
         model.load_state_dict(torch.load(model_file))
-
     model.to(device)
+
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     loss_fn = torch.nn.MSELoss(reduction="sum")
     average_losses = []
     running_loss = 0
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
         for batch_idx, batch in enumerate(data_loader):
+            batch = batch.to(device)
+            batch = autoencoder.encoder(batch)
+
             optimizer.zero_grad()
             # pytorch expects tuple for size here:
             actual_batch_size = batch.shape[0]
             t = torch.randint(low=0, high=n_diffusion_steps, size=(actual_batch_size,))
-            noisy_batch, noise = get_noisy_batch_at_step_t(batch, t, schedule, device=device)
+            noisy_batch, noise = get_noisy_batch_at_step_t(batch, t, schedule)
 
             noise_pred = model(noisy_batch, t.to(device))
             loss = loss_fn(noise_pred, noise)
@@ -243,10 +250,11 @@ def train(
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
-        if (epoch + 1) % 10 == 0:
+        if (epoch + 1) % 100 == 0:
             sample_shape = torch.Size((1, *batch.shape[1:]))
             _ = draw_sample_from_generator(
                 model,
+                autoencoder,
                 sample_shape,
                 save_sample_as=model_storage_directory / f"epoch_{epoch}.png"
             )

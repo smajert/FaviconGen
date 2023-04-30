@@ -9,38 +9,41 @@ stages:
     params:
       logo_maker/params.py:
         AutoEncoderParams:
-          ADVERSARIAL_LOSS_WEIGHT: 3
+          ADVERSARIAL_LOSS_WEIGHT: 2.5
           BATCH_SIZE: 128
           EPOCHS: 200
           LEARNING_RATE: 0.0004
           MODEL_FILE:
     outs:
     - path: outs/train_autoencoder/loss.csv
-      md5: ddfbd423af63797db3780119523babc9
-      size: 4589
+      md5: 741538bc9883532ef6a8113f25c0d136
+      size: 4579
     - path: outs/train_autoencoder/model.pt
-      md5: bb4a8b5e4c60ea5fe74de2b120dc93b8
-      size: 116663
+      md5: 8ec7b55ca90d032b6ecc4e7e8a83fc7d
+      size: 104823
   train_diffusion_model:
     cmd: python logo_maker/denoising_diffusion.py
     deps:
     - path: data/LLD-icon.hdf5
       md5: 91f56af2235117e44629fa608fed59ef
       size: 798927457
+    - path: outs/train_autoencoder/model.pt
+      md5: 8ec7b55ca90d032b6ecc4e7e8a83fc7d
+      size: 104823
     params:
       logo_maker/params.py:
         DiffusionModelParams:
           BATCH_SIZE: 128
           DIFFUSION_STEPS: 1000
           EMBEDDING_DIMENSION: 32
-          EPOCHS: 100
+          EPOCHS: 200
           LEARNING_RATE: 0.002
           VAR_SCHEDULE_START: 0.0001
           VAR_SCHEDULE_END: 0.02
     outs:
     - path: outs/train_diffusion_model/loss.csv
-      md5: c93a9e0c0f68992cae82e6588ac196b8
-      size: 2268
+      md5: 98f819cb9492a8db3d0a371025713ce6
+      size: 4542
     - path: outs/train_diffusion_model/model.pt
-      md5: 93acb78719563b2737e82aab7a840c96
-      size: 53862245
+      md5: 734e5d7fa2c07cd4fb66fe2135a83726
+      size: 3176539
