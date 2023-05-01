@@ -13,6 +13,7 @@ stages:
           x: Epoch
           y: Loss
 
+
   train_diffusion_model:
     cmd: python logo_maker/denoising_diffusion.py
     deps:
@@ -27,3 +28,10 @@ stages:
       - outs/train_diffusion_model/loss.csv:
           x: Epoch
           y: Loss
+
+
+  draw_samples:
+    cmd: python logo_maker/probe_model.py --use_gpu --n_samples 64
+    deps:
+      - outs/train_autoencoder/model.pt
+      - outs/train_diffusion_model/model.pt

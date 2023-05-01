@@ -47,3 +47,12 @@ stages:
     - path: outs/train_diffusion_model/model.pt
       md5: 734e5d7fa2c07cd4fb66fe2135a83726
       size: 3176539
+  draw_samples:
+    cmd: python logo_maker/probe_model.py --use_gpu --n_samples 64
+    deps:
+    - path: outs/train_autoencoder/model.pt
+      md5: 8ec7b55ca90d032b6ecc4e7e8a83fc7d
+      size: 104823
+    - path: outs/train_diffusion_model/model.pt
+      md5: 734e5d7fa2c07cd4fb66fe2135a83726
+      size: 3176539
