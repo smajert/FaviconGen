@@ -19,7 +19,7 @@ class ConvBlock(torch.nn.Module):
         padding: int = 1,
         n_non_transform_conv_layers: int = 2,
         time_embedding_dimension: int | None = None,
-        do_norm: bool = True,
+        do_norm: bool = False,
         do_transpose: bool = False,
     ) -> None:
         super().__init__()

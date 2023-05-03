@@ -11,7 +11,27 @@ from logo_maker.denoising_diffusion import Generator, draw_sample_from_generator
 import logo_maker.params as params
 
 
-def probe_model(seed: int,  n_samples: int, device: str, save_as: Path | None = None) -> None:
+def probe_autoencoder_model(seed: int, n_samples: int, device:str, save_as: Path | None = None) -> None:
+    autoencoder_file = params.OUTS_BASE_DIR / f"train_autoencoder/model.pt"
+    autoencoder = AutoEncoder()
+    autoencoder.load_state_dict(torch.load(autoencoder_file))
+    autoencoder.eval()
+    autoencoder.to(device)
+
+    random_latent = torch.randn((n_samples, 8, 8, 8), seed=seed)
+    batch = torch.nn.LeakyRelU()(autoencoder.from_latent(random_latent))
+    batch = batch.permute(0, 3, 1 ,2)
+    batch = autoencoder.decoder(batch)
+    show_image_grid(batch)
+    if save_as is not None:
+        plt.savefig(save_as)
+    else:
+        plt.savefig(params.OUTS_BASE_DIR / "samples.png")
+    plt.show()
+
+
+
+def probe_diffusion_model(seed: int, n_samples: int, device: str, save_as: Path | None = None) -> None:
     """
     Sample images from a chosen model.
 
@@ -72,7 +92,8 @@ def main():
         device = "cuda"
     else:
         device = "cpu"
-    probe_model(args.seed, args.n_samples, device, save_as=args.save_as)
+    #probe_diffusion_model(args.seed, args.n_samples, device, save_as=args.save_as)
+    probe_diffusion_model(args.seed, args.n_samples, device, save_as=args.save_as)
 
 
 if __name__ == "__main__":

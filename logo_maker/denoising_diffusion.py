@@ -237,6 +237,7 @@ def train(
         for batch_idx, batch in enumerate(data_loader):
             batch = batch.to(device)
             batch = autoencoder.encoder(batch)
+            batch, _, _ = autoencoder._sample_latent(batch)
 
             optimizer.zero_grad()
             # pytorch expects tuple for size here:

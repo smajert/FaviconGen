@@ -12,25 +12,63 @@ import logo_maker.params as params
 class AutoEncoder(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
+        latent_dim = 64
         self.activation = torch.nn.LeakyReLU()
         self.encoder = torch.nn.Sequential(  # input: 3 x 32 x 32
-            ConvBlock(3, 8, self.activation),  # 8 x 16 x 16
-            ConvBlock(8, 16, self.activation),  # 16 x 8 x 8
-            ConvBlock(16, 3, self.activation, kernel=3, padding=1, stride=1)  # 3 x 8 x 8
+            ConvBlock(3, 16, self.activation),  # 8 x 16 x 16
+            ConvBlock(16, 32, self.activation),  # 16 x 8 x 8
+            ConvBlock(32, 64, self.activation, kernel=3, padding=1, stride=1)  # 3 x 8 x 8
         )
-        self.decoder = torch.nn.Sequential(  # input: 8 x 8 x 8
-            ConvBlock(3, 16, self.activation, do_transpose=True),  # 16 x 16 x 16
-            ConvBlock(16, 8, self.activation, do_transpose=True),  # 8 x 32 x 32
-            ConvBlock(8, 3, self.activation, kernel=3, padding=1, stride=1),  # 3 x 32 x 32
-            torch.nn.Conv2d(3, 3, 1),  # 3 x 32 x 32
+
+        self.to_latent = torch.nn.Linear(3, latent_dim)
+        print(self.to_latent.weight.shape)
+        self.to_mu = torch.nn.Linear(latent_dim, latent_dim)
+        self.to_log_var = torch.nn.Linear(latent_dim, latent_dim)
+        self.from_latent = torch.nn.Linear(latent_dim, 3)
+
+        self.decoder = torch.nn.Sequential(  # input: 3 x 8 x 8
+            ConvBlock(64, 32, self.activation, do_transpose=True),  # 16 x 16 x 16
+            ConvBlock(32, 16, self.activation, do_transpose=True),  # 8 x 32 x 32
+            ConvBlock(16, 3, self.activation, kernel=3, padding=1, stride=1),  # 3 x 32 x 32
+            torch.nn.Conv2d(3, 3, 3, padding=1, stride=1),  # 3 x 32 x 32
             torch.nn.Tanh()  # 3 x 32 x 32
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def _reparameterize(self, mu, log_var):
+        """
+        :param mu: mean from the encoder's latent space
+        :param log_var: log variance from the encoder's latent space
+        """
+        std = torch.exp(0.5 * log_var)  # standard deviation
+        eps = torch.randn_like(std)  # `randn_like` as we need the same size
+        sample = mu + (eps * std)  # sampling
+        return sample
+
+    def _sample_latent(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        batch_dim, _, _, _ = x.shape
+        #x = torch.nn.functional.adaptive_avg_pool2d(x, 1).reshape(batch_dim, -1)
+        x = x.permute(0, 2, 3, 1)
+        latent = self.activation(self.to_latent(x))
+
+        # get `mu` and `log_var`
+        mu = self.to_mu(latent)
+        log_var = self.to_log_var(latent)
+
+        # get the latent vector through reparameterization
+        z = self._reparameterize(mu, log_var)
+        #print(z.mean(), z.std())
+        z = self.activation(self.from_latent(z))
+        z = z.permute(0, 3, 1, 2)
+
+        return z, mu, log_var
+
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         x = self.encoder(x)
+        #x, mu, log_var = self._sample_latent(x)
         x = self.decoder(x)
 
-        return x
+        #return x, mu, log_var
+        return x, 1, 1
 
 
 class PatchDiscriminator(torch.nn.Module):
@@ -71,6 +109,7 @@ def train(
 
     # prepare discriminator
     use_patch_discriminator = params.AutoEncoderParams.ADVERSARIAL_LOSS_WEIGHT is not None
+    print(use_patch_discriminator)
     if use_patch_discriminator:
         patch_disc = PatchDiscriminator()
         patch_disc.to(device)
@@ -82,18 +121,20 @@ def train(
         autoencoder.load_state_dict(torch.load(model_file))
     autoencoder.to(device)
     optimizer_generator = torch.optim.Adam(autoencoder.parameters(), lr=learning_rate)
-    loss_fn = torch.nn.MSELoss(reduction="sum")
+    loss_fn = torch.nn.MSELoss()
 
-    average_losses = []
+    running_losses = []
     running_loss = 0
     value_for_original = torch.tensor([1], device=device, dtype=torch.float)
     value_for_reconstructed = torch.tensor([0], device=device, dtype=torch.float)
+    single_batch = [next(iter(data_loader))]
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
-        for batch_idx, batch in enumerate(data_loader):
+        for batch_idx, batch in enumerate(single_batch):
             batch = batch.to(device)  # batch does not track gradients -> does not need to be detached ever
 
             optimizer_generator.zero_grad()
-            reconst_batch = autoencoder(batch)
+            reconst_batch, mu, log_var = autoencoder(batch)
+            #kullblack_leibler_divergence = -0.5 * torch.mean(1 + log_var - mu.pow(2) - log_var.exp())
             reconstruction_loss = loss_fn(reconst_batch, batch)
             if use_patch_discriminator:
                 disc_pred_reconstructed = patch_disc(reconst_batch)
@@ -104,14 +145,19 @@ def train(
             else:
                 adversarial_loss = 0
                 adversarial_loss_weight = 0
-            generator_loss = reconstruction_loss + adversarial_loss * adversarial_loss_weight
+            generator_loss = (
+                reconstruction_loss * 1000 #+ adversarial_loss * adversarial_loss_weight + kullblack_leibler_divergence
+            )
+            # print(f"reconstruction_loss: {reconstruction_loss.item()}")
+            # print(f"KL divergence: {kullblack_leibler_divergence.item()}")
             generator_loss.backward()
             optimizer_generator.step()
+            #print(kullblack_leibler_divergence.item()/reconstruction_loss.item())
 
             if use_patch_discriminator:
                 optimizer_discriminator.zero_grad()
                 disc_pred_original = patch_disc(batch)
-                reconst_batch = autoencoder(batch)
+                reconst_batch, _, _ = autoencoder(batch)
                 disc_pred_reconstructed = patch_disc(reconst_batch.detach())
                 disc_loss = (
                     loss_fn(disc_pred_original, is_original) + loss_fn(disc_pred_reconstructed, is_reconstructed)
@@ -119,14 +165,15 @@ def train(
                 disc_loss.backward()
                 optimizer_discriminator.step()
 
-            running_loss += generator_loss.item()
-        if (epoch + 1) % 50 == 0:
+            running_loss += generator_loss.item() * batch.shape[0] / len(dataset)
+        if (epoch + 1) % 1000 == 0:
+            print(autoencoder.to_log_var.weight.mean())
+            print(autoencoder.to_log_var.weight.shape)
             show_image_grid(reconst_batch, save_as=model_storage_directory / f"reconstruction_epoch_{epoch}.png")
             show_image_grid(batch, save_as=model_storage_directory / f"original_{epoch}.png")
 
-        average_loss = running_loss / len(dataset)
-        pbar.set_description(f"Current avg. loss: {average_loss:.3f}, Epochs")
-        average_losses.append(average_loss)
+        pbar.set_description(f"Current avg. loss: {running_loss:.3f}, Epochs")
+        running_losses.append(running_loss)
         running_loss = 0
 
     print(f"Saving model in directory {model_storage_directory} ...")
@@ -134,7 +181,7 @@ def train(
 
     with open(model_storage_directory / "loss.csv", "w") as file:
         file.write("Epoch,Loss\n")
-        for epoch, loss in enumerate(average_losses):
+        for epoch, loss in enumerate(running_losses):
             file.write(f"{epoch},{loss}\n")
 
 

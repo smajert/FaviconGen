@@ -18,10 +18,10 @@ DEVICE = "cuda"
 
 
 class AutoEncoderParams:
-    ADVERSARIAL_LOSS_WEIGHT: float | None = 2.5
-    BATCH_SIZE: int = 128
-    EPOCHS: int = 200
-    LEARNING_RATE: float = 0.0004
+    ADVERSARIAL_LOSS_WEIGHT: float | None = None
+    BATCH_SIZE: int = 4
+    EPOCHS: int = 8000
+    LEARNING_RATE: float = 3e-4
     MODEL_FILE: Path | None = None
 
 
