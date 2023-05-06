@@ -18,17 +18,14 @@ def probe_autoencoder_model(seed: int, n_samples: int, device:str, save_as: Path
     autoencoder.eval()
     autoencoder.to(device)
 
-    random_latent = torch.randn((n_samples, 8, 8, 8), seed=seed)
-    batch = torch.nn.LeakyRelU()(autoencoder.from_latent(random_latent))
-    batch = batch.permute(0, 3, 1 ,2)
-    batch = autoencoder.decoder(batch)
+    random_latent = torch.randn((n_samples, 64, 8, 8), device=device)#, seed=seed)
+    batch = autoencoder.decoder(autoencoder.convert_from_latent(random_latent))
     show_image_grid(batch)
     if save_as is not None:
         plt.savefig(save_as)
     else:
         plt.savefig(params.OUTS_BASE_DIR / "samples.png")
     plt.show()
-
 
 
 def probe_diffusion_model(seed: int, n_samples: int, device: str, save_as: Path | None = None) -> None:
@@ -65,24 +62,20 @@ def probe_diffusion_model(seed: int, n_samples: int, device: str, save_as: Path 
     plt.show()
 
 
-# @Gooey(
-#     program_name='LogoMaker',
-#     image_dir=params.DATA_BASE_DIR / "gooey_image_dir"
-# )
 def main():
-    parser = argparse.ArgumentParser(description="Get sample images from model")
+    parser = argparse.ArgumentParser(description="Get sample images from models")
     parser.add_argument(
         "--seed", type=int, default=42, help="Random number seed to generate Gaussian noise (first timestep) from."
     )
     parser.add_argument("--n_samples", type=int, default=1, help="Number of samples to get from model.")
     parser.add_argument(
         "--use_gpu",
-        help="Try to calculate on GPU",
+        help="Try to calculate on GPU.",
         action="store_true"
     )
     parser.add_argument(
-        "--save_as",
-        help="Storage location for result",
+        "--save_to",
+        help="Storage directory for results.",
         type=Path,
         default=None
     )
@@ -92,8 +85,17 @@ def main():
         device = "cuda"
     else:
         device = "cpu"
-    #probe_diffusion_model(args.seed, args.n_samples, device, save_as=args.save_as)
-    probe_diffusion_model(args.seed, args.n_samples, device, save_as=args.save_as)
+
+    if args.save_to is not None:
+        if not args.save_to.isdir():
+            raise OSError(f"{args.save_to} is not a valid directory.")
+        save_location_auto_samples = args.save_to / f"samples_autoencoder.png"
+        save_location_diff_samples = args.save_to / f"samples_diffusion.png"
+    else:
+        save_location_auto_samples, save_location_diff_samples = None, None
+
+    probe_autoencoder_model(args.seed, args.n_samples, device, save_as=save_location_auto_samples)
+    #probe_diffusion_model(args.seed, args.n_samples, device, save_as=save_location_diff_samples)
 
 
 if __name__ == "__main__":

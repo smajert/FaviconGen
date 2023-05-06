@@ -20,11 +20,11 @@ class AutoEncoder(torch.nn.Module):
             ConvBlock(32, 64, self.activation, kernel=3, padding=1, stride=1)  # 3 x 8 x 8
         )
 
-        self.to_latent = torch.nn.Linear(3, latent_dim)
+        self.to_latent = torch.nn.Linear(64, latent_dim)
         print(self.to_latent.weight.shape)
         self.to_mu = torch.nn.Linear(latent_dim, latent_dim)
         self.to_log_var = torch.nn.Linear(latent_dim, latent_dim)
-        self.from_latent = torch.nn.Linear(latent_dim, 3)
+        self.from_latent = torch.nn.Linear(latent_dim, 64)
 
         self.decoder = torch.nn.Sequential(  # input: 3 x 8 x 8
             ConvBlock(64, 32, self.activation, do_transpose=True),  # 16 x 16 x 16
@@ -44,31 +44,54 @@ class AutoEncoder(torch.nn.Module):
         sample = mu + (eps * std)  # sampling
         return sample
 
-    def _sample_latent(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def convert_to_latent(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         batch_dim, _, _, _ = x.shape
-        #x = torch.nn.functional.adaptive_avg_pool2d(x, 1).reshape(batch_dim, -1)
-        x = x.permute(0, 2, 3, 1)
-        latent = self.activation(self.to_latent(x))
+        x = x.permute(0, 2, 3, 1)  # use channel as last dimension to preserve 2D ordering in linear layers
+        z = self.activation(self.to_latent(x))
 
         # get `mu` and `log_var`
-        mu = self.to_mu(latent)
-        log_var = self.to_log_var(latent)
-
-        # get the latent vector through reparameterization
+        mu = self.to_mu(z)
+        log_var = self.to_log_var(z)
         z = self._reparameterize(mu, log_var)
-        #print(z.mean(), z.std())
-        z = self.activation(self.from_latent(z))
-        z = z.permute(0, 3, 1, 2)
-
+        z = z.permute(0, 3, 1, 2)  # realign to [batch, channel, height, width] dimension ordering
         return z, mu, log_var
+
+    def convert_from_latent(self, z: torch.Tensor) -> torch.Tensor:
+        z = z.permute(0, 2, 3, 1)  # use channel as last dimension to preserve 2D ordering in linear layers
+        x = self.activation(self.from_latent(z))
+        x = x.permute(0, 3, 1, 2)  # realign to [batch, channel, height, width] dimension ordering
+        return x
+
+    # def sample_latent(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    #     batch_dim, _, _, _ = x.shape
+    #     #x = torch.nn.functional.adaptive_avg_pool2d(x, 1).reshape(batch_dim, -1)
+    #     x = x.permute(0, 2, 3, 1)
+    #     z = self.activation(self.to_latent(x))
+    #
+    #     # get `mu` and `log_var`
+    #     mu = self.to_mu(z)
+    #     log_var = self.to_log_var(z)
+    #     # get the latent vector through reparameterization
+    #     z = self._reparameterize(mu, log_var)
+    #
+    #
+    #     z = self.activation(self.from_latent(z))
+    #     z = z.permute(0, 3, 1, 2)
+    #
+    #     return z, mu, log_var
+
+    # def draw_from_random_latent(self, z: torch.Tensor) -> torch.Tensor:
+    #     x = self.activation(self.from_latent(z))
+    #     x = x.permute(0, 3, 1, 2)
+    #     return self.decoder(x)
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         x = self.encoder(x)
-        #x, mu, log_var = self._sample_latent(x)
+        z, mu, log_var = self.convert_to_latent(x)
+        x = self.convert_from_latent(z)
         x = self.decoder(x)
 
-        #return x, mu, log_var
-        return x, 1, 1
+        return x, mu, log_var
 
 
 class PatchDiscriminator(torch.nn.Module):
@@ -134,7 +157,7 @@ def train(
 
             optimizer_generator.zero_grad()
             reconst_batch, mu, log_var = autoencoder(batch)
-            #kullblack_leibler_divergence = -0.5 * torch.mean(1 + log_var - mu.pow(2) - log_var.exp())
+            kl_loss = -0.5 * torch.mean(1 + log_var - mu.pow(2) - log_var.exp())  # Kullblack Leibler loss
             reconstruction_loss = loss_fn(reconst_batch, batch)
             if use_patch_discriminator:
                 disc_pred_reconstructed = patch_disc(reconst_batch)
@@ -146,10 +169,8 @@ def train(
                 adversarial_loss = 0
                 adversarial_loss_weight = 0
             generator_loss = (
-                reconstruction_loss * 1000 #+ adversarial_loss * adversarial_loss_weight + kullblack_leibler_divergence
+                reconstruction_loss + params.AutoEncoderParams.KL_LOSS_WEIGHT * kl_loss #+ adversarial_loss * adversarial_loss_weight
             )
-            # print(f"reconstruction_loss: {reconstruction_loss.item()}")
-            # print(f"KL divergence: {kullblack_leibler_divergence.item()}")
             generator_loss.backward()
             optimizer_generator.step()
             #print(kullblack_leibler_divergence.item()/reconstruction_loss.item())
@@ -169,6 +190,8 @@ def train(
         if (epoch + 1) % 1000 == 0:
             print(autoencoder.to_log_var.weight.mean())
             print(autoencoder.to_log_var.weight.shape)
+            print(f"reconstruction_loss: {reconstruction_loss.item()}")
+            print(f"KL divergence: {kl_loss.item()}")
             show_image_grid(reconst_batch, save_as=model_storage_directory / f"reconstruction_epoch_{epoch}.png")
             show_image_grid(batch, save_as=model_storage_directory / f"original_{epoch}.png")
 

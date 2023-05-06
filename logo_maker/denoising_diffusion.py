@@ -118,11 +118,11 @@ class Generator(torch.nn.Module):
         )
 
         self.activation = torch.nn.LeakyReLU()
-        self.layers_with_emb = torch.nn.ModuleList([  # input: 3 x 8 x 8
-            ConvBlock(3, 64, self.activation, time_embedding_dimension=embedding_dim),  # 64 x 4 x 4
-            ConvBlock(64, 128, self.activation, time_embedding_dimension=embedding_dim), # 128 x 2 x 2
-            ConvBlock(128, 64, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 4 x 4
-            ConvBlock(64, 64, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 8 x 8
+        self.layers_with_emb = torch.nn.ModuleList([  # input: 64 x 8 x 8
+            ConvBlock(64, 128, self.activation, time_embedding_dimension=embedding_dim),  # 128 x 4 x 4
+            ConvBlock(128, 256, self.activation, time_embedding_dimension=embedding_dim),  # 256 x 2 x 2
+            ConvBlock(256, 128, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 4 x 4
+            ConvBlock(128, 64, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 8 x 8
         ])
 
         self.last_layers = torch.nn.ModuleList([
@@ -233,11 +233,12 @@ def train(
     loss_fn = torch.nn.MSELoss(reduction="sum")
     average_losses = []
     running_loss = 0
+    single_batch = [next(iter(data_loader))]
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
-        for batch_idx, batch in enumerate(data_loader):
+        for batch_idx, batch in enumerate(single_batch):
             batch = batch.to(device)
             batch = autoencoder.encoder(batch)
-            batch, _, _ = autoencoder._sample_latent(batch)
+            batch, _, _ = autoencoder.sample_latent(batch)
 
             optimizer.zero_grad()
             # pytorch expects tuple for size here:
