@@ -126,9 +126,7 @@ class Generator(torch.nn.Module):
         ])
 
         self.last_layers = torch.nn.ModuleList([
-            torch.nn.Conv2d(64, 32, 1),
-            torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(32, 3, 1),
+            torch.nn.Conv2d(64, 64, 1),
             torch.nn.Tanh()
         ])
 
@@ -180,19 +178,19 @@ def draw_sample_from_generator(
         if time_step != 0:
             noise = torch.randn_like(batch)
             batch = batch + torch.sqrt(beta_tilde) * noise
-        if time_step == 0:
-            batch = torch.clamp(batch, -1, 1)
+        # if time_step == 0: # this makes things look better, seems like diffsuion is moving the input out of distribution
+        #     batch = torch.clamp(batch, -1, 1)
 
         if save_sample_as is not None:
             if time_step % 10 == 0:
-                decoded_batch = autoencoder.decoder(batch)
+                decoded_batch = autoencoder.decoder(autoencoder.convert_from_latent(batch))
                 plot_batches.append(decoded_batch.detach().cpu())
 
     if save_sample_as is not None:
         show_image_grid(torch.concatenate(plot_batches, dim=0), save_as=save_sample_as)
 
     model.train()
-    return autoencoder.decoder(batch)
+    return autoencoder.decoder(autoencoder.convert_from_latent(batch))
 
 
 def train(
@@ -208,7 +206,7 @@ def train(
 ) -> None:
     dataset_location = Path(__file__).parents[1] / "data/LLD-icon.hdf5"
     dataset = LargeLogoDataset(dataset_location, cluster=cluster, cache_files=False)
-    data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=params.SHUFFLE_DATA)
     model_storage_directory = params.OUTS_BASE_DIR / "train_diffusion_model"
 
     print(f"Cleaning output directory {model_storage_directory} ...")
@@ -230,15 +228,17 @@ def train(
     model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    loss_fn = torch.nn.MSELoss(reduction="sum")
-    average_losses = []
+    loss_fn = torch.nn.MSELoss()
+    running_losses = []
     running_loss = 0
-    single_batch = [next(iter(data_loader))]
+    #single_batch = [next(iter(data_loader))]
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
-        for batch_idx, batch in enumerate(single_batch):
+        for batch_idx, batch in enumerate(data_loader):
             batch = batch.to(device)
+            #print(f"before encoding mean: {torch.mean(batch)}, std: {torch.std(batch)}")
             batch = autoencoder.encoder(batch)
-            batch, _, _ = autoencoder.sample_latent(batch)
+            batch, _, _ = autoencoder.convert_to_latent(batch)
+            #print(f"latent mean: {torch.mean(batch)}, std: {torch.std(batch)}")
 
             optimizer.zero_grad()
             # pytorch expects tuple for size here:
@@ -251,8 +251,8 @@ def train(
 
             loss.backward()
             optimizer.step()
-            running_loss += loss.item()
-        if (epoch + 1) % 100 == 0:
+            running_loss += loss.item() * batch.shape[0] / len(dataset)
+        if (epoch + 1) % 20 == 0:
             sample_shape = torch.Size((1, *batch.shape[1:]))
             _ = draw_sample_from_generator(
                 model,
@@ -261,16 +261,15 @@ def train(
                 save_sample_as=model_storage_directory / f"epoch_{epoch}.png"
             )
 
-        average_loss = running_loss / len(dataset)
-        pbar.set_description(f"Current avg. loss: {average_loss:.3f}, Epochs")
-        average_losses.append(average_loss)
+        pbar.set_description(f"Current avg. loss: {running_loss:.3f}, Epochs")
+        running_losses.append(running_loss)
         running_loss = 0
 
     torch.save(model.state_dict(), model_storage_directory / "model.pt")
 
     with open(model_storage_directory / "loss.csv", "w") as file:
         file.write("Epoch,Loss\n")
-        for epoch, loss in enumerate(average_losses):
+        for epoch, loss in enumerate(running_losses):
             file.write(f"{epoch},{loss}\n")
 
 

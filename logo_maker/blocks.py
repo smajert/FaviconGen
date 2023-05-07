@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 
+import logo_maker.params as params
 
 class ConvBlock(torch.nn.Module):
     """
@@ -19,7 +20,7 @@ class ConvBlock(torch.nn.Module):
         padding: int = 1,
         n_non_transform_conv_layers: int = 2,
         time_embedding_dimension: int | None = None,
-        do_norm: bool = False,
+        do_norm: bool = params.DO_NORM,
         do_transpose: bool = False,
     ) -> None:
         super().__init__()

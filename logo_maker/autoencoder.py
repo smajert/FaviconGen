@@ -21,7 +21,6 @@ class AutoEncoder(torch.nn.Module):
         )
 
         self.to_latent = torch.nn.Linear(64, latent_dim)
-        print(self.to_latent.weight.shape)
         self.to_mu = torch.nn.Linear(latent_dim, latent_dim)
         self.to_log_var = torch.nn.Linear(latent_dim, latent_dim)
         self.from_latent = torch.nn.Linear(latent_dim, 64)
@@ -62,29 +61,6 @@ class AutoEncoder(torch.nn.Module):
         x = x.permute(0, 3, 1, 2)  # realign to [batch, channel, height, width] dimension ordering
         return x
 
-    # def sample_latent(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    #     batch_dim, _, _, _ = x.shape
-    #     #x = torch.nn.functional.adaptive_avg_pool2d(x, 1).reshape(batch_dim, -1)
-    #     x = x.permute(0, 2, 3, 1)
-    #     z = self.activation(self.to_latent(x))
-    #
-    #     # get `mu` and `log_var`
-    #     mu = self.to_mu(z)
-    #     log_var = self.to_log_var(z)
-    #     # get the latent vector through reparameterization
-    #     z = self._reparameterize(mu, log_var)
-    #
-    #
-    #     z = self.activation(self.from_latent(z))
-    #     z = z.permute(0, 3, 1, 2)
-    #
-    #     return z, mu, log_var
-
-    # def draw_from_random_latent(self, z: torch.Tensor) -> torch.Tensor:
-    #     x = self.activation(self.from_latent(z))
-    #     x = x.permute(0, 3, 1, 2)
-    #     return self.decoder(x)
-
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         x = self.encoder(x)
         z, mu, log_var = self.convert_to_latent(x)
@@ -122,7 +98,7 @@ def train(
 ) -> None:
     dataset_location = Path(__file__).parents[1] / "data/LLD-icon.hdf5"
     dataset = LargeLogoDataset(dataset_location, cluster=cluster, cache_files=False)
-    data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=params.SHUFFLE_DATA)
     model_storage_directory = params.OUTS_BASE_DIR / "train_autoencoder"
 
     print(f"Cleaning output directory {model_storage_directory} ...")
@@ -150,9 +126,8 @@ def train(
     running_loss = 0
     value_for_original = torch.tensor([1], device=device, dtype=torch.float)
     value_for_reconstructed = torch.tensor([0], device=device, dtype=torch.float)
-    single_batch = [next(iter(data_loader))]
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
-        for batch_idx, batch in enumerate(single_batch):
+        for batch_idx, batch in enumerate(data_loader):
             batch = batch.to(device)  # batch does not track gradients -> does not need to be detached ever
 
             optimizer_generator.zero_grad()
@@ -187,7 +162,7 @@ def train(
                 optimizer_discriminator.step()
 
             running_loss += generator_loss.item() * batch.shape[0] / len(dataset)
-        if (epoch + 1) % 1000 == 0:
+        if (epoch + 1) % 20 == 0:
             print(autoencoder.to_log_var.weight.mean())
             print(autoencoder.to_log_var.weight.shape)
             print(f"reconstruction_loss: {reconstruction_loss.item()}")

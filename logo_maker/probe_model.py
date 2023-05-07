@@ -53,7 +53,7 @@ def probe_diffusion_model(seed: int, n_samples: int, device: str, save_as: Path 
     generator = generator.to(device)
     generator.eval()
 
-    batch = draw_sample_from_generator(generator, autoencoder, (n_samples, 3, 8, 8), seed=seed)
+    batch = draw_sample_from_generator(generator, autoencoder, (n_samples, 64, 8, 8), seed=seed)
     show_image_grid(batch)
     if save_as is not None:
         plt.savefig(save_as)
@@ -95,7 +95,7 @@ def main():
         save_location_auto_samples, save_location_diff_samples = None, None
 
     probe_autoencoder_model(args.seed, args.n_samples, device, save_as=save_location_auto_samples)
-    #probe_diffusion_model(args.seed, args.n_samples, device, save_as=save_location_diff_samples)
+    probe_diffusion_model(args.seed, args.n_samples, device, save_as=save_location_diff_samples)
 
 
 if __name__ == "__main__":
