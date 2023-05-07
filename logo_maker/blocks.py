@@ -3,6 +3,7 @@ import torch
 
 import logo_maker.params as params
 
+
 class ConvBlock(torch.nn.Module):
     """
     Simple convolutional block, adding `n_non_transform_conv_layers` before
@@ -61,7 +62,7 @@ class ConvBlock(torch.nn.Module):
             time_emb = 0
 
         for layer_idx, layer in enumerate(self.non_transform_layers):
-            if layer_idx == 3:
+            if layer_idx == 3:  # todo move so that error gets thrown if idx is not passed
                 x = layer(x + time_emb)
             else:
                 x = layer(x)
