@@ -32,18 +32,6 @@ class ConvBlock(torch.nn.Module):
 
         self.activation = activation
 
-        self.time_embedding_dimension = time_embedding_dimension
-        if time_embedding_dimension is not None:
-            self.time_mlp = torch.nn.Linear(self.time_embedding_dimension, channels_in)
-
-        self.non_transform_layers = torch.nn.ModuleList()
-        for _ in range(n_non_transform_conv_layers):
-            self.non_transform_layers.extend([
-                torch.nn.Conv2d(channels_in, channels_in, kernel_size=3, padding=1),
-                norm_fn(),
-                self.activation
-            ])
-
         if do_transpose:
             self.conv_transform = torch.nn.ConvTranspose2d(
                 channels_in, channels_out, kernel_size=kernel, stride=stride, padding=padding
@@ -53,7 +41,21 @@ class ConvBlock(torch.nn.Module):
                 channels_in, channels_out, kernel_size=kernel, stride=stride, padding=padding
             )
 
+        self.time_embedding_dimension = time_embedding_dimension
+        if time_embedding_dimension is not None:
+            self.time_mlp = torch.nn.Linear(self.time_embedding_dimension, channels_out)
+
+        self.non_transform_layers = torch.nn.ModuleList()
+        for _ in range(n_non_transform_conv_layers):
+            self.non_transform_layers.extend([
+                torch.nn.Conv2d(channels_out, channels_out, kernel_size=3, padding=1),
+                norm_fn(),
+                self.activation
+            ])
+
     def forward(self, x: torch.Tensor, time_step_emb: torch.Tensor | None = None) -> torch.Tensor:
+        x = self.activation(self.conv_transform(x))
+
         if time_step_emb is not None:
             if self.time_embedding_dimension is None:
                 raise ValueError("Time step given, but no embedding dimension specified")
@@ -66,4 +68,4 @@ class ConvBlock(torch.nn.Module):
                 x = layer(x + time_emb)
             else:
                 x = layer(x)
-        return self.activation(self.conv_transform(x))
+        return x

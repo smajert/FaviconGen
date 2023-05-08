@@ -129,9 +129,7 @@ class Generator(torch.nn.Module):
         ])
 
         self.last_layers = torch.nn.ModuleList([
-            torch.nn.Conv2d(64, 32, 1),
-            self.activation,
-            torch.nn.Conv2d(32, 3, 1),
+            torch.nn.Conv2d(64, 3, 1),
         ])
 
     def forward(self, x: torch.Tensor, time_step: torch.Tensor) -> torch.Tensor:
@@ -180,14 +178,10 @@ def draw_sample_from_generator(
     if save_sample_as is not None:
         plot_batches = []
         plot_time_steps = [
-            0,
-            int(0.3 * variance_schedule.n_steps),
-            int(0.6 * variance_schedule.n_steps),
             int(0.9 * variance_schedule.n_steps),
-            int(0.95 * variance_schedule.n_steps),
-            int(0.97 * variance_schedule.n_steps),
-            int(0.99 * variance_schedule.n_steps),
-            variance_schedule.n_steps - 1
+            int(0.6 * variance_schedule.n_steps),
+            int(0.3 * variance_schedule.n_steps),
+            0, 1, 5, 20, 40,
         ]
 
     model.eval()
