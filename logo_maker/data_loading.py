@@ -7,9 +7,11 @@ from typing import Any
 import h5py
 from matplotlib import pyplot as plt
 import numpy as np
-from torch import Tensor
-from torch.utils.data import Dataset
-from torchvision import transforms, utils
+from torch import randperm, Tensor
+from torch.utils.data import Dataset, DataLoader, SubsetRandomSampler
+from torchvision import datasets, transforms, utils
+
+import logo_maker.params as params
 
 pytorch_transforms = Any
 
@@ -96,4 +98,32 @@ class LargeLogoDataset(Dataset):
 
     def __getitem__(self, idx) -> Tensor:
         return self.transform(self.images[idx])
+
+
+def load_logos(
+    batch_size: int, shuffle: bool, n_images: int | None, cluster: ClusterNamesAeGrayscale | None = None
+) -> tuple[int, DataLoader]:
+    dataset_location = params.DATA_BASE_DIR / "LLD-icon.hdf5"
+    logos = LargeLogoDataset(dataset_location, cluster=cluster, cache_files=False, n_images=n_images)
+    loader = DataLoader(logos, batch_size=batch_size, shuffle=shuffle)
+    return len(logos), loader
+
+
+def load_mnist(batch_size: int, shuffle: bool, n_images: int | None) -> tuple[int, DataLoader]:
+    data_transforms = [
+        transforms.Resize((32, 32)),
+        transforms.ToTensor(),  # Scales data into [0,1]
+        transforms.Lambda(lambda t: (t * 2) - 1)  # Scale between [-1, 1]
+    ]
+    data_transform = transforms.Compose(data_transforms)
+
+    mnist = datasets.MNIST(tempfile.gettempdir() / Path("MNIST"), transform=data_transform, download=True)
+
+    if n_images is not None:
+        random_subset_sampler = SubsetRandomSampler(randperm(len(mnist))[:n_images])
+        loader = DataLoader(mnist, batch_size=batch_size, sampler=random_subset_sampler)
+        return n_images, loader
+    else:
+        loader = DataLoader(mnist, batch_size=batch_size, shuffle=shuffle)
+        return len(mnist), loader
 

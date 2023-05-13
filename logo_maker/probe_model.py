@@ -1,5 +1,7 @@
 import argparse
+from datetime import datetime
 from pathlib import Path
+import random
 
 #from gooey import Gooey, GooeyParser
 from matplotlib import pyplot as plt
@@ -47,7 +49,8 @@ def probe_diffusion_model(seed: int, n_samples: int, device: str, save_as: Path 
     generator = generator.to(device)
     generator.eval()
 
-    batch = draw_sample_from_generator(generator, (n_samples, 3, 32, 32), seed=seed)
+    in_channels = 1 if params.USE_MNIST else 3
+    batch = draw_sample_from_generator(generator, (n_samples, in_channels, 32, 32), seed=seed)
     show_image_grid(batch)
     if save_as is not None:
         plt.savefig(save_as)
@@ -59,7 +62,7 @@ def probe_diffusion_model(seed: int, n_samples: int, device: str, save_as: Path 
 def main():
     parser = argparse.ArgumentParser(description="Get sample images from models")
     parser.add_argument(
-        "--seed", type=int, default=42, help="Random number seed to generate Gaussian noise (first timestep) from."
+        "--seed", type=int, default=None, help="Random number seed to generate Gaussian noise (first timestep) from."
     )
     parser.add_argument("--n_samples", type=int, default=1, help="Number of samples to get from model.")
     parser.add_argument(
@@ -88,8 +91,12 @@ def main():
     else:
         save_location_auto_samples, save_location_diff_samples = None, None
 
-    #probe_autoencoder_model(args.seed, args.n_samples, device, save_as=save_location_auto_samples)
-    probe_diffusion_model(args.seed, args.n_samples, device, save_as=save_location_diff_samples)
+    if args.seed is None:
+        torch.random.manual_seed(datetime.now().timestamp())
+        random.seed(datetime.now().timestamp())
+
+    probe_autoencoder_model(args.seed, args.n_samples, device, save_as=save_location_auto_samples)
+    #probe_diffusion_model(args.seed, args.n_samples, device, save_as=save_location_diff_samples)
 
 
 if __name__ == "__main__":

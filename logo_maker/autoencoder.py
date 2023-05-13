@@ -5,17 +5,18 @@ import torch
 from tqdm import tqdm
 
 from logo_maker.blocks import ConvBlock
-from logo_maker.data_loading import ClusterNamesAeGrayscale, LargeLogoDataset, show_image_grid
+from logo_maker.data_loading import ClusterNamesAeGrayscale, load_logos, load_mnist, show_image_grid
 import logo_maker.params as params
 
 
 class AutoEncoder(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
+        in_channels = 1 if params.USE_MNIST else 3
         latent_dim = 64
         self.activation = torch.nn.LeakyReLU()
         self.encoder = torch.nn.Sequential(  # input: 3 x 32 x 32
-            ConvBlock(3, 16, self.activation),  # 8 x 16 x 16
+            ConvBlock(in_channels, 16, self.activation),  # 8 x 16 x 16
             ConvBlock(16, 32, self.activation),  # 16 x 8 x 8
             ConvBlock(32, 64, self.activation, kernel=3, padding=1, stride=1)  # 3 x 8 x 8
         )
@@ -29,7 +30,7 @@ class AutoEncoder(torch.nn.Module):
             ConvBlock(64, 32, self.activation, do_transpose=True),  # 16 x 16 x 16
             ConvBlock(32, 16, self.activation, do_transpose=True),  # 8 x 32 x 32
             ConvBlock(16, 3, self.activation, kernel=3, padding=1, stride=1),  # 3 x 32 x 32
-            torch.nn.Conv2d(3, 3, 3, padding=1, stride=1),  # 3 x 32 x 32
+            torch.nn.Conv2d(3, in_channels, 3, padding=1, stride=1),  # 3 x 32 x 32
             torch.nn.Tanh()  # 3 x 32 x 32
         )
 
@@ -79,7 +80,7 @@ class PatchDiscriminator(torch.nn.Module):
             ConvBlock(16, 32, self.activation, n_non_transform_conv_layers=1, kernel=7, padding=3),  # 32 x 16 x 16
             #ConvBlock(32, 8, self.activation, kernel=3, stride=1, padding=1, n_non_transform_conv_layers=1), # 8 x 16 x 16
             torch.nn.Conv2d(32, 1, kernel_size=5, padding=2),  # 1 x 16 x 16
-            torch.nn.Sigmoid()
+            torch.nn.Tanh()
         ])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -89,16 +90,19 @@ class PatchDiscriminator(torch.nn.Module):
 
 
 def train(
-    cluster: ClusterNamesAeGrayscale | None,
-    n_epochs: int,
     batch_size: int,
+    cluster: ClusterNamesAeGrayscale | None,
+    device: str,
     learning_rate: float,
     model_file: Path | None,
-    device: str
+    n_epochs: int,
+    n_images: int,
+    shuffle_data: bool,
 ) -> None:
-    dataset_location = Path(__file__).parents[1] / "data/LLD-icon.hdf5"
-    dataset = LargeLogoDataset(dataset_location, cluster=cluster, cache_files=False)
-    data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=params.SHUFFLE_DATA)
+    if params.USE_MNIST:
+        n_samples, data_loader = load_mnist(batch_size, shuffle_data, n_images)
+    else:
+        n_samples, data_loader = load_logos(batch_size, shuffle_data, n_images, cluster=cluster)
     model_storage_directory = params.OUTS_BASE_DIR / "train_autoencoder"
 
     print(f"Cleaning output directory {model_storage_directory} ...")
@@ -128,6 +132,8 @@ def train(
     value_for_reconstructed = torch.tensor([0], device=device, dtype=torch.float)
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
         for batch_idx, batch in enumerate(data_loader):
+            if params.USE_MNIST:  # throw away labels from MNIST
+                batch = batch[0]
             batch = batch.to(device)  # batch does not track gradients -> does not need to be detached ever
 
             optimizer_generator.zero_grad()
@@ -144,7 +150,9 @@ def train(
                 adversarial_loss = 0
                 adversarial_loss_weight = 0
             generator_loss = (
-                reconstruction_loss + params.AutoEncoderParams.KL_LOSS_WEIGHT * kl_loss #+ adversarial_loss * adversarial_loss_weight
+                reconstruction_loss
+                + params.AutoEncoderParams.KL_LOSS_WEIGHT * kl_loss
+                + adversarial_loss_weight * adversarial_loss
             )
             generator_loss.backward()
             optimizer_generator.step()
@@ -161,8 +169,8 @@ def train(
                 disc_loss.backward()
                 optimizer_discriminator.step()
 
-            running_loss += generator_loss.item() * batch.shape[0] / len(dataset)
-        if (epoch + 1) % 20 == 0:
+            running_loss += generator_loss.item() * batch.shape[0] / n_samples
+        if (epoch + 1) % 100 == 0:
             print(autoencoder.to_log_var.weight.mean())
             print(autoencoder.to_log_var.weight.shape)
             print(f"reconstruction_loss: {reconstruction_loss.item()}")
@@ -186,10 +194,12 @@ def train(
 if __name__ == "__main__":
     model_file = None
     train(
-        cluster=params.CLUSTER,
-        n_epochs=params.AutoEncoderParams.EPOCHS,
         batch_size=params.AutoEncoderParams.BATCH_SIZE,
+        cluster=params.CLUSTER,
+        device=params.DEVICE,
         learning_rate=params.AutoEncoderParams.LEARNING_RATE,
-        model_file=params.AutoEncoderParams.MODEL_FILE,
-        device=params.DEVICE
+        model_file=model_file,
+        n_epochs=params.AutoEncoderParams.EPOCHS,
+        n_images=params.N_IMAGES,
+        shuffle_data=params.SHUFFLE_DATA
     )

@@ -8,7 +8,7 @@ import torch
 from tqdm import tqdm
 
 from logo_maker.blocks import ConvBlock
-from logo_maker.data_loading import ClusterNamesAeGrayscale, LargeLogoDataset, show_image_grid
+from logo_maker.data_loading import ClusterNamesAeGrayscale, load_logos, load_mnist, show_image_grid
 import logo_maker.params as params
 
 
@@ -30,7 +30,7 @@ class VarianceSchedule:
 
         :param beta_start_end: Start and end values of the variance during the noising process.
             Defaults to values used in [1]
-        :param n_time_steps: Amount of noising steps in the model. Defaults to value used in [1].
+        :param n_time_steps: Amount of noising steps in the model.
         """
         super().__init__()
         self.n_steps = n_time_steps
@@ -41,10 +41,6 @@ class VarianceSchedule:
         self.alpha_bar_t = torch.cumprod(self.alpha_t, dim=0)
         alpha_bar_t_minus_1 = torch.nn.functional.pad(self.alpha_bar_t[:-1], (1, 0), value=1)
         self.beta_tilde_t = (1 - alpha_bar_t_minus_1) / (1 - self.alpha_bar_t) * self.beta_t
-
-
-RANDOM_NUMBER_GENERATOR = torch.Generator()
-RANDOM_NUMBER_GENERATOR.manual_seed(0)
 
 
 def get_noisy_batch_at_step_t(
@@ -65,15 +61,15 @@ def get_noisy_batch_at_step_t(
             f"Batch size {original_batch.shape[0]} does not match number of requested diffusion steps {time_step.shape[0]}."
         )
 
-    noise = torch.randn(size=original_batch.shape, device=original_batch.device)
-    noisy_batch = (
+    noise = torch.clamp(torch.randn(size=original_batch.shape, device=original_batch.device), -5, 5)
+    noisy_batch = torch.clamp((
             original_batch * torch.sqrt(schedule.alpha_bar_t[time_step])[
                 :, np.newaxis, np.newaxis, np.newaxis
             ]
             + noise * torch.sqrt(1 - schedule.alpha_bar_t[time_step])[
                 :, np.newaxis, np.newaxis, np.newaxis
             ]
-    )
+    ), -5, 5)
 
     return noisy_batch, noise
 
@@ -107,6 +103,7 @@ class SinusoidalPositionEmbeddings(torch.nn.Module):
 class Generator(torch.nn.Module):
     def __init__(self, variance_schedule: VarianceSchedule, embedding_dim: int) -> None:
         super().__init__()
+        in_channels = 1 if params.USE_MNIST else 3
 
         self.variance_schedule = variance_schedule
 
@@ -117,8 +114,8 @@ class Generator(torch.nn.Module):
         )
 
         self.activation = torch.nn.LeakyReLU()
-        self.layers_with_emb = torch.nn.ModuleList([  # input: 3 x 32 x 32
-            ConvBlock(3, 64, self.activation, time_embedding_dimension=embedding_dim),  # 64 x 16 x 16
+        self.layers_with_emb = torch.nn.ModuleList([  # input: in_channels x 32 x 32
+            ConvBlock(in_channels, 64, self.activation, time_embedding_dimension=embedding_dim),  # 64 x 16 x 16
             ConvBlock(64, 128, self.activation, time_embedding_dimension=embedding_dim),  # 128 x 8 x 8
             ConvBlock(128, 256, self.activation, time_embedding_dimension=embedding_dim),  # 256 x 4 x 4
             ConvBlock(256, 512, self.activation, time_embedding_dimension=embedding_dim),  # 512 x 2 x 2
@@ -129,7 +126,7 @@ class Generator(torch.nn.Module):
         ])
 
         self.last_layers = torch.nn.ModuleList([
-            torch.nn.Conv2d(64, 3, 1),
+            torch.nn.Conv2d(64, in_channels, 3, padding=1),
         ])
 
     def forward(self, x: torch.Tensor, time_step: torch.Tensor) -> torch.Tensor:
@@ -158,7 +155,7 @@ class Generator(torch.nn.Module):
         for layer in self.last_layers:
             x = layer(x)
 
-        return x
+        return torch.tensor(5., device=x.device) * torch.nn.Tanh()(x)
 
 
 @torch.no_grad()
@@ -197,6 +194,7 @@ def draw_sample_from_generator(
         if time_step != 0:
             noise = torch.randn_like(batch)
             batch = batch + torch.sqrt(beta_tilde) * noise
+            batch = torch.clamp(batch, -5, 5)
         if time_step == 0:
             batch = torch.clamp(batch, -1, 1)
 
@@ -218,13 +216,16 @@ def train(
     device: str,
     embedding_dim: int,
     learning_rate: float,
+    model_file: Path | None,
     n_epochs: int,
     n_diffusion_steps: int,
-    model_file: Path | None = None
+    n_images: int,
+    shuffle_data: bool,
 ) -> None:
-    dataset_location = Path(__file__).parents[1] / "data/LLD-icon.hdf5"
-    dataset = LargeLogoDataset(dataset_location, cluster=cluster, cache_files=False)
-    data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=params.SHUFFLE_DATA)
+    if params.USE_MNIST:
+        n_samples, data_loader = load_mnist(batch_size, shuffle_data, n_images)
+    else:
+        n_samples, data_loader = load_logos(batch_size, shuffle_data, n_images, cluster=cluster)
     model_storage_directory = params.OUTS_BASE_DIR / "train_diffusion_model"
 
     print(f"Cleaning output directory {model_storage_directory} ...")
@@ -242,10 +243,13 @@ def train(
     loss_fn = torch.nn.MSELoss()
     running_losses = []
     running_loss = 0
-    single_batch = [next(iter(data_loader))]
+    #single_batch = [next(iter(data_loader))]
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
-        for batch_idx, batch in enumerate(single_batch):
+        for batch_idx, batch in enumerate(data_loader):
+            if params.USE_MNIST:  # throw away labels from MNIST
+                batch = batch[0]
             batch = batch.to(device)
+
             optimizer.zero_grad()
             # pytorch expects tuple for size here:
             actual_batch_size = batch.shape[0]
@@ -257,7 +261,7 @@ def train(
 
             loss.backward()
             optimizer.step()
-            running_loss += loss.item() * batch.shape[0] / len(dataset)
+            running_loss += loss.item() * batch.shape[0] / n_samples
         if (epoch + 1) in [int(rel_plot_step * n_epochs) for rel_plot_step in [0.25, 0.5, 0.75, 1.0]]:
             sample_shape = torch.Size((1, *batch.shape[1:]))
             _ = draw_sample_from_generator(
@@ -287,8 +291,11 @@ if __name__ == "__main__":
         device=params.DEVICE,
         embedding_dim=params.DiffusionModelParams.EMBEDDING_DIMENSION,
         learning_rate=params.DiffusionModelParams.LEARNING_RATE,
+        model_file=model_file,
+        n_images=params.N_IMAGES,
         n_epochs=params.DiffusionModelParams.EPOCHS,
-        n_diffusion_steps=params.DiffusionModelParams.DIFFUSION_STEPS
+        n_diffusion_steps=params.DiffusionModelParams.DIFFUSION_STEPS,
+        shuffle_data=params.SHUFFLE_DATA
     )
 
 
