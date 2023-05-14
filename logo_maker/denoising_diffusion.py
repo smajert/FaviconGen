@@ -168,7 +168,7 @@ def draw_sample_from_generator(
     device = model.layers_with_emb[0].non_transform_layers[0].weight.device
     rand_generator = torch.Generator(device=device)
     if seed is not None:
-        rand_generator.manual_seed(0)
+        rand_generator.manual_seed(seed)
     batch = torch.randn(size=batch_shape, generator=rand_generator, device=device)
     variance_schedule = model.variance_schedule
 

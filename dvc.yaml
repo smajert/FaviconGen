@@ -18,7 +18,6 @@ stages:
     cmd: python logo_maker/denoising_diffusion.py
     deps:
       - data/LLD-icon.hdf5
-      - outs/train_autoencoder/model.pt
     outs:
       - outs/train_diffusion_model/model.pt
     params:

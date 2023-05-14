@@ -15,24 +15,26 @@ class AutoEncoder(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
         in_channels = 1 if params.USE_MNIST else 3
-        latent_dim = 64
+        self.latent_dim = 128
         self.activation = torch.nn.LeakyReLU()
         self.encoder = torch.nn.Sequential(  # input: in_channels x 32 x 32
-            ConvBlock(in_channels, 16, self.activation),  # 8 x 16 x 16
+            ConvBlock(in_channels, 16, self.activation),  # 16 x 16 x 16
             ConvBlock(16, 32, self.activation),  # 16 x 8 x 8
-            ConvBlock(32, 64, self.activation, kernel=3, padding=1, stride=1)  # 3 x 8 x 8
+            ConvBlock(32, 64, self.activation),  # 64 x 4 x 4
+            torch.nn.Flatten()  # 64*4*4
         )
+        flattened_dimension = 64 * 4 * 4
+        self.to_latent = torch.nn.Linear(flattened_dimension, self.latent_dim)
+        self.to_mu = torch.nn.Linear(self.latent_dim, self.latent_dim)
+        self.to_log_var = torch.nn.Linear(self.latent_dim, self.latent_dim)
+        self.from_latent = torch.nn.Linear(self.latent_dim, flattened_dimension)
 
-        self.to_latent = torch.nn.Linear(64, latent_dim)
-        self.to_mu = torch.nn.Linear(latent_dim, latent_dim)
-        self.to_log_var = torch.nn.Linear(latent_dim, latent_dim)
-        self.from_latent = torch.nn.Linear(latent_dim, 64)
-
-        self.decoder = torch.nn.Sequential(  # input: 3 x 8 x 8
-            ConvBlock(64, 32, self.activation, do_transpose=True),  # 16 x 16 x 16
-            ConvBlock(32, 16, self.activation, do_transpose=True),  # 8 x 32 x 32
-            ConvBlock(16, 3, self.activation, kernel=3, padding=1, stride=1),  # 3 x 32 x 32
-            torch.nn.Conv2d(3, in_channels, 3, padding=1, stride=1),  # 3 x 32 x 32
+        self.decoder = torch.nn.Sequential(  # input: 64*4*4
+            torch.nn.Unflatten(1, (64, 4, 4)),  # 64 x 4 x 4
+            ConvBlock(64, 32, self.activation, do_transpose=True),  # 32 x 8 x 8
+            ConvBlock(32, 16, self.activation, do_transpose=True),  # 16 x 16 x 16
+            ConvBlock(16, in_channels, self.activation, do_transpose=True),  # in_channels x 32 x 32
+            torch.nn.Conv2d(in_channels, in_channels, 3, padding=1, stride=1),  # 3 x 32 x 32
             torch.nn.Tanh()  # in_channels x 32 x 32
         )
 
@@ -47,27 +49,24 @@ class AutoEncoder(torch.nn.Module):
         return sample
 
     def convert_to_latent(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        batch_dim, _, _, _ = x.shape
-        x = x.permute(0, 2, 3, 1)  # use channel as last dimension to preserve 2D ordering in linear layers
         z = self.activation(self.to_latent(x))
 
         # get `mu` and `log_var`
         mu = self.to_mu(z)
         log_var = self.to_log_var(z)
         z = self._reparameterize(mu, log_var)
-        z = z.permute(0, 3, 1, 2)  # realign to [batch, channel, height, width] dimension ordering
         return z, mu, log_var
 
     def convert_from_latent(self, z: torch.Tensor) -> torch.Tensor:
-        z = z.permute(0, 2, 3, 1)  # use channel as last dimension to preserve 2D ordering in linear layers
         x = self.activation(self.from_latent(z))
-        x = x.permute(0, 3, 1, 2)  # realign to [batch, channel, height, width] dimension ordering
         return x
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         x = self.encoder(x)
+        encoded_shape = x.shape
         z, mu, log_var = self.convert_to_latent(x)
         x = self.convert_from_latent(z)
+        x = torch.reshape(x, shape=encoded_shape)
         x = self.decoder(x)
 
         return x, mu, log_var

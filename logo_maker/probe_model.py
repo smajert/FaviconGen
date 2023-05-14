@@ -20,7 +20,10 @@ def probe_autoencoder_model(seed: int, n_samples: int, device:str, save_as: Path
     autoencoder.eval()
     autoencoder.to(device)
 
-    random_latent = torch.randn((n_samples, 64, 8, 8), device=device)#, seed=seed)
+    rand_generator = torch.Generator(device=device)
+    if seed is not None:
+        rand_generator.manual_seed(seed)
+    random_latent = torch.randn((n_samples, 128), device=device, generator=rand_generator)
     batch = autoencoder.decoder(autoencoder.convert_from_latent(random_latent))
     show_image_grid(batch)
     if save_as is not None:

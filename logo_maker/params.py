@@ -25,8 +25,8 @@ class AutoEncoderParams:
     ADVERSARIAL_LOSS_WEIGHT: float | None = None
     BATCH_SIZE: int = 128
     EPOCHS: int = 150
-    KL_LOSS_WEIGHT: float = 7.2
-    LEARNING_RATE: float = 3e-4
+    KL_LOSS_WEIGHT: float = 1
+    LEARNING_RATE: float = 4e-4
 
 
 class DiffusionModelParams:
