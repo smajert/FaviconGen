@@ -1,12 +1,14 @@
 from pathlib import Path
 import shutil
 
+import numpy as np
 import torch
 from tqdm import tqdm
 
 from logo_maker.blocks import ConvBlock
 from logo_maker.data_loading import ClusterNamesAeGrayscale, load_logos, load_mnist, show_image_grid
 import logo_maker.params as params
+from logo_maker.utils import q_key_pressed_non_blocking
 
 
 class AutoEncoder(torch.nn.Module):
@@ -15,7 +17,7 @@ class AutoEncoder(torch.nn.Module):
         in_channels = 1 if params.USE_MNIST else 3
         latent_dim = 64
         self.activation = torch.nn.LeakyReLU()
-        self.encoder = torch.nn.Sequential(  # input: 3 x 32 x 32
+        self.encoder = torch.nn.Sequential(  # input: in_channels x 32 x 32
             ConvBlock(in_channels, 16, self.activation),  # 8 x 16 x 16
             ConvBlock(16, 32, self.activation),  # 16 x 8 x 8
             ConvBlock(32, 64, self.activation, kernel=3, padding=1, stride=1)  # 3 x 8 x 8
@@ -31,7 +33,7 @@ class AutoEncoder(torch.nn.Module):
             ConvBlock(32, 16, self.activation, do_transpose=True),  # 8 x 32 x 32
             ConvBlock(16, 3, self.activation, kernel=3, padding=1, stride=1),  # 3 x 32 x 32
             torch.nn.Conv2d(3, in_channels, 3, padding=1, stride=1),  # 3 x 32 x 32
-            torch.nn.Tanh()  # 3 x 32 x 32
+            torch.nn.Tanh()  # in_channels x 32 x 32
         )
 
     def _reparameterize(self, mu, log_var):
@@ -170,7 +172,7 @@ def train(
                 optimizer_discriminator.step()
 
             running_loss += generator_loss.item() * batch.shape[0] / n_samples
-        if (epoch + 1) % 100 == 0:
+        if (epoch + 1) % 20 == 0:
             print(autoencoder.to_log_var.weight.mean())
             print(autoencoder.to_log_var.weight.shape)
             print(f"reconstruction_loss: {reconstruction_loss.item()}")
@@ -181,6 +183,9 @@ def train(
         pbar.set_description(f"Current avg. loss: {running_loss:.3f}, Epochs")
         running_losses.append(running_loss)
         running_loss = 0
+        if q_key_pressed_non_blocking():
+            print("stopping training early and finishing up ...")
+            break
 
     print(f"Saving model in directory {model_storage_directory} ...")
     torch.save(autoencoder.state_dict(), model_storage_directory / "model.pt")

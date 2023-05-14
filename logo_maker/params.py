@@ -17,15 +17,15 @@ SHUFFLE_DATA = True
 CLUSTER: ClusterNamesAeGrayscale = ClusterNamesAeGrayscale.writing_on_black
 DEVICE: str = "cuda"
 DO_NORM: bool = True
-N_IMAGES: int = 560
+N_IMAGES: int = 8192
 USE_MNIST: bool = True
 
 
 class AutoEncoderParams:
     ADVERSARIAL_LOSS_WEIGHT: float | None = None
     BATCH_SIZE: int = 128
-    EPOCHS: int = 400
-    KL_LOSS_WEIGHT: float = 7.5
+    EPOCHS: int = 150
+    KL_LOSS_WEIGHT: float = 7.2
     LEARNING_RATE: float = 3e-4
 
 
