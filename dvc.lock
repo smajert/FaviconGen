@@ -9,50 +9,47 @@ stages:
     params:
       logo_maker/params.py:
         AutoEncoderParams:
-          ADVERSARIAL_LOSS_WEIGHT:
+          ADVERSARIAL_LOSS_WEIGHT: 1
           BATCH_SIZE: 128
-          EPOCHS: 150
+          EPOCHS: 50
           KL_LOSS_WEIGHT: 1
           LEARNING_RATE: 0.0004
     outs:
     - path: outs/train_autoencoder/loss.csv
-      md5: ad32eca11c1e6f4f8e5fac0ab96340c3
-      size: 3578
+      md5: 355cc8cb34685586a9eb4a21ad65475b
+      size: 1147
     - path: outs/train_autoencoder/model.pt
-      md5: fb2f65550bf2630b8d419373f612b473
-      size: 2033557
+      md5: cf4f92f86d961a9751193f40d4505ea8
+      size: 2033621
   train_diffusion_model:
     cmd: python logo_maker/denoising_diffusion.py
     deps:
     - path: data/LLD-icon.hdf5
       md5: 91f56af2235117e44629fa608fed59ef
       size: 798927457
-    - path: outs/train_autoencoder/model.pt
-      md5: c747ecb48b315393b8739f766e0165d6
-      size: 239445
     params:
       logo_maker/params.py:
         DiffusionModelParams:
           BATCH_SIZE: 128
           DIFFUSION_STEPS: 1000
           EMBEDDING_DIMENSION: 32
-          EPOCHS: 200
-          LEARNING_RATE: 0.002
+          EPOCHS: 10
+          LEARNING_RATE: 0.001
           VAR_SCHEDULE_START: 0.0001
           VAR_SCHEDULE_END: 0.02
     outs:
     - path: outs/train_diffusion_model/loss.csv
-      md5: b3be3df3906bb9e3fd3c68a32b3ee0cf
-      size: 4538
+      md5: a3deb5dccc46dde24e0a4c62e96eef23
+      size: 243
     - path: outs/train_diffusion_model/model.pt
-      md5: e8a2f5e04d792c5cda6527f28a99dc4e
-      size: 3176539
+      md5: 63aac716672e753e15454b169d212306
+      size: 54153325
   draw_samples:
     cmd: python logo_maker/probe_model.py --use_gpu --n_samples 64
     deps:
     - path: outs/train_autoencoder/model.pt
-      md5: c747ecb48b315393b8739f766e0165d6
-      size: 239445
+      md5: cf4f92f86d961a9751193f40d4505ea8
+      size: 2033621
     - path: outs/train_diffusion_model/model.pt
-      md5: e8a2f5e04d792c5cda6527f28a99dc4e
-      size: 3176539
+      md5: 63aac716672e753e15454b169d212306
+      size: 54153325

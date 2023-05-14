@@ -262,7 +262,7 @@ def train(
             loss.backward()
             optimizer.step()
             running_loss += loss.item() * batch.shape[0] / n_samples
-        if (epoch + 1) in [int(rel_plot_step * n_epochs) for rel_plot_step in [0.25, 0.5, 0.75, 1.0]]:
+        if (epoch + 1) in [int(rel_plot_step * n_epochs) for rel_plot_step in [0.1, 0.25, 0.5, 0.75, 1.0]]:
             sample_shape = torch.Size((1, *batch.shape[1:]))
             _ = draw_sample_from_generator(
                 model,

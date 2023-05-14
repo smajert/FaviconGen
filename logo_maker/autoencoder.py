@@ -34,7 +34,7 @@ class AutoEncoder(torch.nn.Module):
             ConvBlock(64, 32, self.activation, do_transpose=True),  # 32 x 8 x 8
             ConvBlock(32, 16, self.activation, do_transpose=True),  # 16 x 16 x 16
             ConvBlock(16, in_channels, self.activation, do_transpose=True),  # in_channels x 32 x 32
-            torch.nn.Conv2d(in_channels, in_channels, 3, padding=1, stride=1),  # 3 x 32 x 32
+            torch.nn.Conv2d(in_channels, in_channels, 5, padding=2, stride=1),  # in_channels x 32 x 32
             torch.nn.Tanh()  # in_channels x 32 x 32
         )
 
@@ -75,13 +75,14 @@ class AutoEncoder(torch.nn.Module):
 class PatchDiscriminator(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
+        in_channels = 1 if params.USE_MNIST else 3
         self.activation = torch.nn.LeakyReLU()
         self.layers = torch.nn.ModuleList([  # input: 3 x 32 x 32
-            ConvBlock(3, 16, self.activation, n_non_transform_conv_layers=0),  # 16 x 16 x 16
+            ConvBlock(in_channels, 16, self.activation, n_non_transform_conv_layers=0),  # 16 x 16 x 16
             ConvBlock(16, 32, self.activation, n_non_transform_conv_layers=1, kernel=7, padding=3),  # 32 x 16 x 16
             #ConvBlock(32, 8, self.activation, kernel=3, stride=1, padding=1, n_non_transform_conv_layers=1), # 8 x 16 x 16
             torch.nn.Conv2d(32, 1, kernel_size=5, padding=2),  # 1 x 16 x 16
-            torch.nn.Tanh()
+            torch.nn.Sigmoid()
         ])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -117,7 +118,7 @@ def train(
     if use_patch_discriminator:
         patch_disc = PatchDiscriminator()
         patch_disc.to(device)
-        optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=learning_rate)
+        optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=0.01 * learning_rate)
 
     # prepare autoencoder
     autoencoder = AutoEncoder()
@@ -145,7 +146,7 @@ def train(
                 disc_pred_reconstructed = patch_disc(reconst_batch)
                 is_original = torch.broadcast_to(value_for_original, disc_pred_reconstructed.shape)
                 is_reconstructed = torch.broadcast_to(value_for_reconstructed, disc_pred_reconstructed.shape)
-                adversarial_loss = loss_fn(disc_pred_reconstructed, is_original)
+                adversarial_loss = torch.nn.L1Loss()(disc_pred_reconstructed, is_original)
                 adversarial_loss_weight = params.AutoEncoderParams.ADVERSARIAL_LOSS_WEIGHT
             else:
                 adversarial_loss = 0
@@ -165,17 +166,22 @@ def train(
                 reconst_batch, _, _ = autoencoder(batch)
                 disc_pred_reconstructed = patch_disc(reconst_batch.detach())
                 disc_loss = (
-                    loss_fn(disc_pred_original, is_original) + loss_fn(disc_pred_reconstructed, is_reconstructed)
+                    torch.nn.L1Loss()(disc_pred_original, is_original)
+                    + torch.nn.L1Loss()(disc_pred_reconstructed, is_reconstructed)
                 )
                 disc_loss.backward()
                 optimizer_discriminator.step()
 
             running_loss += generator_loss.item() * batch.shape[0] / n_samples
-        if (epoch + 1) % 20 == 0:
+        if (epoch + 1) in [int(rel_plot_step * n_epochs) for rel_plot_step in [0.1, 0.25, 0.5, 0.75, 1.0]]:
             print(autoencoder.to_log_var.weight.mean())
             print(autoencoder.to_log_var.weight.shape)
             print(f"reconstruction_loss: {reconstruction_loss.item()}")
             print(f"KL divergence: {kl_loss.item()}")
+            if params.AutoEncoderParams.ADVERSARIAL_LOSS_WEIGHT is not None:
+                print(f"Adversarial loss: {adversarial_loss.item()}")
+                print(f"Patch disc loss: {disc_loss.item()}")
+
             show_image_grid(reconst_batch, save_as=model_storage_directory / f"reconstruction_epoch_{epoch}.png")
             show_image_grid(batch, save_as=model_storage_directory / f"original_{epoch}.png")
 

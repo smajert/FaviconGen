@@ -17,14 +17,14 @@ SHUFFLE_DATA = True
 CLUSTER: ClusterNamesAeGrayscale = ClusterNamesAeGrayscale.writing_on_black
 DEVICE: str = "cuda"
 DO_NORM: bool = True
-N_IMAGES: int = 8192
+N_IMAGES: int = 24576
 USE_MNIST: bool = True
 
 
 class AutoEncoderParams:
-    ADVERSARIAL_LOSS_WEIGHT: float | None = None
+    ADVERSARIAL_LOSS_WEIGHT: float | None = 1
     BATCH_SIZE: int = 128
-    EPOCHS: int = 150
+    EPOCHS: int = 50
     KL_LOSS_WEIGHT: float = 1
     LEARNING_RATE: float = 4e-4
 
@@ -33,7 +33,7 @@ class DiffusionModelParams:
     BATCH_SIZE: int = 128
     DIFFUSION_STEPS: int = 1000
     EMBEDDING_DIMENSION: int = 32
-    EPOCHS: int = 400
+    EPOCHS: int = 10
     LEARNING_RATE: float = 0.001
     VAR_SCHEDULE_START: float = 0.0001
     VAR_SCHEDULE_END: float = 0.02
