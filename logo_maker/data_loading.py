@@ -38,6 +38,7 @@ class ClusterNamesAeGrayscale(Enum):
 
 
 def show_image_grid(tensor: Tensor, save_as: Path | None = None) -> None:
+    print(tensor.shape)
     img_grid = utils.make_grid(tensor)
     img_grid = BACKWARD_TRANSFORMS(img_grid.detach())
 
@@ -105,6 +106,7 @@ def load_logos(
 ) -> tuple[int, DataLoader]:
     dataset_location = params.DATA_BASE_DIR / "LLD-icon.hdf5"
     logos = LargeLogoDataset(dataset_location, cluster=cluster, cache_files=False, n_images=n_images)
+    print(len(logos))
     loader = DataLoader(logos, batch_size=batch_size, shuffle=shuffle)
     return len(logos), loader
 

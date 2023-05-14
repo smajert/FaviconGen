@@ -8,6 +8,7 @@ stages:
     params:
       - logo_maker/params.py:
         - AutoEncoderParams
+        - DatasetParams
     plots:
       - outs/train_autoencoder/loss.csv:
           x: Epoch
@@ -22,6 +23,7 @@ stages:
       - outs/train_diffusion_model/model.pt
     params:
       - logo_maker/params.py:
+        - DatasetParams
         - DiffusionModelParams
     plots:
       - outs/train_diffusion_model/loss.csv:

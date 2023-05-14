@@ -103,7 +103,7 @@ class SinusoidalPositionEmbeddings(torch.nn.Module):
 class Generator(torch.nn.Module):
     def __init__(self, variance_schedule: VarianceSchedule, embedding_dim: int) -> None:
         super().__init__()
-        in_channels = 1 if params.USE_MNIST else 3
+        in_channels = 1 if params.DatasetParams.USE_MNIST else 3
 
         self.variance_schedule = variance_schedule
 
@@ -222,7 +222,7 @@ def train(
     n_images: int,
     shuffle_data: bool,
 ) -> None:
-    if params.USE_MNIST:
+    if params.DatasetParams.USE_MNIST:
         n_samples, data_loader = load_mnist(batch_size, shuffle_data, n_images)
     else:
         n_samples, data_loader = load_logos(batch_size, shuffle_data, n_images, cluster=cluster)
@@ -246,7 +246,7 @@ def train(
     #single_batch = [next(iter(data_loader))]
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
         for batch_idx, batch in enumerate(data_loader):
-            if params.USE_MNIST:  # throw away labels from MNIST
+            if params.DatasetParams.USE_MNIST:  # throw away labels from MNIST
                 batch = batch[0]
             batch = batch.to(device)
 
@@ -287,15 +287,15 @@ if __name__ == "__main__":
     train(
         batch_size=params.DiffusionModelParams.BATCH_SIZE,
         beta_start_end=(params.DiffusionModelParams.VAR_SCHEDULE_START, params.DiffusionModelParams.VAR_SCHEDULE_END),
-        cluster=params.CLUSTER,
+        cluster=params.DatasetParams.CLUSTER,
         device=params.DEVICE,
         embedding_dim=params.DiffusionModelParams.EMBEDDING_DIMENSION,
         learning_rate=params.DiffusionModelParams.LEARNING_RATE,
         model_file=model_file,
-        n_images=params.N_IMAGES,
+        n_images=params.DatasetParams.N_IMAGES,
         n_epochs=params.DiffusionModelParams.EPOCHS,
         n_diffusion_steps=params.DiffusionModelParams.DIFFUSION_STEPS,
-        shuffle_data=params.SHUFFLE_DATA
+        shuffle_data=params.DatasetParams.SHUFFLE_DATA
     )
 
 

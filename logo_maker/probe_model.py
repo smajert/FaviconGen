@@ -23,7 +23,7 @@ def probe_autoencoder_model(seed: int, n_samples: int, device:str, save_as: Path
     rand_generator = torch.Generator(device=device)
     if seed is not None:
         rand_generator.manual_seed(seed)
-    random_latent = torch.randn((n_samples, 128), device=device, generator=rand_generator)
+    random_latent = torch.randn((n_samples, 256), device=device, generator=rand_generator)
     batch = autoencoder.decoder(autoencoder.convert_from_latent(random_latent))
     show_image_grid(batch)
     if save_as is not None:
@@ -52,7 +52,7 @@ def probe_diffusion_model(seed: int, n_samples: int, device: str, save_as: Path 
     generator = generator.to(device)
     generator.eval()
 
-    in_channels = 1 if params.USE_MNIST else 3
+    in_channels = 1 if params.DatasetParams.USE_MNIST else 3
     batch = draw_sample_from_generator(generator, (n_samples, in_channels, 32, 32), seed=seed)
     show_image_grid(batch)
     if save_as is not None:

@@ -14,13 +14,18 @@ stages:
           EPOCHS: 50
           KL_LOSS_WEIGHT: 1
           LEARNING_RATE: 0.0004
+        DatasetParams:
+          CLUSTER:
+          N_IMAGES: 37376
+          SHUFFLE_DATA: true
+          USE_MNIST: true
     outs:
     - path: outs/train_autoencoder/loss.csv
-      md5: 355cc8cb34685586a9eb4a21ad65475b
-      size: 1147
+      md5: 8c9796046f1144c2ba476bccde401b72
+      size: 1166
     - path: outs/train_autoencoder/model.pt
-      md5: cf4f92f86d961a9751193f40d4505ea8
-      size: 2033621
+      md5: b205f79b4d6d26f5730e630af8d80e9e
+      size: 3477013
   train_diffusion_model:
     cmd: python logo_maker/denoising_diffusion.py
     deps:
@@ -29,6 +34,11 @@ stages:
       size: 798927457
     params:
       logo_maker/params.py:
+        DatasetParams:
+          CLUSTER:
+          N_IMAGES: 37376
+          SHUFFLE_DATA: true
+          USE_MNIST: true
         DiffusionModelParams:
           BATCH_SIZE: 128
           DIFFUSION_STEPS: 1000
@@ -39,17 +49,17 @@ stages:
           VAR_SCHEDULE_END: 0.02
     outs:
     - path: outs/train_diffusion_model/loss.csv
-      md5: a3deb5dccc46dde24e0a4c62e96eef23
-      size: 243
+      md5: ac93ddd973e524f5e2324a24eac6aece
+      size: 245
     - path: outs/train_diffusion_model/model.pt
-      md5: 63aac716672e753e15454b169d212306
+      md5: f0faa6c6a1d9121cea100b16b5c3bd09
       size: 54153325
   draw_samples:
     cmd: python logo_maker/probe_model.py --use_gpu --n_samples 64
     deps:
     - path: outs/train_autoencoder/model.pt
-      md5: cf4f92f86d961a9751193f40d4505ea8
-      size: 2033621
+      md5: b205f79b4d6d26f5730e630af8d80e9e
+      size: 3477013
     - path: outs/train_diffusion_model/model.pt
-      md5: 63aac716672e753e15454b169d212306
+      md5: f0faa6c6a1d9121cea100b16b5c3bd09
       size: 54153325

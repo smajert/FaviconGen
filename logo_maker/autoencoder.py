@@ -14,8 +14,8 @@ from logo_maker.utils import q_key_pressed_non_blocking
 class AutoEncoder(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        in_channels = 1 if params.USE_MNIST else 3
-        self.latent_dim = 128
+        in_channels = 1 if params.DatasetParams.USE_MNIST else 3
+        self.latent_dim = 256
         self.activation = torch.nn.LeakyReLU()
         self.encoder = torch.nn.Sequential(  # input: in_channels x 32 x 32
             ConvBlock(in_channels, 16, self.activation),  # 16 x 16 x 16
@@ -75,13 +75,15 @@ class AutoEncoder(torch.nn.Module):
 class PatchDiscriminator(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        in_channels = 1 if params.USE_MNIST else 3
+        in_channels = 1 if params.DatasetParams.USE_MNIST else 3
         self.activation = torch.nn.LeakyReLU()
         self.layers = torch.nn.ModuleList([  # input: 3 x 32 x 32
             ConvBlock(in_channels, 16, self.activation, n_non_transform_conv_layers=0),  # 16 x 16 x 16
-            ConvBlock(16, 32, self.activation, n_non_transform_conv_layers=1, kernel=7, padding=3),  # 32 x 16 x 16
-            #ConvBlock(32, 8, self.activation, kernel=3, stride=1, padding=1, n_non_transform_conv_layers=1), # 8 x 16 x 16
-            torch.nn.Conv2d(32, 1, kernel_size=5, padding=2),  # 1 x 16 x 16
+            ConvBlock(16, 32, self.activation, n_non_transform_conv_layers=0, kernel=7, padding=3),  # 32 x 8 x 8
+            torch.nn.Conv2d(32, 8, kernel_size=5, padding=2),  # 8 x 8 x 8
+            self.activation,
+            torch.nn.Flatten(),
+            torch.nn.Linear(512, 10),
             torch.nn.Sigmoid()
         ])
 
@@ -101,7 +103,7 @@ def train(
     n_images: int,
     shuffle_data: bool,
 ) -> None:
-    if params.USE_MNIST:
+    if params.DatasetParams.USE_MNIST:
         n_samples, data_loader = load_mnist(batch_size, shuffle_data, n_images)
     else:
         n_samples, data_loader = load_logos(batch_size, shuffle_data, n_images, cluster=cluster)
@@ -118,7 +120,7 @@ def train(
     if use_patch_discriminator:
         patch_disc = PatchDiscriminator()
         patch_disc.to(device)
-        optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=0.01 * learning_rate)
+        optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=0.08 * learning_rate)
 
     # prepare autoencoder
     autoencoder = AutoEncoder()
@@ -134,7 +136,7 @@ def train(
     value_for_reconstructed = torch.tensor([0], device=device, dtype=torch.float)
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
         for batch_idx, batch in enumerate(data_loader):
-            if params.USE_MNIST:  # throw away labels from MNIST
+            if params.DatasetParams.USE_MNIST:  # throw away labels from MNIST
                 batch = batch[0]
             batch = batch.to(device)  # batch does not track gradients -> does not need to be detached ever
 
@@ -205,11 +207,11 @@ if __name__ == "__main__":
     model_file = None
     train(
         batch_size=params.AutoEncoderParams.BATCH_SIZE,
-        cluster=params.CLUSTER,
+        cluster=params.DatasetParams.CLUSTER,
         device=params.DEVICE,
         learning_rate=params.AutoEncoderParams.LEARNING_RATE,
         model_file=model_file,
         n_epochs=params.AutoEncoderParams.EPOCHS,
-        n_images=params.N_IMAGES,
-        shuffle_data=params.SHUFFLE_DATA
+        n_images=params.DatasetParams.N_IMAGES,
+        shuffle_data=params.DatasetParams.SHUFFLE_DATA
     )

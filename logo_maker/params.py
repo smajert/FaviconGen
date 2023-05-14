@@ -12,13 +12,16 @@ OUTS_BASE_DIR = REPO_ROOT / "outs"
 RANDOM_SEED = 0
 torch.random.manual_seed(RANDOM_SEED)
 random.seed(RANDOM_SEED)
-SHUFFLE_DATA = True
-
-CLUSTER: ClusterNamesAeGrayscale = ClusterNamesAeGrayscale.writing_on_black
 DEVICE: str = "cuda"
+
 DO_NORM: bool = True
-N_IMAGES: int = 24576
-USE_MNIST: bool = True
+
+
+class DatasetParams:
+    CLUSTER: ClusterNamesAeGrayscale | None = None
+    N_IMAGES: int | None = 37376
+    SHUFFLE_DATA = True
+    USE_MNIST: bool = True
 
 
 class AutoEncoderParams:
