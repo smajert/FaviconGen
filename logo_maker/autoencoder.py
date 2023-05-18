@@ -15,25 +15,25 @@ class AutoEncoder(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
         in_channels = 1 if params.DatasetParams.USE_MNIST else 3
-        self.latent_dim = 256
+        self.latent_dim = 512
         self.activation = torch.nn.LeakyReLU()
         self.encoder = torch.nn.Sequential(  # input: in_channels x 32 x 32
-            ConvBlock(in_channels, 16, self.activation),  # 16 x 16 x 16
-            ConvBlock(16, 32, self.activation),  # 16 x 8 x 8
-            ConvBlock(32, 64, self.activation),  # 64 x 4 x 4
+            ConvBlock(in_channels, 32, self.activation),  # 16 x 16 x 16
+            ConvBlock(32, 64, self.activation),  # 16 x 8 x 8
+            ConvBlock(64, 128, self.activation),  # 64 x 4 x 4
             torch.nn.Flatten()  # 64*4*4
         )
-        flattened_dimension = 64 * 4 * 4
+        flattened_dimension = 128 * 4 * 4
         self.to_latent = torch.nn.Linear(flattened_dimension, self.latent_dim)
         self.to_mu = torch.nn.Linear(self.latent_dim, self.latent_dim)
         self.to_log_var = torch.nn.Linear(self.latent_dim, self.latent_dim)
         self.from_latent = torch.nn.Linear(self.latent_dim, flattened_dimension)
 
         self.decoder = torch.nn.Sequential(  # input: 64*4*4
-            torch.nn.Unflatten(1, (64, 4, 4)),  # 64 x 4 x 4
-            ConvBlock(64, 32, self.activation, do_transpose=True),  # 32 x 8 x 8
-            ConvBlock(32, 16, self.activation, do_transpose=True),  # 16 x 16 x 16
-            ConvBlock(16, in_channels, self.activation, do_transpose=True),  # in_channels x 32 x 32
+            torch.nn.Unflatten(1, (128, 4, 4)),  # 64 x 4 x 4
+            ConvBlock(128, 64, self.activation, do_transpose=True),  # 32 x 8 x 8
+            ConvBlock(64, 32, self.activation, do_transpose=True),  # 16 x 16 x 16
+            ConvBlock(32, in_channels, self.activation, do_transpose=True),  # in_channels x 32 x 32
             torch.nn.Conv2d(in_channels, in_channels, 5, padding=2, stride=1),  # in_channels x 32 x 32
             torch.nn.Tanh()  # in_channels x 32 x 32
         )
@@ -81,9 +81,6 @@ class PatchDiscriminator(torch.nn.Module):
             ConvBlock(in_channels, 16, self.activation, n_non_transform_conv_layers=0),  # 16 x 16 x 16
             ConvBlock(16, 32, self.activation, n_non_transform_conv_layers=0, kernel=7, padding=3),  # 32 x 8 x 8
             torch.nn.Conv2d(32, 8, kernel_size=5, padding=2),  # 8 x 8 x 8
-            self.activation,
-            torch.nn.Flatten(),
-            torch.nn.Linear(512, 10),
             torch.nn.Sigmoid()
         ])
 
@@ -105,9 +102,10 @@ def train(
 ) -> None:
     if params.DatasetParams.USE_MNIST:
         n_samples, data_loader = load_mnist(batch_size, shuffle_data, n_images)
+        model_storage_directory = params.OUTS_BASE_DIR / "train_autoencoder_mnist"
     else:
         n_samples, data_loader = load_logos(batch_size, shuffle_data, n_images, cluster=cluster)
-    model_storage_directory = params.OUTS_BASE_DIR / "train_autoencoder"
+        model_storage_directory = params.OUTS_BASE_DIR / "train_autoencoder_lld"
 
     print(f"Cleaning output directory {model_storage_directory} ...")
     if model_storage_directory.exists():
@@ -120,7 +118,7 @@ def train(
     if use_patch_discriminator:
         patch_disc = PatchDiscriminator()
         patch_disc.to(device)
-        optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=0.08 * learning_rate)
+        optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=0.2 * learning_rate)  # 0.08
 
     # prepare autoencoder
     autoencoder = AutoEncoder()

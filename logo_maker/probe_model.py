@@ -13,17 +13,16 @@ from logo_maker.denoising_diffusion import Generator, draw_sample_from_generator
 import logo_maker.params as params
 
 
-def probe_autoencoder_model(seed: int, n_samples: int, device:str, save_as: Path | None = None) -> None:
-    autoencoder_file = params.OUTS_BASE_DIR / f"train_autoencoder/model.pt"
+def probe_autoencoder_model(model_file: Path, seed: int, n_samples: int, device:str, save_as: Path | None = None) -> None:
     autoencoder = AutoEncoder()
-    autoencoder.load_state_dict(torch.load(autoencoder_file))
+    autoencoder.load_state_dict(torch.load(model_file))
     autoencoder.eval()
     autoencoder.to(device)
 
     rand_generator = torch.Generator(device=device)
     if seed is not None:
         rand_generator.manual_seed(seed)
-    random_latent = torch.randn((n_samples, 256), device=device, generator=rand_generator)
+    random_latent = torch.randn((n_samples, autoencoder.latent_dim), device=device, generator=rand_generator)
     batch = autoencoder.decoder(autoencoder.convert_from_latent(random_latent))
     show_image_grid(batch)
     if save_as is not None:
@@ -73,12 +72,6 @@ def main():
         help="Try to calculate on GPU.",
         action="store_true"
     )
-    parser.add_argument(
-        "--save_to",
-        help="Storage directory for results.",
-        type=Path,
-        default=None
-    )
 
     args = parser.parse_args()
     if args.use_gpu:
@@ -86,19 +79,21 @@ def main():
     else:
         device = "cpu"
 
-    if args.save_to is not None:
-        if not args.save_to.isdir():
-            raise OSError(f"{args.save_to} is not a valid directory.")
-        save_location_auto_samples = args.save_to / f"samples_autoencoder.png"
-        save_location_diff_samples = args.save_to / f"samples_diffusion.png"
-    else:
-        save_location_auto_samples, save_location_diff_samples = None, None
-
     if args.seed is None:
         torch.random.manual_seed(datetime.now().timestamp())
         random.seed(datetime.now().timestamp())
 
-    probe_autoencoder_model(args.seed, args.n_samples, device, save_as=save_location_auto_samples)
+    if params.DatasetParams.USE_MNIST:
+        model_file_auto = params.OUTS_BASE_DIR / f"train_autoencoder_mnist/model.pt"
+        save_location_auto_samples = params.OUTS_BASE_DIR / "samples_autoencoder_mnist.png"
+    else:
+        model_file_auto = params.OUTS_BASE_DIR / f"train_autoencoder_lld/model.pt"
+        save_location_auto_samples = params.OUTS_BASE_DIR / "samples_autoencoder_lld.png"
+
+    save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion.png"
+
+
+    probe_autoencoder_model(model_file_auto, args.seed, args.n_samples, device, save_as=save_location_auto_samples)
     #probe_diffusion_model(args.seed, args.n_samples, device, save_as=save_location_diff_samples)
 
 

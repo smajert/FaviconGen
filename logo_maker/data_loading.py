@@ -35,6 +35,7 @@ ClusterMethod = Enum("ClusterMethod", ["ae_grayscale", "rc_32", "rc_64", "rc_128
 class ClusterNamesAeGrayscale(Enum):
     writing_on_black = 2
     round_on_white = 25
+    colorful_round = 3
 
 
 def show_image_grid(tensor: Tensor, save_as: Path | None = None) -> None:

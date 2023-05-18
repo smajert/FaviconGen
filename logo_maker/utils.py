@@ -4,6 +4,10 @@ import select
 
 
 def q_key_pressed_non_blocking() -> bool:
+    """
+    Returns q if last key pressed on the keyboard since
+    program start/last call of function is 'q'.
+    """
     input_key: str | None = None
 
     if sys.platform == "win32":
