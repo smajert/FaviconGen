@@ -13,8 +13,10 @@ from logo_maker.denoising_diffusion import Generator, draw_sample_from_generator
 import logo_maker.params as params
 
 
-def probe_autoencoder_model(model_file: Path, seed: int, n_samples: int, device:str, save_as: Path | None = None) -> None:
-    autoencoder = AutoEncoder()
+def probe_autoencoder_model(
+    model_file: Path, in_channels: int, seed: int, n_samples: int, device: str, save_as: Path | None = None
+) -> None:
+    autoencoder = AutoEncoder(in_channels)
     autoencoder.load_state_dict(torch.load(model_file))
     autoencoder.eval()
     autoencoder.to(device)
@@ -72,6 +74,9 @@ def main():
         help="Try to calculate on GPU.",
         action="store_true"
     )
+    parser.add_argument(
+        "--use_mnist", action="store_true", help="Whether to train on MNIST instead of the Large Logo Dataset."
+    )
 
     args = parser.parse_args()
     if args.use_gpu:
@@ -83,7 +88,7 @@ def main():
         torch.random.manual_seed(datetime.now().timestamp())
         random.seed(datetime.now().timestamp())
 
-    if params.DatasetParams.USE_MNIST:
+    if args.use_mnist:
         model_file_auto = params.OUTS_BASE_DIR / f"train_autoencoder_mnist/model.pt"
         save_location_auto_samples = params.OUTS_BASE_DIR / "samples_autoencoder_mnist.png"
     else:
@@ -92,8 +97,10 @@ def main():
 
     save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion.png"
 
-
-    probe_autoencoder_model(model_file_auto, args.seed, args.n_samples, device, save_as=save_location_auto_samples)
+    in_channels = 1 if args.use_mnist else 3
+    probe_autoencoder_model(
+        model_file_auto, in_channels, args.seed, args.n_samples, device, save_as=save_location_auto_samples
+    )
     #probe_diffusion_model(args.seed, args.n_samples, device, save_as=save_location_diff_samples)
 
 

@@ -63,3 +63,65 @@ stages:
     - path: outs/train_diffusion_model/model.pt
       md5: f0faa6c6a1d9121cea100b16b5c3bd09
       size: 54153325
+  train_autoencoder_lld:
+    cmd: python logo_maker/autoencoder.py
+    deps:
+    - path: data/LLD-icon.hdf5
+      md5: 91f56af2235117e44629fa608fed59ef
+      size: 798927457
+    params:
+      logo_maker/params.py:
+        AutoEncoderParams:
+          ADVERSARIAL_LOSS_WEIGHT: 1
+          BATCH_SIZE: 128
+          EPOCHS: 15
+          KL_LOSS_WEIGHT: 1
+          LEARNING_RATE: 0.0004
+        DatasetParams:
+          CLUSTER:
+          N_IMAGES: 299008
+          SHUFFLE_DATA: true
+    outs:
+    - path: outs/train_autoencoder_lld/loss.csv
+      md5: 214e983f8c911c3882196ec0edbec121
+      size: 345
+    - path: outs/train_autoencoder_lld/model.pt
+      md5: 36c736c2baa7674b0ed7f9a05d83cced
+      size: 13787989
+  train_autoencoder_mnist:
+    cmd: python logo_maker/autoencoder.py --use_mnist
+    deps:
+    - path: data/LLD-icon.hdf5
+      md5: 91f56af2235117e44629fa608fed59ef
+      size: 798927457
+    params:
+      logo_maker/params.py:
+        AutoEncoderParams:
+          ADVERSARIAL_LOSS_WEIGHT: 1
+          BATCH_SIZE: 128
+          EPOCHS: 15
+          KL_LOSS_WEIGHT: 1
+          LEARNING_RATE: 0.0004
+        DatasetParams:
+          CLUSTER:
+          N_IMAGES: 299008
+          SHUFFLE_DATA: true
+    outs:
+    - path: outs/train_autoencoder_mnist/loss.csv
+      md5: 3a4d65c582a2635e86b1e7f1e66c664d
+      size: 358
+    - path: outs/train_autoencoder_mnist/model.pt
+      md5: 15f2854ecb815436bff746cfb594a916
+      size: 13778325
+  draw_samples_mnist:
+    cmd: python logo_maker/probe_model.py --use_mnist --use_gpu --n_samples 64
+    deps:
+    - path: outs/train_autoencoder_mnist/model.pt
+      md5: 15f2854ecb815436bff746cfb594a916
+      size: 13778325
+  draw_samples_lld:
+    cmd: python logo_maker/probe_model.py --use_gpu --n_samples 64
+    deps:
+    - path: outs/train_autoencoder_lld/model.pt
+      md5: 36c736c2baa7674b0ed7f9a05d83cced
+      size: 13787989

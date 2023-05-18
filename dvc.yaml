@@ -1,38 +1,59 @@
 stages:
-  train_autoencoder:
-    cmd: python logo_maker/autoencoder.py
+  train_autoencoder_mnist:
+    cmd: python logo_maker/autoencoder.py --use_mnist
     deps:
       - data/LLD-icon.hdf5
     outs:
-      - outs/train_autoencoder/model.pt
+      - outs/train_autoencoder_mnist/model.pt
     params:
       - logo_maker/params.py:
         - AutoEncoderParams
         - DatasetParams
     plots:
-      - outs/train_autoencoder/loss.csv:
+      - outs/train_autoencoder_mnist/loss.csv:
           x: Epoch
           y: Loss
 
-
-  train_diffusion_model:
-    cmd: python logo_maker/denoising_diffusion.py
+  train_autoencoder_lld:
+    cmd: python logo_maker/autoencoder.py
     deps:
       - data/LLD-icon.hdf5
     outs:
-      - outs/train_diffusion_model/model.pt
+      - outs/train_autoencoder_lld/model.pt
     params:
       - logo_maker/params.py:
-        - DatasetParams
-        - DiffusionModelParams
+          - AutoEncoderParams
+          - DatasetParams
     plots:
-      - outs/train_diffusion_model/loss.csv:
+      - outs/train_autoencoder_lld/loss.csv:
           x: Epoch
           y: Loss
 
 
-  draw_samples:
+#  train_diffusion_model:
+#    cmd: python logo_maker/denoising_diffusion.py
+#    deps:
+#      - data/LLD-icon.hdf5
+#    outs:
+#      - outs/train_diffusion_model/model.pt
+#    params:
+#      - logo_maker/params.py:
+#        - DatasetParams
+#        - DiffusionModelParams
+#    plots:
+#      - outs/train_diffusion_model/loss.csv:
+#          x: Epoch
+#          y: Loss
+
+
+  draw_samples_mnist:
+    cmd: python logo_maker/probe_model.py --use_mnist --use_gpu --n_samples 64
+    deps:
+      - outs/train_autoencoder_mnist/model.pt
+#      - outs/train_diffusion_model/model.pt
+
+  draw_samples_lld:
     cmd: python logo_maker/probe_model.py --use_gpu --n_samples 64
     deps:
-      - outs/train_autoencoder/model.pt
-      - outs/train_diffusion_model/model.pt
+      - outs/train_autoencoder_lld/model.pt
+

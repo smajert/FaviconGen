@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 import shutil
 
@@ -12,9 +13,8 @@ from logo_maker.utils import q_key_pressed_non_blocking
 
 
 class AutoEncoder(torch.nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, in_channels: int) -> None:
         super().__init__()
-        in_channels = 1 if params.DatasetParams.USE_MNIST else 3
         self.latent_dim = 512
         self.activation = torch.nn.LeakyReLU()
         self.encoder = torch.nn.Sequential(  # input: in_channels x 32 x 32
@@ -73,9 +73,8 @@ class AutoEncoder(torch.nn.Module):
 
 
 class PatchDiscriminator(torch.nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, in_channels: int) -> None:
         super().__init__()
-        in_channels = 1 if params.DatasetParams.USE_MNIST else 3
         self.activation = torch.nn.LeakyReLU()
         self.layers = torch.nn.ModuleList([  # input: 3 x 32 x 32
             ConvBlock(in_channels, 16, self.activation, n_non_transform_conv_layers=0),  # 16 x 16 x 16
@@ -99,13 +98,16 @@ def train(
     n_epochs: int,
     n_images: int,
     shuffle_data: bool,
+    use_mnist: bool
 ) -> None:
-    if params.DatasetParams.USE_MNIST:
+    if use_mnist:
         n_samples, data_loader = load_mnist(batch_size, shuffle_data, n_images)
         model_storage_directory = params.OUTS_BASE_DIR / "train_autoencoder_mnist"
+        in_channels = 1
     else:
         n_samples, data_loader = load_logos(batch_size, shuffle_data, n_images, cluster=cluster)
         model_storage_directory = params.OUTS_BASE_DIR / "train_autoencoder_lld"
+        in_channels = 3
 
     print(f"Cleaning output directory {model_storage_directory} ...")
     if model_storage_directory.exists():
@@ -114,14 +116,13 @@ def train(
 
     # prepare discriminator
     use_patch_discriminator = params.AutoEncoderParams.ADVERSARIAL_LOSS_WEIGHT is not None
-    print(use_patch_discriminator)
     if use_patch_discriminator:
-        patch_disc = PatchDiscriminator()
+        patch_disc = PatchDiscriminator(in_channels)
         patch_disc.to(device)
         optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=0.2 * learning_rate)  # 0.08
 
     # prepare autoencoder
-    autoencoder = AutoEncoder()
+    autoencoder = AutoEncoder(in_channels)
     if model_file is not None:
         autoencoder.load_state_dict(torch.load(model_file))
     autoencoder.to(device)
@@ -134,7 +135,7 @@ def train(
     value_for_reconstructed = torch.tensor([0], device=device, dtype=torch.float)
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
         for batch_idx, batch in enumerate(data_loader):
-            if params.DatasetParams.USE_MNIST:  # throw away labels from MNIST
+            if use_mnist:  # throw away labels from MNIST
                 batch = batch[0]
             batch = batch.to(device)  # batch does not track gradients -> does not need to be detached ever
 
@@ -202,6 +203,12 @@ def train(
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train the autoencoder model.")
+    parser.add_argument(
+        "--use_mnist", action="store_true", help="Whether to train on MNIST instead of the Large Logo Dataset."
+    )
+    args = parser.parse_args()
+
     model_file = None
     train(
         batch_size=params.AutoEncoderParams.BATCH_SIZE,
@@ -211,5 +218,6 @@ if __name__ == "__main__":
         model_file=model_file,
         n_epochs=params.AutoEncoderParams.EPOCHS,
         n_images=params.DatasetParams.N_IMAGES,
-        shuffle_data=params.DatasetParams.SHUFFLE_DATA
+        shuffle_data=params.DatasetParams.SHUFFLE_DATA,
+        use_mnist=args.use_mnist
     )

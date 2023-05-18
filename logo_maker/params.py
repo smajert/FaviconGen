@@ -19,15 +19,14 @@ DO_NORM: bool = True
 
 class DatasetParams:
     CLUSTER: ClusterNamesAeGrayscale | None = None
-    N_IMAGES: int | None = 149504
+    N_IMAGES: int | None = 299008
     SHUFFLE_DATA = True
-    USE_MNIST: bool = True
 
 
 class AutoEncoderParams:
     ADVERSARIAL_LOSS_WEIGHT: float | None = 1
     BATCH_SIZE: int = 128
-    EPOCHS: int = 30
+    EPOCHS: int = 15
     KL_LOSS_WEIGHT: float = 1
     LEARNING_RATE: float = 4e-4
 
