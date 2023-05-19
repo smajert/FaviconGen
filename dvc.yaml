@@ -47,13 +47,13 @@ stages:
 
 
   draw_samples_mnist:
-    cmd: python logo_maker/probe_model.py --use_mnist --use_gpu --n_samples 64
+    cmd: python logo_maker/sample_from_model.py --use_mnist --use_gpu --n_samples 64
     deps:
       - outs/train_autoencoder_mnist/model.pt
 #      - outs/train_diffusion_model/model.pt
 
   draw_samples_lld:
-    cmd: python logo_maker/probe_model.py --use_gpu --n_samples 64
+    cmd: python logo_maker/sample_from_model.py --use_gpu --n_samples 64
     deps:
       - outs/train_autoencoder_lld/model.pt
 

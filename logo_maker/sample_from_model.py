@@ -2,8 +2,8 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 import random
+import typing
 
-#from gooey import Gooey, GooeyParser
 from matplotlib import pyplot as plt
 import torch
 
@@ -13,9 +13,10 @@ from logo_maker.denoising_diffusion import Generator, draw_sample_from_generator
 import logo_maker.params as params
 
 
-def probe_autoencoder_model(
-    model_file: Path, in_channels: int, seed: int, n_samples: int, device: str, save_as: Path | None = None
-) -> None:
+@torch.no_grad()
+def sample_from_autoencoder_model(
+    model_file: Path, in_channels: int, seed: int | None, n_samples: int, device: str, save_as: Path | None = None
+) -> typing.Generator[torch.Tensor, None, None]:
     autoencoder = AutoEncoder(in_channels)
     autoencoder.load_state_dict(torch.load(model_file))
     autoencoder.eval()
@@ -24,14 +25,16 @@ def probe_autoencoder_model(
     rand_generator = torch.Generator(device=device)
     if seed is not None:
         rand_generator.manual_seed(seed)
-    random_latent = torch.randn((n_samples, autoencoder.latent_dim), device=device, generator=rand_generator)
-    batch = autoencoder.decoder(autoencoder.convert_from_latent(random_latent))
-    show_image_grid(batch)
-    if save_as is not None:
-        plt.savefig(save_as)
-    else:
-        plt.savefig(params.OUTS_BASE_DIR / "samples.png")
-    plt.show()
+
+    while True:
+        random_latent = torch.randn((n_samples, autoencoder.latent_dim), device=device, generator=rand_generator)
+        batch = autoencoder.decoder(autoencoder.convert_from_latent(random_latent))
+        if save_as is not None:
+            show_image_grid(batch)
+            plt.savefig(save_as)
+            plt.show()
+
+        yield batch
 
 
 def probe_diffusion_model(seed: int, n_samples: int, device: str, save_as: Path | None = None) -> None:
@@ -68,7 +71,7 @@ def main():
     parser.add_argument(
         "--seed", type=int, default=None, help="Random number seed to generate Gaussian noise (first timestep) from."
     )
-    parser.add_argument("--n_samples", type=int, default=1, help="Number of samples to get from model.")
+    parser.add_argument("--n_samples", type=int, default=64, help="Number of samples to get from model.")
     parser.add_argument(
         "--use_gpu",
         help="Try to calculate on GPU.",
@@ -98,9 +101,9 @@ def main():
     save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion.png"
 
     in_channels = 1 if args.use_mnist else 3
-    probe_autoencoder_model(
+    next(sample_from_autoencoder_model(
         model_file_auto, in_channels, args.seed, args.n_samples, device, save_as=save_location_auto_samples
-    )
+    ))
     #probe_diffusion_model(args.seed, args.n_samples, device, save_as=save_location_diff_samples)
 
 

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import torch
 
-from logo_maker.data_loading import ClusterNamesAeGrayscale
+# from logo_maker.data_loading import ClusterNamesAeGrayscale #todo: move definition of clusternames here to avoid circular import
 
 REPO_ROOT = Path(__file__).parents[1]
 DATA_BASE_DIR = REPO_ROOT / "data"
@@ -18,7 +18,7 @@ DO_NORM: bool = True
 
 
 class DatasetParams:
-    CLUSTER: ClusterNamesAeGrayscale | None = None
+    CLUSTER: int | None = None
     N_IMAGES: int | None = 299008
     SHUFFLE_DATA = True
 
