@@ -32,12 +32,6 @@ BACKWARD_TRANSFORMS = transforms.Compose([
 ClusterMethod = Enum("ClusterMethod", ["ae_grayscale", "rc_32", "rc_64", "rc_128"])
 
 
-class ClusterNamesAeGrayscale(Enum):
-    writing_on_black = 2
-    round_on_white = 25
-    colorful_round = 3
-
-
 def show_image_grid(tensor: Tensor, save_as: Path | None = None) -> None:
     print(tensor.shape)
     img_grid = utils.make_grid(tensor)
@@ -59,7 +53,7 @@ class LargeLogoDataset(Dataset):
         hdf5_file_location: Path,
         cache_files: bool = True,
         n_images: int | None = None,
-        cluster: ClusterNamesAeGrayscale | None = None,
+        cluster: params.ClusterNamesAeGrayscale | None = None,
         cluster_type: ClusterMethod = ClusterMethod.ae_grayscale
     ) -> None:
         self.transform = FORWARD_TRANSFORMS
@@ -103,7 +97,7 @@ class LargeLogoDataset(Dataset):
 
 
 def load_logos(
-    batch_size: int, shuffle: bool, n_images: int | None, cluster: ClusterNamesAeGrayscale | None = None
+    batch_size: int, shuffle: bool, n_images: int | None, cluster: params.ClusterNamesAeGrayscale | None = None
 ) -> tuple[int, DataLoader]:
     dataset_location = params.DATA_BASE_DIR / "LLD-icon.hdf5"
     logos = LargeLogoDataset(dataset_location, cluster=cluster, cache_files=False, n_images=n_images)

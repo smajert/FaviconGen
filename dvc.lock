@@ -114,14 +114,45 @@ stages:
       md5: 15f2854ecb815436bff746cfb594a916
       size: 13778325
   draw_samples_mnist:
-    cmd: python logo_maker/probe_model.py --use_mnist --use_gpu --n_samples 64
+    cmd: python logo_maker/sample_from_model.py --use_mnist --use_gpu --n_samples
+      64
     deps:
     - path: outs/train_autoencoder_mnist/model.pt
       md5: 15f2854ecb815436bff746cfb594a916
       size: 13778325
+    - path: outs/train_diffusion_model_mnist/model.pt
+      md5: 462ceeab032b230c69ee78b8f08cc771
+      size: 54153325
   draw_samples_lld:
-    cmd: python logo_maker/probe_model.py --use_gpu --n_samples 64
+    cmd: python logo_maker/sample_from_model.py --use_gpu --n_samples 64
     deps:
     - path: outs/train_autoencoder_lld/model.pt
       md5: 36c736c2baa7674b0ed7f9a05d83cced
       size: 13787989
+  train_diffusion_model_mnist:
+    cmd: python logo_maker/denoising_diffusion.py --use_mnist
+    deps:
+    - path: data/LLD-icon.hdf5
+      md5: 91f56af2235117e44629fa608fed59ef
+      size: 798927457
+    params:
+      logo_maker/params.py:
+        DatasetParams:
+          CLUSTER:
+          N_IMAGES: 299008
+          SHUFFLE_DATA: true
+        DiffusionModelParams:
+          BATCH_SIZE: 128
+          DIFFUSION_STEPS: 1000
+          EMBEDDING_DIMENSION: 32
+          EPOCHS: 15
+          LEARNING_RATE: 0.001
+          VAR_SCHEDULE_START: 0.0001
+          VAR_SCHEDULE_END: 0.02
+    outs:
+    - path: outs/train_diffusion_model_mnist/loss.csv
+      md5: 60bbb92e87a8e6252b8c7bc60f1f3bbd
+      size: 376
+    - path: outs/train_diffusion_model_mnist/model.pt
+      md5: 462ceeab032b230c69ee78b8f08cc771
+      size: 54153325

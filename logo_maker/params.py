@@ -1,3 +1,4 @@
+from enum import Enum
 import random
 from pathlib import Path
 
@@ -15,6 +16,12 @@ random.seed(RANDOM_SEED)
 DEVICE: str = "cuda"
 
 DO_NORM: bool = True
+
+
+class ClusterNamesAeGrayscale(Enum):
+    writing_on_black = 2
+    round_on_white = 25
+    colorful_round = 3
 
 
 class DatasetParams:
@@ -35,7 +42,7 @@ class DiffusionModelParams:
     BATCH_SIZE: int = 128
     DIFFUSION_STEPS: int = 1000
     EMBEDDING_DIMENSION: int = 32
-    EPOCHS: int = 5
+    EPOCHS: int = 15
     LEARNING_RATE: float = 0.001
     VAR_SCHEDULE_START: float = 0.0001
     VAR_SCHEDULE_END: float = 0.02

@@ -37,7 +37,9 @@ def sample_from_autoencoder_model(
         yield batch
 
 
-def probe_diffusion_model(seed: int, n_samples: int, device: str, save_as: Path | None = None) -> None:
+def sample_from_diffusion_model(
+    model_file: Path, in_channels: int,  seed: int, n_samples: int, device: str, save_as: Path | None = None
+) -> typing.Generator[torch.Tensor, None, None]:
     """
     Sample images from a chosen model.
 
@@ -46,24 +48,25 @@ def probe_diffusion_model(seed: int, n_samples: int, device: str, save_as: Path 
     :param device: Device to use to run the model. Either 'cuda' or 'cpu'.
     """
 
-    generator_file = params.OUTS_BASE_DIR / f"train_diffusion_model/model.pt"
     variance_schedule = VarianceSchedule(
         (params.DiffusionModelParams.VAR_SCHEDULE_START, params.DiffusionModelParams.VAR_SCHEDULE_END),
         params.DiffusionModelParams.DIFFUSION_STEPS
     )
-    generator = Generator(variance_schedule, params.DiffusionModelParams.EMBEDDING_DIMENSION)
-    generator.load_state_dict(torch.load(generator_file))
+    generator = Generator(in_channels, variance_schedule, params.DiffusionModelParams.EMBEDDING_DIMENSION)
+    generator.load_state_dict(torch.load(model_file))
     generator = generator.to(device)
     generator.eval()
 
-    in_channels = 1 if params.DatasetParams.USE_MNIST else 3
+    # draw single batch first to set seed
     batch = draw_sample_from_generator(generator, (n_samples, in_channels, 32, 32), seed=seed)
-    show_image_grid(batch)
-    if save_as is not None:
-        plt.savefig(save_as)
-    else:
-        plt.savefig(params.OUTS_BASE_DIR / "samples.png")
-    plt.show()
+    while True:
+        if save_as is not None:
+            show_image_grid(batch)
+            plt.savefig(save_as)
+            plt.show()
+        yield batch
+        # draw batch without setting seed again
+        batch = draw_sample_from_generator(generator, (n_samples, in_channels, 32, 32))
 
 
 def main():
@@ -92,19 +95,21 @@ def main():
         random.seed(datetime.now().timestamp())
 
     if args.use_mnist:
-        model_file_auto = params.OUTS_BASE_DIR / f"train_autoencoder_mnist/model.pt"
+        model_file_auto = params.OUTS_BASE_DIR / "train_autoencoder_mnist/model.pt"
         save_location_auto_samples = params.OUTS_BASE_DIR / "samples_autoencoder_mnist.png"
+        model_file_diffusion = params.OUTS_BASE_DIR / "train_diffusion_model_mnist/model.pt"
+        save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion_mnist.png"
     else:
         model_file_auto = params.OUTS_BASE_DIR / f"train_autoencoder_lld/model.pt"
         save_location_auto_samples = params.OUTS_BASE_DIR / "samples_autoencoder_lld.png"
-
-    save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion.png"
 
     in_channels = 1 if args.use_mnist else 3
     next(sample_from_autoencoder_model(
         model_file_auto, in_channels, args.seed, args.n_samples, device, save_as=save_location_auto_samples
     ))
-    #probe_diffusion_model(args.seed, args.n_samples, device, save_as=save_location_diff_samples)
+    next(sample_from_diffusion_model(
+        model_file_diffusion, in_channels, args.seed, args.n_samples, device, save_as=save_location_diff_samples
+    ))
 
 
 if __name__ == "__main__":

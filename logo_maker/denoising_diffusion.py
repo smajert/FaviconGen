@@ -1,3 +1,4 @@
+import argparse
 from dataclasses import dataclass
 import math
 from pathlib import Path
@@ -8,7 +9,7 @@ import torch
 from tqdm import tqdm
 
 from logo_maker.blocks import ConvBlock
-from logo_maker.data_loading import ClusterNamesAeGrayscale, load_logos, load_mnist, show_image_grid
+from logo_maker.data_loading import load_logos, load_mnist, show_image_grid
 import logo_maker.params as params
 
 
@@ -101,10 +102,8 @@ class SinusoidalPositionEmbeddings(torch.nn.Module):
 
 
 class Generator(torch.nn.Module):
-    def __init__(self, variance_schedule: VarianceSchedule, embedding_dim: int) -> None:
+    def __init__(self, in_channels: int, variance_schedule: VarianceSchedule, embedding_dim: int) -> None:
         super().__init__()
-        in_channels = 1 if params.DatasetParams.USE_MNIST else 3
-
         self.variance_schedule = variance_schedule
 
         self.time_mlp = torch.nn.Sequential(
@@ -212,7 +211,7 @@ def draw_sample_from_generator(
 def train(
     batch_size: int,
     beta_start_end: tuple[float, float],
-    cluster: ClusterNamesAeGrayscale | None,
+    cluster: params.ClusterNamesAeGrayscale | None,
     device: str,
     embedding_dim: int,
     learning_rate: float,
@@ -221,12 +220,16 @@ def train(
     n_diffusion_steps: int,
     n_images: int,
     shuffle_data: bool,
+    use_mnist: bool
 ) -> None:
-    if params.DatasetParams.USE_MNIST:
+    if use_mnist:
         n_samples, data_loader = load_mnist(batch_size, shuffle_data, n_images)
+        model_storage_directory = params.OUTS_BASE_DIR / "train_diffusion_model_mnist"
+        in_channels = 1
     else:
         n_samples, data_loader = load_logos(batch_size, shuffle_data, n_images, cluster=cluster)
-    model_storage_directory = params.OUTS_BASE_DIR / "train_diffusion_model"
+        model_storage_directory = params.OUTS_BASE_DIR / "train_diffusion_model_lld"
+        in_channels = 3
 
     print(f"Cleaning output directory {model_storage_directory} ...")
     if model_storage_directory.exists():
@@ -234,7 +237,7 @@ def train(
     model_storage_directory.mkdir(exist_ok=True)
 
     schedule = VarianceSchedule(beta_start_end, n_diffusion_steps, device=device)
-    model = Generator(schedule, embedding_dim)
+    model = Generator(in_channels, schedule, embedding_dim)
     if model_file is not None:
         model.load_state_dict(torch.load(model_file))
     model.to(device)
@@ -243,10 +246,9 @@ def train(
     loss_fn = torch.nn.MSELoss()
     running_losses = []
     running_loss = 0
-    #single_batch = [next(iter(data_loader))]
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
         for batch_idx, batch in enumerate(data_loader):
-            if params.DatasetParams.USE_MNIST:  # throw away labels from MNIST
+            if use_mnist:  # throw away labels from MNIST
                 batch = batch[0]
             batch = batch.to(device)
 
@@ -283,6 +285,12 @@ def train(
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train the diffusion model")
+    parser.add_argument(
+        "--use_mnist", action="store_true", help="Whether to train on MNIST instead of the Large Logo Dataset."
+    )
+    args = parser.parse_args()
+
     model_file = None
     train(
         batch_size=params.DiffusionModelParams.BATCH_SIZE,
@@ -295,7 +303,8 @@ if __name__ == "__main__":
         n_images=params.DatasetParams.N_IMAGES,
         n_epochs=params.DiffusionModelParams.EPOCHS,
         n_diffusion_steps=params.DiffusionModelParams.DIFFUSION_STEPS,
-        shuffle_data=params.DatasetParams.SHUFFLE_DATA
+        shuffle_data=params.DatasetParams.SHUFFLE_DATA,
+        use_mnist=args.use_mnist
     )
 
 

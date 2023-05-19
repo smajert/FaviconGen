@@ -7,7 +7,7 @@ import torch
 from tqdm import tqdm
 
 from logo_maker.blocks import ConvBlock
-from logo_maker.data_loading import ClusterNamesAeGrayscale, load_logos, load_mnist, show_image_grid
+from logo_maker.data_loading import load_logos, load_mnist, show_image_grid
 import logo_maker.params as params
 from logo_maker.utils import q_key_pressed_non_blocking
 
@@ -91,7 +91,7 @@ class PatchDiscriminator(torch.nn.Module):
 
 def train(
     batch_size: int,
-    cluster: ClusterNamesAeGrayscale | None,
+    cluster: params.ClusterNamesAeGrayscale | None,
     device: str,
     learning_rate: float,
     model_file: Path | None,
