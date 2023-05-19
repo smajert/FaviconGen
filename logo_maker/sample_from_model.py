@@ -102,6 +102,8 @@ def main():
     else:
         model_file_auto = params.OUTS_BASE_DIR / f"train_autoencoder_lld/model.pt"
         save_location_auto_samples = params.OUTS_BASE_DIR / "samples_autoencoder_lld.png"
+        model_file_diffusion = params.OUTS_BASE_DIR / "train_diffusion_model_lld/model.pt"
+        save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion_lld.png"
 
     in_channels = 1 if args.use_mnist else 3
     next(sample_from_autoencoder_model(

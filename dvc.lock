@@ -129,6 +129,9 @@ stages:
     - path: outs/train_autoencoder_lld/model.pt
       md5: 36c736c2baa7674b0ed7f9a05d83cced
       size: 13787989
+    - path: outs/train_diffusion_model_lld/model.pt
+      md5: 7480094d781575c89a655b89cd536850
+      size: 54166125
   train_diffusion_model_mnist:
     cmd: python logo_maker/denoising_diffusion.py --use_mnist
     deps:
@@ -156,3 +159,30 @@ stages:
     - path: outs/train_diffusion_model_mnist/model.pt
       md5: 462ceeab032b230c69ee78b8f08cc771
       size: 54153325
+  train_diffusion_model_lld:
+    cmd: python logo_maker/denoising_diffusion.py
+    deps:
+    - path: data/LLD-icon.hdf5
+      md5: 91f56af2235117e44629fa608fed59ef
+      size: 798927457
+    params:
+      logo_maker/params.py:
+        DatasetParams:
+          CLUSTER:
+          N_IMAGES: 299008
+          SHUFFLE_DATA: true
+        DiffusionModelParams:
+          BATCH_SIZE: 128
+          DIFFUSION_STEPS: 1000
+          EMBEDDING_DIMENSION: 32
+          EPOCHS: 15
+          LEARNING_RATE: 0.001
+          VAR_SCHEDULE_START: 0.0001
+          VAR_SCHEDULE_END: 0.02
+    outs:
+    - path: outs/train_diffusion_model_lld/loss.csv
+      md5: 5cb3093f8e286d2f54cbc7134145367b
+      size: 364
+    - path: outs/train_diffusion_model_lld/model.pt
+      md5: 7480094d781575c89a655b89cd536850
+      size: 54166125
