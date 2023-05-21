@@ -6,9 +6,10 @@ import typing
 
 from matplotlib import pyplot as plt
 import torch
+from tqdm import tqdm
 
 from logo_maker.autoencoder import AutoEncoder
-from logo_maker.data_loading import show_image_grid
+from logo_maker.data_loading import show_image_grid, load_logos, load_mnist
 from logo_maker.denoising_diffusion import Generator, draw_sample_from_generator, VarianceSchedule
 import logo_maker.params as params
 
@@ -37,6 +38,7 @@ def sample_from_autoencoder_model(
         yield batch
 
 
+@torch.no_grad()
 def sample_from_diffusion_model(
     model_file: Path, in_channels: int,  seed: int, n_samples: int, device: str, save_as: Path | None = None
 ) -> typing.Generator[torch.Tensor, None, None]:
@@ -67,6 +69,43 @@ def sample_from_diffusion_model(
         yield batch
         # draw batch without setting seed again
         batch = draw_sample_from_generator(generator, (n_samples, in_channels, 32, 32))
+
+
+@torch.no_grad()
+def nearest_neighbor_search(
+    generated_batch: torch.Tensor,
+    n_images: int,
+    use_mnist: bool,
+    cluster: params.ClusterNamesAeGrayscale | None,
+    save_as: Path | None = None
+) -> torch.Tensor:
+    if use_mnist:
+        _, data_loader = load_mnist(1, False, n_images)
+    else:
+        _, data_loader = load_logos(1, False, n_images, cluster)
+
+    nearest_neighbors = torch.zeros(generated_batch.shape, device=generated_batch.device)
+    current_nearest_neighbor_distances = torch.full(
+        (generated_batch.shape[0],), fill_value=torch.inf, device=generated_batch.device
+    )
+    # compare every single image from dataset to generated ones and determine how close they are
+    for single_image in tqdm(data_loader, desc="Searching dataset for nearest neighbors..."):
+        if use_mnist:
+            single_image = single_image[0]
+        single_image = single_image.to(generated_batch.device)
+        # single_image is broadcast along batch dimension
+        distances = torch.sum(torch.abs(single_image - generated_batch), axis=(1, 2, 3))
+        diffs = distances - current_nearest_neighbor_distances
+        closer_neighbor_idxs = diffs < 0 # idx where the current image is a closer neighbor than the current one
+        current_nearest_neighbor_distances[closer_neighbor_idxs] = distances[closer_neighbor_idxs]
+        nearest_neighbors[closer_neighbor_idxs, ...] = single_image[0, ...]
+
+    if save_as is not None:
+        show_image_grid(nearest_neighbors)
+        plt.savefig(save_as)
+        plt.show()
+
+    return nearest_neighbors
 
 
 def main():
@@ -106,12 +145,28 @@ def main():
         save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion_lld.png"
 
     in_channels = 1 if args.use_mnist else 3
-    next(sample_from_autoencoder_model(
+    auto_gen_batch = next(sample_from_autoencoder_model(
         model_file_auto, in_channels, args.seed, args.n_samples, device, save_as=save_location_auto_samples
     ))
-    next(sample_from_diffusion_model(
+    diffusion_gen_batch = next(sample_from_diffusion_model(
         model_file_diffusion, in_channels, args.seed, args.n_samples, device, save_as=save_location_diff_samples
     ))
+
+    nearest_neighbor_search(
+        auto_gen_batch,
+        params.DatasetParams.N_IMAGES,
+        args.use_mnist,
+        params.DatasetParams.CLUSTER,
+        save_as=params.OUTS_BASE_DIR / f"auto_nearest_neighbors_mnist_{args.use_mnist}.png"
+    )
+
+    nearest_neighbor_search(
+        diffusion_gen_batch,
+        params.DatasetParams.N_IMAGES,
+        args.use_mnist,
+        params.DatasetParams.CLUSTER,
+        save_as=params.OUTS_BASE_DIR / f"diffusion_nearest_neighbors_mnist_{args.use_mnist}.png"
+    )
 
 
 if __name__ == "__main__":

@@ -3,12 +3,13 @@ from pathlib import Path
 import pickle
 import tempfile
 from typing import Any
+import warnings
 
 import h5py
 from matplotlib import pyplot as plt
 import numpy as np
-from torch import randperm, Tensor
-from torch.utils.data import Dataset, DataLoader, SubsetRandomSampler
+from torch import Tensor
+from torch.utils.data import Dataset, DataLoader, Subset
 from torchvision import datasets, transforms, utils
 
 import logo_maker.params as params
@@ -87,6 +88,8 @@ class LargeLogoDataset(Dataset):
                 pickle.dump(self.images, open(cache_file, "wb"))
 
         if n_images is not None:
+            if n_images > len(self.images):
+                warnings.warn(f"Requested {n_images} images, but LLD(-cluster) is only {len(self.images)} long.")
             self.images = self.images[:n_images]
 
     def __len__(self) -> int:
@@ -101,8 +104,9 @@ def load_logos(
 ) -> tuple[int, DataLoader]:
     dataset_location = params.DATA_BASE_DIR / "LLD-icon.hdf5"
     logos = LargeLogoDataset(dataset_location, cluster=cluster, cache_files=False, n_images=n_images)
-    print(len(logos))
     loader = DataLoader(logos, batch_size=batch_size, shuffle=shuffle)
+    if n_images is None:
+        print(f"Loading {len(logos)} LLD images ...")
     return len(logos), loader
 
 
@@ -114,13 +118,15 @@ def load_mnist(batch_size: int, shuffle: bool, n_images: int | None) -> tuple[in
     ]
     data_transform = transforms.Compose(data_transforms)
 
-    mnist = datasets.MNIST(tempfile.gettempdir() / Path("MNIST"), transform=data_transform, download=True)
+    mnist = datasets.MNIST(tempfile.gettempdir() / Path("MNIST"), transform=data_transform, download=True, )
 
     if n_images is not None:
-        random_subset_sampler = SubsetRandomSampler(randperm(len(mnist))[:n_images])
-        loader = DataLoader(mnist, batch_size=batch_size, sampler=random_subset_sampler)
+        if n_images > len(mnist):
+            warnings.warn(f"Requested {n_images} images, but MNIST is only {len(mnist)} images long.")
+        loader = DataLoader(Subset(mnist, list(range(len(mnist)))[:n_images]), batch_size=batch_size, shuffle=shuffle)
         return n_images, loader
     else:
+        print(f"Loading {len(mnist)} MNIST images ...")
         loader = DataLoader(mnist, batch_size=batch_size, shuffle=shuffle)
         return len(mnist), loader
 

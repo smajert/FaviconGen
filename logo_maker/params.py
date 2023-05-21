@@ -42,7 +42,7 @@ class DiffusionModelParams:
     BATCH_SIZE: int = 128
     DIFFUSION_STEPS: int = 1000
     EMBEDDING_DIMENSION: int = 32
-    EPOCHS: int = 15
+    EPOCHS: int = 1
     LEARNING_RATE: float = 0.001
     VAR_SCHEDULE_START: float = 0.0001
     VAR_SCHEDULE_END: float = 0.02

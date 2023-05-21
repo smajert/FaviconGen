@@ -83,10 +83,10 @@ stages:
           SHUFFLE_DATA: true
     outs:
     - path: outs/train_autoencoder_lld/loss.csv
-      md5: 214e983f8c911c3882196ec0edbec121
-      size: 345
+      md5: 9dff633271cc770eae5a74b08eecef98
+      size: 347
     - path: outs/train_autoencoder_lld/model.pt
-      md5: 36c736c2baa7674b0ed7f9a05d83cced
+      md5: ba7ef74a951359e718184b742db564f2
       size: 13787989
   train_autoencoder_mnist:
     cmd: python logo_maker/autoencoder.py --use_mnist
@@ -121,16 +121,16 @@ stages:
       md5: 15f2854ecb815436bff746cfb594a916
       size: 13778325
     - path: outs/train_diffusion_model_mnist/model.pt
-      md5: 462ceeab032b230c69ee78b8f08cc771
+      md5: 0ebce933d36f00a217892175f3e6a60d
       size: 54153325
   draw_samples_lld:
     cmd: python logo_maker/sample_from_model.py --use_gpu --n_samples 64
     deps:
     - path: outs/train_autoencoder_lld/model.pt
-      md5: 36c736c2baa7674b0ed7f9a05d83cced
+      md5: ba7ef74a951359e718184b742db564f2
       size: 13787989
     - path: outs/train_diffusion_model_lld/model.pt
-      md5: 7480094d781575c89a655b89cd536850
+      md5: dd27c48bef77ab5e6e5f49c68cc10821
       size: 54166125
   train_diffusion_model_mnist:
     cmd: python logo_maker/denoising_diffusion.py --use_mnist
@@ -148,16 +148,16 @@ stages:
           BATCH_SIZE: 128
           DIFFUSION_STEPS: 1000
           EMBEDDING_DIMENSION: 32
-          EPOCHS: 15
+          EPOCHS: 1
           LEARNING_RATE: 0.001
           VAR_SCHEDULE_START: 0.0001
           VAR_SCHEDULE_END: 0.02
     outs:
     - path: outs/train_diffusion_model_mnist/loss.csv
-      md5: 60bbb92e87a8e6252b8c7bc60f1f3bbd
-      size: 376
+      md5: 6bfc2b55fa84493928417df92efa2689
+      size: 36
     - path: outs/train_diffusion_model_mnist/model.pt
-      md5: 462ceeab032b230c69ee78b8f08cc771
+      md5: 0ebce933d36f00a217892175f3e6a60d
       size: 54153325
   train_diffusion_model_lld:
     cmd: python logo_maker/denoising_diffusion.py
@@ -175,14 +175,14 @@ stages:
           BATCH_SIZE: 128
           DIFFUSION_STEPS: 1000
           EMBEDDING_DIMENSION: 32
-          EPOCHS: 15
+          EPOCHS: 1
           LEARNING_RATE: 0.001
           VAR_SCHEDULE_START: 0.0001
           VAR_SCHEDULE_END: 0.02
     outs:
     - path: outs/train_diffusion_model_lld/loss.csv
-      md5: 5cb3093f8e286d2f54cbc7134145367b
-      size: 364
+      md5: c9ac9e74c63f77f4b385cc5c10f6abbb
+      size: 35
     - path: outs/train_diffusion_model_lld/model.pt
-      md5: 7480094d781575c89a655b89cd536850
+      md5: dd27c48bef77ab5e6e5f49c68cc10821
       size: 54166125
