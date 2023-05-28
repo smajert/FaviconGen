@@ -25,8 +25,8 @@ class ClusterNamesAeGrayscale(Enum):
 
 
 class DatasetParams:
-    CLUSTER: int | None = None
-    N_IMAGES: int | None = 299008
+    CLUSTER: ClusterNamesAeGrayscale | None = ClusterNamesAeGrayscale.writing_on_black
+    N_IMAGES: int | None = 60000 #299008
     SHUFFLE_DATA = True
 
 
@@ -42,7 +42,7 @@ class DiffusionModelParams:
     BATCH_SIZE: int = 128
     DIFFUSION_STEPS: int = 1000
     EMBEDDING_DIMENSION: int = 32
-    EPOCHS: int = 1
-    LEARNING_RATE: float = 0.001
+    EPOCHS: int = 70
+    LEARNING_RATE: float = 0.0008
     VAR_SCHEDULE_START: float = 0.0001
     VAR_SCHEDULE_END: float = 0.02

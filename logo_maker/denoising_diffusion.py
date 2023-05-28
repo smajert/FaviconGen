@@ -62,15 +62,15 @@ def get_noisy_batch_at_step_t(
             f"Batch size {original_batch.shape[0]} does not match number of requested diffusion steps {time_step.shape[0]}."
         )
 
-    noise = torch.clamp(torch.randn(size=original_batch.shape, device=original_batch.device), -5, 5)
-    noisy_batch = torch.clamp((
+    noise = torch.randn(size=original_batch.shape, device=original_batch.device)
+    noisy_batch = (
             original_batch * torch.sqrt(schedule.alpha_bar_t[time_step])[
                 :, np.newaxis, np.newaxis, np.newaxis
             ]
             + noise * torch.sqrt(1 - schedule.alpha_bar_t[time_step])[
                 :, np.newaxis, np.newaxis, np.newaxis
             ]
-    ), -5, 5)
+    )
 
     return noisy_batch, noise
 
@@ -114,18 +114,18 @@ class Generator(torch.nn.Module):
 
         self.activation = torch.nn.LeakyReLU()
         self.layers_with_emb = torch.nn.ModuleList([  # input: in_channels x 32 x 32
-            ConvBlock(in_channels, 64, self.activation, time_embedding_dimension=embedding_dim),  # 64 x 16 x 16
-            ConvBlock(64, 128, self.activation, time_embedding_dimension=embedding_dim),  # 128 x 8 x 8
-            ConvBlock(128, 256, self.activation, time_embedding_dimension=embedding_dim),  # 256 x 4 x 4
-            ConvBlock(256, 512, self.activation, time_embedding_dimension=embedding_dim),  # 512 x 2 x 2
-            ConvBlock(512, 256, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 256 x 4 x 4
-            ConvBlock(256, 128, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 128 x 8 x 8
-            ConvBlock(128, 64, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 16 x 16
-            ConvBlock(64, 64, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 32 x 32
+            ConvBlock(in_channels, 32, self.activation, time_embedding_dimension=embedding_dim),  # 64 x 16 x 16
+            ConvBlock(32, 64, self.activation, time_embedding_dimension=embedding_dim),  # 128 x 8 x 8
+            ConvBlock(64, 128, self.activation, time_embedding_dimension=embedding_dim),  # 256 x 4 x 4
+            ConvBlock(128, 256, self.activation, time_embedding_dimension=embedding_dim),  # 512 x 2 x 2
+            ConvBlock(256, 128, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 256 x 4 x 4
+            ConvBlock(128, 64, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 128 x 8 x 8
+            ConvBlock(64, 32, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 16 x 16
+            ConvBlock(32, 32, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 32 x 32
         ])
 
         self.last_layers = torch.nn.ModuleList([
-            torch.nn.Conv2d(64, in_channels, 3, padding=1),
+            torch.nn.Conv2d(32, in_channels, 3, padding=1),
         ])
 
     def forward(self, x: torch.Tensor, time_step: torch.Tensor) -> torch.Tensor:
@@ -154,7 +154,7 @@ class Generator(torch.nn.Module):
         for layer in self.last_layers:
             x = layer(x)
 
-        return torch.tensor(5., device=x.device) * torch.nn.Tanh()(x)
+        return x
 
 
 @torch.no_grad()
@@ -193,7 +193,6 @@ def draw_sample_from_generator(
         if time_step != 0:
             noise = torch.randn_like(batch)
             batch = batch + torch.sqrt(beta_tilde) * noise
-            batch = torch.clamp(batch, -5, 5)
         if time_step == 0:
             batch = torch.clamp(batch, -1, 1)
 

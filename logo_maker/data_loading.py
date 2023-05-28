@@ -34,7 +34,6 @@ ClusterMethod = Enum("ClusterMethod", ["ae_grayscale", "rc_32", "rc_64", "rc_128
 
 
 def show_image_grid(tensor: Tensor, save_as: Path | None = None) -> None:
-    print(tensor.shape)
     img_grid = utils.make_grid(tensor)
     img_grid = BACKWARD_TRANSFORMS(img_grid.detach())
 
