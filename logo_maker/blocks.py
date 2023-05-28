@@ -60,12 +60,8 @@ class ConvBlock(torch.nn.Module):
             if self.time_embedding_dimension is None:
                 raise ValueError("Time step given, but no embedding dimension specified")
             time_emb = self.activation(self.time_mlp(time_step_emb))[:, :, np.newaxis, np.newaxis]
-        else:
-            time_emb = 0
+            x = x + time_emb
 
-        for layer_idx, layer in enumerate(self.non_transform_layers):
-            if layer_idx == 3:  # todo move so that error gets thrown if idx is not passed
-                x = layer(x + time_emb)
-            else:
-                x = layer(x)
+        for layer in self.non_transform_layers:
+            x = layer(x)
         return x

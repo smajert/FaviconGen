@@ -216,7 +216,7 @@ if __name__ == "__main__":
         device=params.DEVICE,
         learning_rate=params.AutoEncoderParams.LEARNING_RATE,
         model_file=model_file,
-        n_epochs=params.AutoEncoderParams.EPOCHS,
+        n_epochs=params.AutoEncoderParams.EPOCHS_MNIST if args.use_mnist else params.AutoEncoderParams.EPOCHS_LLD,
         n_images=params.DatasetParams.N_IMAGES,
         shuffle_data=params.DatasetParams.SHUFFLE_DATA,
         use_mnist=args.use_mnist

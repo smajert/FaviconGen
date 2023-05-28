@@ -74,19 +74,19 @@ stages:
         AutoEncoderParams:
           ADVERSARIAL_LOSS_WEIGHT: 1
           BATCH_SIZE: 128
-          EPOCHS: 15
+          EPOCHS_MNIST: 15
+          EPOCHS_LLD: 400
           KL_LOSS_WEIGHT: 1
           LEARNING_RATE: 0.0004
         DatasetParams:
-          CLUSTER:
-          N_IMAGES: 299008
+          N_IMAGES: 60000
           SHUFFLE_DATA: true
     outs:
     - path: outs/train_autoencoder_lld/loss.csv
-      md5: 9dff633271cc770eae5a74b08eecef98
-      size: 347
+      md5: d8603fbb8a55d70d0d645f75862c936e
+      size: 9457
     - path: outs/train_autoencoder_lld/model.pt
-      md5: ba7ef74a951359e718184b742db564f2
+      md5: 42c4f736a9fa74e0b0cba082decb58a7
       size: 13787989
   train_autoencoder_mnist:
     cmd: python logo_maker/autoencoder.py --use_mnist
@@ -99,39 +99,39 @@ stages:
         AutoEncoderParams:
           ADVERSARIAL_LOSS_WEIGHT: 1
           BATCH_SIZE: 128
-          EPOCHS: 15
+          EPOCHS_MNIST: 15
+          EPOCHS_LLD: 400
           KL_LOSS_WEIGHT: 1
           LEARNING_RATE: 0.0004
         DatasetParams:
-          CLUSTER:
-          N_IMAGES: 299008
+          N_IMAGES: 60000
           SHUFFLE_DATA: true
     outs:
     - path: outs/train_autoencoder_mnist/loss.csv
-      md5: 3a4d65c582a2635e86b1e7f1e66c664d
-      size: 358
+      md5: f0422a171dcd03d6c23a59125b49db0e
+      size: 349
     - path: outs/train_autoencoder_mnist/model.pt
-      md5: 15f2854ecb815436bff746cfb594a916
+      md5: d57a216bcf1d9498e534394947ae045f
       size: 13778325
   draw_samples_mnist:
     cmd: python logo_maker/sample_from_model.py --use_mnist --use_gpu --n_samples
       64
     deps:
     - path: outs/train_autoencoder_mnist/model.pt
-      md5: 15f2854ecb815436bff746cfb594a916
+      md5: d57a216bcf1d9498e534394947ae045f
       size: 13778325
     - path: outs/train_diffusion_model_mnist/model.pt
-      md5: 0ebce933d36f00a217892175f3e6a60d
-      size: 54153325
+      md5: dde970ffab12ed71705a96fc41d164b5
+      size: 53794285
   draw_samples_lld:
     cmd: python logo_maker/sample_from_model.py --use_gpu --n_samples 64
     deps:
     - path: outs/train_autoencoder_lld/model.pt
-      md5: ba7ef74a951359e718184b742db564f2
+      md5: 42c4f736a9fa74e0b0cba082decb58a7
       size: 13787989
     - path: outs/train_diffusion_model_lld/model.pt
-      md5: dd27c48bef77ab5e6e5f49c68cc10821
-      size: 54166125
+      md5: 2607906fead597ef335c1579f68f7434
+      size: 53804781
   train_diffusion_model_mnist:
     cmd: python logo_maker/denoising_diffusion.py --use_mnist
     deps:
@@ -141,24 +141,24 @@ stages:
     params:
       logo_maker/params.py:
         DatasetParams:
-          CLUSTER:
-          N_IMAGES: 299008
+          N_IMAGES: 60000
           SHUFFLE_DATA: true
         DiffusionModelParams:
           BATCH_SIZE: 128
           DIFFUSION_STEPS: 1000
           EMBEDDING_DIMENSION: 32
-          EPOCHS: 1
+          EPOCHS_MNIST: 15
+          EPOCHS_LLD: 400
           LEARNING_RATE: 0.001
           VAR_SCHEDULE_START: 0.0001
           VAR_SCHEDULE_END: 0.02
     outs:
     - path: outs/train_diffusion_model_mnist/loss.csv
-      md5: 6bfc2b55fa84493928417df92efa2689
-      size: 36
+      md5: f39346c8abd31039fd603d3baa2d87a9
+      size: 371
     - path: outs/train_diffusion_model_mnist/model.pt
-      md5: 0ebce933d36f00a217892175f3e6a60d
-      size: 54153325
+      md5: dde970ffab12ed71705a96fc41d164b5
+      size: 53794285
   train_diffusion_model_lld:
     cmd: python logo_maker/denoising_diffusion.py
     deps:
@@ -168,21 +168,21 @@ stages:
     params:
       logo_maker/params.py:
         DatasetParams:
-          CLUSTER:
-          N_IMAGES: 299008
+          N_IMAGES: 60000
           SHUFFLE_DATA: true
         DiffusionModelParams:
           BATCH_SIZE: 128
           DIFFUSION_STEPS: 1000
           EMBEDDING_DIMENSION: 32
-          EPOCHS: 1
+          EPOCHS_MNIST: 15
+          EPOCHS_LLD: 400
           LEARNING_RATE: 0.001
           VAR_SCHEDULE_START: 0.0001
           VAR_SCHEDULE_END: 0.02
     outs:
     - path: outs/train_diffusion_model_lld/loss.csv
-      md5: c9ac9e74c63f77f4b385cc5c10f6abbb
-      size: 35
+      md5: dda5fc86150925f1a12fd7c6cb6dedb4
+      size: 10004
     - path: outs/train_diffusion_model_lld/model.pt
-      md5: dd27c48bef77ab5e6e5f49c68cc10821
-      size: 54166125
+      md5: 2607906fead597ef335c1579f68f7434
+      size: 53804781

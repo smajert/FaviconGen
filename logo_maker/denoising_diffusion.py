@@ -114,14 +114,14 @@ class Generator(torch.nn.Module):
 
         self.activation = torch.nn.LeakyReLU()
         self.layers_with_emb = torch.nn.ModuleList([  # input: in_channels x 32 x 32
-            ConvBlock(in_channels, 32, self.activation, time_embedding_dimension=embedding_dim),  # 64 x 16 x 16
-            ConvBlock(32, 64, self.activation, time_embedding_dimension=embedding_dim),  # 128 x 8 x 8
-            ConvBlock(64, 128, self.activation, time_embedding_dimension=embedding_dim),  # 256 x 4 x 4
-            ConvBlock(128, 256, self.activation, time_embedding_dimension=embedding_dim),  # 512 x 2 x 2
-            ConvBlock(256, 128, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 256 x 4 x 4
-            ConvBlock(128, 64, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 128 x 8 x 8
-            ConvBlock(64, 32, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 16 x 16
-            ConvBlock(32, 32, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 32 x 32
+            ConvBlock(in_channels, 64, self.activation, time_embedding_dimension=embedding_dim),  # 64 x 16 x 16
+            ConvBlock(64, 128, self.activation, time_embedding_dimension=embedding_dim),  # 128 x 8 x 8
+            ConvBlock(128, 256, self.activation, time_embedding_dimension=embedding_dim),  # 256 x 4 x 4
+            ConvBlock(256, 512, self.activation, time_embedding_dimension=embedding_dim),  # 512 x 2 x 2
+            ConvBlock(512, 256, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 256 x 4 x 4
+            ConvBlock(256, 128, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 128 x 8 x 8
+            ConvBlock(128, 64, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 16 x 16
+            ConvBlock(64, 32, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 32 x 32
         ])
 
         self.last_layers = torch.nn.ModuleList([
@@ -300,7 +300,7 @@ if __name__ == "__main__":
         learning_rate=params.DiffusionModelParams.LEARNING_RATE,
         model_file=model_file,
         n_images=params.DatasetParams.N_IMAGES,
-        n_epochs=params.DiffusionModelParams.EPOCHS,
+        n_epochs=params.DiffusionModelParams.EPOCHS_MNIST if args.use_mnist else params.DiffusionModelParams.EPOCHS_LLD,
         n_diffusion_steps=params.DiffusionModelParams.DIFFUSION_STEPS,
         shuffle_data=params.DatasetParams.SHUFFLE_DATA,
         use_mnist=args.use_mnist
