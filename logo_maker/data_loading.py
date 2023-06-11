@@ -9,7 +9,7 @@ import h5py
 from matplotlib import pyplot as plt
 import numpy as np
 from torch import Tensor
-from torch.utils.data import Dataset, DataLoader, Subset
+from torch.utils.data import ConcatDataset, Dataset, DataLoader, Subset
 from torchvision import datasets, transforms, utils
 
 import logo_maker.params as params
@@ -117,7 +117,11 @@ def load_mnist(batch_size: int, shuffle: bool, n_images: int | None) -> tuple[in
     ]
     data_transform = transforms.Compose(data_transforms)
 
-    mnist = datasets.MNIST(tempfile.gettempdir() / Path("MNIST"), transform=data_transform, download=True, )
+    mnist_train = datasets.MNIST(tempfile.gettempdir() / Path("MNIST"), transform=data_transform, download=True)
+    mnist_test = datasets.MNIST(
+        tempfile.gettempdir() / Path("MNIST"), train=False, transform=data_transform, download=True
+    )
+    mnist = ConcatDataset([mnist_train, mnist_test])
 
     if n_images is not None:
         if n_images > len(mnist):

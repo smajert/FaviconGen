@@ -1,8 +1,8 @@
 from matplotlib import pyplot as plt
 import pytest
-from torch.utils.data import DataLoader
 
 import logo_maker.data_loading as dl
+import logo_maker.params as params
 
 
 def test_all_files_found(LogoDatasetLocation):
@@ -12,11 +12,12 @@ def test_all_files_found(LogoDatasetLocation):
 
 @pytest.mark.skip(reason="should be run manually")
 def test_image_grid(LogoDatasetLocation):
-    file_loader = dl.LargeLogoDataset(
-        LogoDatasetLocation, cache_files=False, cluster=dl.ClusterNamesAeGrayscale.round_on_white
-    )
-    data_loader = DataLoader(file_loader, batch_size=32, shuffle=True)
-    batch = next(iter(data_loader))
+    lld = dl.load_logos(64, shuffle=True, n_images=None, cluster=params.ClusterNamesAeGrayscale.colorful_round)[1]
+    batch = next(iter(lld))
+
+    # mnist = dl.load_mnist(64, shuffle=True, n_images=None)[1]
+    # batch = next(iter(mnist))[0]
+
     dl.show_image_grid(batch)
     plt.show()
 

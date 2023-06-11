@@ -64,12 +64,12 @@ def get_noisy_batch_at_step_t(
 
     noise = torch.randn(size=original_batch.shape, device=original_batch.device)
     noisy_batch = (
-            original_batch * torch.sqrt(schedule.alpha_bar_t[time_step])[
-                :, np.newaxis, np.newaxis, np.newaxis
-            ]
-            + noise * torch.sqrt(1 - schedule.alpha_bar_t[time_step])[
-                :, np.newaxis, np.newaxis, np.newaxis
-            ]
+        original_batch * torch.sqrt(schedule.alpha_bar_t[time_step])[
+            :, np.newaxis, np.newaxis, np.newaxis
+        ]
+        + noise * torch.sqrt(1 - schedule.alpha_bar_t[time_step])[
+            :, np.newaxis, np.newaxis, np.newaxis
+        ]
     )
 
     return noisy_batch, noise
@@ -242,6 +242,9 @@ def train(
     model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, min_lr=0.1 * learning_rate, factor=0.8, patience=5, verbose=True
+    )
     loss_fn = torch.nn.MSELoss()
     running_losses = []
     running_loss = 0
@@ -262,6 +265,7 @@ def train(
 
             loss.backward()
             optimizer.step()
+            lr_scheduler.step(loss)
             running_loss += loss.item() * batch.shape[0] / n_samples
         if (epoch + 1) in [int(rel_plot_step * n_epochs) for rel_plot_step in [0.1, 0.25, 0.5, 0.75, 1.0]]:
             sample_shape = torch.Size((1, *batch.shape[1:]))

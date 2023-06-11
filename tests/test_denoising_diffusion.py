@@ -5,12 +5,13 @@ import random
 import torch
 
 from logo_maker.data_loading import LargeLogoDataset, show_image_grid
+import logo_maker.params as params
 import logo_maker.denoising_diffusion as sd
 
 
 @pytest.fixture()
 def LogoDataset(LogoDatasetLocation):
-    return LargeLogoDataset(LogoDatasetLocation, cluster=sd.ClusterNamesAeGrayscale.round_on_white, cache_files=False)
+    return LargeLogoDataset(LogoDatasetLocation, cluster=params.ClusterNamesAeGrayscale.round_on_white, cache_files=False)
 
 
 @pytest.fixture()
