@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from logo_maker.blocks import ConvBlock
+from logo_maker.blocks import ConvBlock, SelfAttention
 from logo_maker.data_loading import load_logos, load_mnist, show_image_grid
 import logo_maker.params as params
 
@@ -113,48 +113,30 @@ class Generator(torch.nn.Module):
         )
 
         self.activation = torch.nn.LeakyReLU()
-        self.layers_with_emb = torch.nn.ModuleList([  # input: in_channels x 32 x 32
-            ConvBlock(in_channels, 64, self.activation, time_embedding_dimension=embedding_dim),  # 64 x 16 x 16
-            ConvBlock(64, 128, self.activation, time_embedding_dimension=embedding_dim),  # 128 x 8 x 8
-            ConvBlock(128, 256, self.activation, time_embedding_dimension=embedding_dim),  # 256 x 4 x 4
-            ConvBlock(256, 512, self.activation, time_embedding_dimension=embedding_dim),  # 512 x 2 x 2
-            ConvBlock(512, 256, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 256 x 4 x 4
-            ConvBlock(256, 128, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 128 x 8 x 8
-            ConvBlock(128, 64, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 16 x 16
-            ConvBlock(64, 32, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 64 x 32 x 32
-        ])
-
-        self.last_layers = torch.nn.ModuleList([
-            torch.nn.Conv2d(32, in_channels, 3, padding=1),
+        self.layers = torch.nn.ModuleList([  # input: in_channels x 32 x 32
+            ConvBlock(in_channels, 32, self.activation, time_embedding_dimension=embedding_dim),  # 0: 32 x 16 x 16
+            SelfAttention(32),
+            ConvBlock(32, 64, self.activation, time_embedding_dimension=embedding_dim),  # 2: 64 x 8 x 8
+            ConvBlock(64, 128, self.activation, time_embedding_dimension=embedding_dim),  # 3: 128 x 4 x 4
+            ConvBlock(128, 256, self.activation, time_embedding_dimension=embedding_dim),  # 4: 256 x 2 x 2
+            ConvBlock(256, 128, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True), # 5: 128 x 4 x 4
+            ConvBlock(128, 64, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 6: 64 x 8 x 8
+            ConvBlock(64, 32, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True), # 7: 32 x 16 x 16
+            ConvBlock(32, 16, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 9: 3 x 32 x 32
+            torch.nn.Conv2d(16, in_channels, 3, padding=1),  # 11: 3 x 32 x 32
         ])
 
     def forward(self, x: torch.Tensor, time_step: torch.Tensor) -> torch.Tensor:
         time_emb = self.time_mlp(time_step)
-        for layer_idx, layer in enumerate(self.layers_with_emb):
-            x = layer(x, time_emb)
-
-            # skip connection 0 -> 6
-            if layer_idx == 0:
-                residual_0_to_6 = x
-            if layer_idx == 6:
-                x = x + residual_0_to_6
-
-            # skip connection 1 -> 5
-            if layer_idx == 1:
-                residual_1_to_5 = x
-            if layer_idx == 5:
-                x = x + residual_1_to_5
-
-            # skip connection 2 -> 4
-            if layer_idx == 2:
-                residual_2_to_4 = x
-            if layer_idx == 4:
-                x = x + residual_2_to_4
-
-        for layer in self.last_layers:
-            x = layer(x)
-
-        return x
+        x_down1 = self.layers[1](self.layers[0](x, time_emb))
+        x_down2 = self.layers[2](x_down1, time_emb)
+        x_down3 = self.layers[3](x_down2, time_emb)
+        x_down4 = self.layers[4](x_down3, time_emb)
+        x_up1 = self.layers[5](x_down4, time_emb) + x_down3
+        x_up2 = self.layers[6](x_up1, time_emb) + x_down2
+        x_up3 = self.layers[7](x_up2, time_emb) + x_down1
+        x_up4 = self.layers[8](x_up3, time_emb)
+        return self.layers[9](x_up4)
 
 
 @torch.no_grad()
@@ -164,7 +146,7 @@ def draw_sample_from_generator(
     seed: int | None = None,
     save_sample_as: Path | None = None
 ) -> torch.Tensor:
-    device = model.layers_with_emb[0].non_transform_layers[0].weight.device
+    device = model.layers[0].non_transform_layers[0].weight.device
     rand_generator = torch.Generator(device=device)
     if seed is not None:
         rand_generator.manual_seed(seed)
@@ -243,7 +225,7 @@ def train(
 
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, min_lr=0.1 * learning_rate, factor=0.8, patience=5, verbose=True
+        optimizer, factor=0.8, patience=5, verbose=True
     )
     loss_fn = torch.nn.MSELoss()
     running_losses = []
@@ -265,8 +247,9 @@ def train(
 
             loss.backward()
             optimizer.step()
-            lr_scheduler.step(loss)
             running_loss += loss.item() * batch.shape[0] / n_samples
+
+        lr_scheduler.step(loss)
         if (epoch + 1) in [int(rel_plot_step * n_epochs) for rel_plot_step in [0.1, 0.25, 0.5, 0.75, 1.0]]:
             sample_shape = torch.Size((1, *batch.shape[1:]))
             _ = draw_sample_from_generator(

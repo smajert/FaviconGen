@@ -74,20 +74,21 @@ stages:
         AutoEncoderParams:
           ADVERSARIAL_LOSS_WEIGHT: 1
           BATCH_SIZE: 128
-          EPOCHS_MNIST: 15
-          EPOCHS_LLD: 400
+          EPOCHS_MNIST: 25
+          EPOCHS_LLD: 20
           KL_LOSS_WEIGHT: 1
           LEARNING_RATE: 0.0004
         DatasetParams:
-          N_IMAGES: 60000
+          CLUSTER:
+          N_IMAGES:
           SHUFFLE_DATA: true
     outs:
     - path: outs/train_autoencoder_lld/loss.csv
-      md5: d8603fbb8a55d70d0d645f75862c936e
-      size: 9457
+      md5: aca00d23fc48834fe39f846c4e9b425e
+      size: 461
     - path: outs/train_autoencoder_lld/model.pt
-      md5: 42c4f736a9fa74e0b0cba082decb58a7
-      size: 13787989
+      md5: 1c1ea9e745d5e0efcb4a5c91520539fd
+      size: 13817125
   train_autoencoder_mnist:
     cmd: python logo_maker/autoencoder.py --use_mnist
     deps:
@@ -99,39 +100,40 @@ stages:
         AutoEncoderParams:
           ADVERSARIAL_LOSS_WEIGHT: 1
           BATCH_SIZE: 128
-          EPOCHS_MNIST: 15
-          EPOCHS_LLD: 400
+          EPOCHS_MNIST: 25
+          EPOCHS_LLD: 20
           KL_LOSS_WEIGHT: 1
           LEARNING_RATE: 0.0004
         DatasetParams:
-          N_IMAGES: 60000
+          CLUSTER:
+          N_IMAGES:
           SHUFFLE_DATA: true
     outs:
     - path: outs/train_autoencoder_mnist/loss.csv
-      md5: f0422a171dcd03d6c23a59125b49db0e
-      size: 349
+      md5: 90f511f22c5f6e103c63a276532406da
+      size: 567
     - path: outs/train_autoencoder_mnist/model.pt
-      md5: d57a216bcf1d9498e534394947ae045f
-      size: 13778325
+      md5: 0e711de573ed3e31cc44478ad556054a
+      size: 13807461
   draw_samples_mnist:
     cmd: python logo_maker/sample_from_model.py --use_mnist --use_gpu --n_samples
       64
     deps:
     - path: outs/train_autoencoder_mnist/model.pt
-      md5: d57a216bcf1d9498e534394947ae045f
-      size: 13778325
+      md5: 0e711de573ed3e31cc44478ad556054a
+      size: 13807461
     - path: outs/train_diffusion_model_mnist/model.pt
-      md5: dde970ffab12ed71705a96fc41d164b5
-      size: 53794285
+      md5: 447c4acd08f1f5c46010f91291ff4d84
+      size: 13577725
   draw_samples_lld:
     cmd: python logo_maker/sample_from_model.py --use_gpu --n_samples 64
     deps:
     - path: outs/train_autoencoder_lld/model.pt
-      md5: 42c4f736a9fa74e0b0cba082decb58a7
-      size: 13787989
+      md5: 1c1ea9e745d5e0efcb4a5c91520539fd
+      size: 13817125
     - path: outs/train_diffusion_model_lld/model.pt
-      md5: 2607906fead597ef335c1579f68f7434
-      size: 53804781
+      md5: 376a7caeaf9049df2155e772f5473f12
+      size: 13582973
   train_diffusion_model_mnist:
     cmd: python logo_maker/denoising_diffusion.py --use_mnist
     deps:
@@ -141,24 +143,25 @@ stages:
     params:
       logo_maker/params.py:
         DatasetParams:
-          N_IMAGES: 60000
+          CLUSTER:
+          N_IMAGES:
           SHUFFLE_DATA: true
         DiffusionModelParams:
           BATCH_SIZE: 128
           DIFFUSION_STEPS: 1000
           EMBEDDING_DIMENSION: 32
-          EPOCHS_MNIST: 15
-          EPOCHS_LLD: 400
+          EPOCHS_MNIST: 25
+          EPOCHS_LLD: 20
           LEARNING_RATE: 0.001
           VAR_SCHEDULE_START: 0.0001
           VAR_SCHEDULE_END: 0.02
     outs:
     - path: outs/train_diffusion_model_mnist/loss.csv
-      md5: f39346c8abd31039fd603d3baa2d87a9
-      size: 371
+      md5: 69938947b8fc67d046cf51ae51bfe255
+      size: 614
     - path: outs/train_diffusion_model_mnist/model.pt
-      md5: dde970ffab12ed71705a96fc41d164b5
-      size: 53794285
+      md5: 447c4acd08f1f5c46010f91291ff4d84
+      size: 13577725
   train_diffusion_model_lld:
     cmd: python logo_maker/denoising_diffusion.py
     deps:
@@ -168,21 +171,22 @@ stages:
     params:
       logo_maker/params.py:
         DatasetParams:
-          N_IMAGES: 60000
+          CLUSTER:
+          N_IMAGES:
           SHUFFLE_DATA: true
         DiffusionModelParams:
           BATCH_SIZE: 128
           DIFFUSION_STEPS: 1000
           EMBEDDING_DIMENSION: 32
-          EPOCHS_MNIST: 15
-          EPOCHS_LLD: 400
+          EPOCHS_MNIST: 25
+          EPOCHS_LLD: 20
           LEARNING_RATE: 0.001
           VAR_SCHEDULE_START: 0.0001
           VAR_SCHEDULE_END: 0.02
     outs:
     - path: outs/train_diffusion_model_lld/loss.csv
-      md5: dda5fc86150925f1a12fd7c6cb6dedb4
-      size: 10004
+      md5: 1c072b5410a0a69bf6ad83eb259e1602
+      size: 491
     - path: outs/train_diffusion_model_lld/model.pt
-      md5: 2607906fead597ef335c1579f68f7434
-      size: 53804781
+      md5: 376a7caeaf9049df2155e772f5473f12
+      size: 13582973

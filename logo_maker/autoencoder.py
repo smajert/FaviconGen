@@ -6,10 +6,9 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from logo_maker.blocks import ConvBlock
+from logo_maker.blocks import ConvBlock, SelfAttention
 from logo_maker.data_loading import load_logos, load_mnist, show_image_grid
 import logo_maker.params as params
-from logo_maker.utils import q_key_pressed_non_blocking
 
 
 class AutoEncoder(torch.nn.Module):
@@ -19,6 +18,7 @@ class AutoEncoder(torch.nn.Module):
         self.activation = torch.nn.LeakyReLU()
         self.encoder = torch.nn.Sequential(  # input: in_channels x 32 x 32
             ConvBlock(in_channels, 32, self.activation),  # 16 x 16 x 16
+            SelfAttention(32),  # "
             ConvBlock(32, 64, self.activation),  # 16 x 8 x 8
             ConvBlock(64, 128, self.activation),  # 64 x 4 x 4
             torch.nn.Flatten()  # 64*4*4
@@ -189,9 +189,6 @@ def train(
         pbar.set_description(f"Current avg. loss: {running_loss:.3f}, Epochs")
         running_losses.append(running_loss)
         running_loss = 0
-        if q_key_pressed_non_blocking():
-            print("stopping training early and finishing up ...")
-            break
 
     print(f"Saving model in directory {model_storage_directory} ...")
     torch.save(autoencoder.state_dict(), model_storage_directory / "model.pt")
