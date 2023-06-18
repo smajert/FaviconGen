@@ -16,6 +16,7 @@ import logo_maker.params as params
 
 pytorch_transforms = Any
 
+### WARNING: Do not put anything random into transforms; to increase speed these are currently precomputed
 FORWARD_TRANSFORMS = transforms.Compose([
     transforms.ToTensor(),
     transforms.Lambda(lambda t: (t * 2) - 1)  # Scale between [-1, 1]
@@ -59,7 +60,8 @@ class LargeLogoDataset(Dataset):
         self.transform = FORWARD_TRANSFORMS
         self.cache_files = cache_files
         self.images = None
-        self.cluster = cluster
+        self.images_cluster = None
+        self.selected_cluster = cluster
 
         cache_file = tempfile.gettempdir() / Path(f"LargeLogoDataset.pkl")
 
@@ -71,18 +73,18 @@ class LargeLogoDataset(Dataset):
             with h5py.File(hdf5_file_location) as file:
                 stacked_images = file["data"]
                 if cluster_type == ClusterMethod.ae_grayscale:
-                    clusters = file[f"labels/{cluster_type.name}"][()]
+                    self.images_cluster = file[f"labels/{cluster_type.name}"][()].astype(int)
                 else:
-                    clusters = file[f"labels/resnet/{cluster_type.name}"][()]
-                if self.cluster is not None:
-                    stacked_images = stacked_images[:len(clusters)]
-                    stacked_images = stacked_images[clusters == self.cluster.value, ...]
+                    self.images_cluster = file[f"labels/resnet/{cluster_type.name}"][()].astype(int)
+                if self.selected_cluster is not None:
+                    stacked_images = stacked_images[:len(self.images_cluster)]
+                    stacked_images = stacked_images[self.images_cluster == self.selected_cluster.value, ...]
                 else:
                     stacked_images = stacked_images[()]
-                self.images = [
+                self.images = self.transform([
                     np.swapaxes(np.squeeze(arr), 0, -1)
                     for arr in np.split(stacked_images, stacked_images.shape[0], axis=0)
-                ]
+                ])
             if self.cache_files and not cache_file.exists():
                 pickle.dump(self.images, open(cache_file, "wb"))
 
@@ -94,8 +96,11 @@ class LargeLogoDataset(Dataset):
     def __len__(self) -> int:
         return len(self.images)
 
-    def __getitem__(self, idx) -> Tensor:
-        return self.transform(self.images[idx])
+    def __getitem__(self, idx) -> tuple[int, Tensor]:
+        if self.selected_cluster is not None:
+            return self.images[idx], self.selected_cluster.value
+        else:
+            return self.images[idx], self.images_cluster[idx]
 
 
 def load_logos(

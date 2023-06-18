@@ -102,9 +102,13 @@ class SinusoidalPositionEmbeddings(torch.nn.Module):
 
 
 class Generator(torch.nn.Module):
-    def __init__(self, in_channels: int, variance_schedule: VarianceSchedule, embedding_dim: int) -> None:
+    def __init__(
+        self, in_channels: int, variance_schedule: VarianceSchedule, embedding_dim: int, n_labels: int
+    ) -> None:
         super().__init__()
         self.variance_schedule = variance_schedule
+        self.embedding_dim = embedding_dim
+        self.n_labels = n_labels
 
         self.time_mlp = torch.nn.Sequential(
             SinusoidalPositionEmbeddings(embedding_dim),
@@ -112,10 +116,11 @@ class Generator(torch.nn.Module):
             torch.nn.LeakyReLU()
         )
 
+        self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
+
         self.activation = torch.nn.LeakyReLU()
         self.layers = torch.nn.ModuleList([  # input: in_channels x 32 x 32
             ConvBlock(in_channels, 32, self.activation, time_embedding_dimension=embedding_dim),  # 0: 32 x 16 x 16
-            SelfAttention(32),
             ConvBlock(32, 64, self.activation, time_embedding_dimension=embedding_dim),  # 2: 64 x 8 x 8
             ConvBlock(64, 128, self.activation, time_embedding_dimension=embedding_dim),  # 3: 128 x 4 x 4
             ConvBlock(128, 256, self.activation, time_embedding_dimension=embedding_dim),  # 4: 256 x 2 x 2
@@ -126,17 +131,20 @@ class Generator(torch.nn.Module):
             torch.nn.Conv2d(16, in_channels, 3, padding=1),  # 11: 3 x 32 x 32
         ])
 
-    def forward(self, x: torch.Tensor, time_step: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, time_step: torch.Tensor, labels: torch.Tensor | None) -> torch.Tensor:
         time_emb = self.time_mlp(time_step)
-        x_down1 = self.layers[1](self.layers[0](x, time_emb))
-        x_down2 = self.layers[2](x_down1, time_emb)
-        x_down3 = self.layers[3](x_down2, time_emb)
-        x_down4 = self.layers[4](x_down3, time_emb)
-        x_up1 = self.layers[5](x_down4, time_emb) + x_down3
-        x_up2 = self.layers[6](x_up1, time_emb) + x_down2
-        x_up3 = self.layers[7](x_up2, time_emb) + x_down1
-        x_up4 = self.layers[8](x_up3, time_emb)
-        return self.layers[9](x_up4)
+        if labels is not None:
+            time_emb += self.label_embedding(labels)
+
+        x_down1 = self.layers[0](x, time_emb)
+        x_down2 = self.layers[1](x_down1, time_emb)
+        x_down3 = self.layers[2](x_down2, time_emb)
+        x_down4 = self.layers[3](x_down3, time_emb)
+        x_up1 = self.layers[4](x_down4, time_emb) + x_down3
+        x_up2 = self.layers[5](x_up1, time_emb) + x_down2
+        x_up3 = self.layers[6](x_up2, time_emb) + x_down1
+        x_up4 = self.layers[7](x_up3, time_emb)
+        return self.layers[8](x_up4)
 
 
 @torch.no_grad()
@@ -150,6 +158,7 @@ def draw_sample_from_generator(
     rand_generator = torch.Generator(device=device)
     if seed is not None:
         rand_generator.manual_seed(seed)
+    labels = torch.randint(0, model.n_labels, (batch_shape[0],), device=device)
     batch = torch.randn(size=batch_shape, generator=rand_generator, device=device)
     variance_schedule = model.variance_schedule
 
@@ -169,7 +178,7 @@ def draw_sample_from_generator(
         alpha = variance_schedule.alpha_t[time_step]
         alpha_bar = variance_schedule.alpha_bar_t[time_step]
         beta_tilde = variance_schedule.beta_tilde_t[time_step]
-        noise_pred = model(batch, t)
+        noise_pred = model(batch, t, labels)
 
         batch = 1 / torch.sqrt(alpha) * (batch - beta / torch.sqrt(1 - alpha_bar) * noise_pred)
         if time_step != 0:
@@ -218,7 +227,7 @@ def train(
     model_storage_directory.mkdir(exist_ok=True)
 
     schedule = VarianceSchedule(beta_start_end, n_diffusion_steps, device=device)
-    model = Generator(in_channels, schedule, embedding_dim)
+    model = Generator(in_channels, schedule, embedding_dim, 10 if use_mnist else 100)
     if model_file is not None:
         model.load_state_dict(torch.load(model_file))
     model.to(device)
@@ -231,9 +240,10 @@ def train(
     running_losses = []
     running_loss = 0
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
-        for batch_idx, batch in enumerate(data_loader):
-            if use_mnist:  # throw away labels from MNIST
-                batch = batch[0]
+        for batch_idx, (batch, labels) in enumerate(data_loader):
+            # if use_mnist:  # throw away labels from MNIST
+            #     batch = batch[0]
+            labels = labels.to(device)
             batch = batch.to(device)
 
             optimizer.zero_grad()
@@ -242,7 +252,7 @@ def train(
             t = torch.randint(low=0, high=n_diffusion_steps, size=(actual_batch_size,))
             noisy_batch, noise = get_noisy_batch_at_step_t(batch, t, schedule)
 
-            noise_pred = model(noisy_batch, t.to(device))
+            noise_pred = model(noisy_batch, t.to(device), labels)
             loss = loss_fn(noise_pred, noise)
 
             loss.backward()
