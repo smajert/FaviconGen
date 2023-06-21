@@ -67,126 +67,142 @@ stages:
     cmd: python logo_maker/autoencoder.py
     deps:
     - path: data/LLD-icon.hdf5
+      hash: md5
       md5: 91f56af2235117e44629fa608fed59ef
       size: 798927457
     params:
       logo_maker/params.py:
         AutoEncoderParams:
           ADVERSARIAL_LOSS_WEIGHT: 1
-          BATCH_SIZE: 128
+          BATCH_SIZE: 256
           EPOCHS_MNIST: 25
           EPOCHS_LLD: 20
           KL_LOSS_WEIGHT: 1
           LEARNING_RATE: 0.0004
         DatasetParams:
           CLUSTER:
-          N_IMAGES:
+          N_IMAGES: 100
           SHUFFLE_DATA: true
     outs:
     - path: outs/train_autoencoder_lld/loss.csv
-      md5: aca00d23fc48834fe39f846c4e9b425e
-      size: 461
+      hash: md5
+      md5: e3c4651bc3fc85b7cbe221341ae14111
+      size: 460
     - path: outs/train_autoencoder_lld/model.pt
-      md5: 1c1ea9e745d5e0efcb4a5c91520539fd
-      size: 13817125
+      hash: md5
+      md5: 3d9707c796b9f497ad79ed9f73cd5ec1
+      size: 13861277
   train_autoencoder_mnist:
     cmd: python logo_maker/autoencoder.py --use_mnist
     deps:
     - path: data/LLD-icon.hdf5
+      hash: md5
       md5: 91f56af2235117e44629fa608fed59ef
       size: 798927457
     params:
       logo_maker/params.py:
         AutoEncoderParams:
           ADVERSARIAL_LOSS_WEIGHT: 1
-          BATCH_SIZE: 128
+          BATCH_SIZE: 256
           EPOCHS_MNIST: 25
           EPOCHS_LLD: 20
           KL_LOSS_WEIGHT: 1
           LEARNING_RATE: 0.0004
         DatasetParams:
           CLUSTER:
-          N_IMAGES:
+          N_IMAGES: 100
           SHUFFLE_DATA: true
     outs:
     - path: outs/train_autoencoder_mnist/loss.csv
-      md5: 90f511f22c5f6e103c63a276532406da
-      size: 567
+      hash: md5
+      md5: 6cf2dc3ee0b220a025886b4c3aefd5f4
+      size: 571
     - path: outs/train_autoencoder_mnist/model.pt
-      md5: 0e711de573ed3e31cc44478ad556054a
-      size: 13807461
+      hash: md5
+      md5: d8eb144cfd3e7705d2fbe57631562324
+      size: 13828317
   draw_samples_mnist:
     cmd: python logo_maker/sample_from_model.py --use_mnist --use_gpu --n_samples
       64
     deps:
     - path: outs/train_autoencoder_mnist/model.pt
-      md5: 0e711de573ed3e31cc44478ad556054a
-      size: 13807461
+      hash: md5
+      md5: d8eb144cfd3e7705d2fbe57631562324
+      size: 13828317
     - path: outs/train_diffusion_model_mnist/model.pt
-      md5: 447c4acd08f1f5c46010f91291ff4d84
-      size: 13577725
+      hash: md5
+      md5: 9909be2d9b374dbb517f84e5120178f4
+      size: 13550121
   draw_samples_lld:
     cmd: python logo_maker/sample_from_model.py --use_gpu --n_samples 64
     deps:
     - path: outs/train_autoencoder_lld/model.pt
-      md5: 1c1ea9e745d5e0efcb4a5c91520539fd
-      size: 13817125
+      hash: md5
+      md5: 3d9707c796b9f497ad79ed9f73cd5ec1
+      size: 13861277
     - path: outs/train_diffusion_model_lld/model.pt
-      md5: 376a7caeaf9049df2155e772f5473f12
-      size: 13582973
+      hash: md5
+      md5: 2d45b48f2ec429beb25b82f4c3a73f4c
+      size: 13566889
   train_diffusion_model_mnist:
     cmd: python logo_maker/denoising_diffusion.py --use_mnist
     deps:
     - path: data/LLD-icon.hdf5
+      hash: md5
       md5: 91f56af2235117e44629fa608fed59ef
       size: 798927457
     params:
       logo_maker/params.py:
         DatasetParams:
           CLUSTER:
-          N_IMAGES:
+          N_IMAGES: 100
           SHUFFLE_DATA: true
         DiffusionModelParams:
-          BATCH_SIZE: 128
+          BATCH_SIZE: 256
           DIFFUSION_STEPS: 1000
           EMBEDDING_DIMENSION: 32
           EPOCHS_MNIST: 25
           EPOCHS_LLD: 20
-          LEARNING_RATE: 0.001
+          LEARNING_RATE: 0.0004
           VAR_SCHEDULE_START: 0.0001
           VAR_SCHEDULE_END: 0.02
     outs:
     - path: outs/train_diffusion_model_mnist/loss.csv
-      md5: 69938947b8fc67d046cf51ae51bfe255
-      size: 614
+      hash: md5
+      md5: cbc8e56a359b3d81be350bf495a627cc
+      size: 571
     - path: outs/train_diffusion_model_mnist/model.pt
-      md5: 447c4acd08f1f5c46010f91291ff4d84
-      size: 13577725
+      hash: md5
+      md5: 9909be2d9b374dbb517f84e5120178f4
+      size: 13550121
   train_diffusion_model_lld:
     cmd: python logo_maker/denoising_diffusion.py
     deps:
     - path: data/LLD-icon.hdf5
+      hash: md5
       md5: 91f56af2235117e44629fa608fed59ef
       size: 798927457
     params:
       logo_maker/params.py:
         DatasetParams:
           CLUSTER:
-          N_IMAGES:
+          N_IMAGES: 100
           SHUFFLE_DATA: true
         DiffusionModelParams:
-          BATCH_SIZE: 128
+          BATCH_SIZE: 256
           DIFFUSION_STEPS: 1000
           EMBEDDING_DIMENSION: 32
           EPOCHS_MNIST: 25
           EPOCHS_LLD: 20
-          LEARNING_RATE: 0.001
+          LEARNING_RATE: 0.0004
           VAR_SCHEDULE_START: 0.0001
           VAR_SCHEDULE_END: 0.02
     outs:
     - path: outs/train_diffusion_model_lld/loss.csv
-      md5: 1c072b5410a0a69bf6ad83eb259e1602
-      size: 491
+      hash: md5
+      md5: 307649d75d71e88e12f18156a87415ff
+      size: 460
     - path: outs/train_diffusion_model_lld/model.pt
-      md5: 376a7caeaf9049df2155e772f5473f12
-      size: 13582973
+      hash: md5
+      md5: 2d45b48f2ec429beb25b82f4c3a73f4c
+      size: 13566889

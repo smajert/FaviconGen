@@ -152,13 +152,17 @@ def draw_sample_from_generator(
     model: Generator,
     batch_shape: tuple[int, ...],
     seed: int | None = None,
+    label: int | None = None,
     save_sample_as: Path | None = None
 ) -> torch.Tensor:
     device = model.layers[0].non_transform_layers[0].weight.device
     rand_generator = torch.Generator(device=device)
     if seed is not None:
         rand_generator.manual_seed(seed)
-    labels = torch.randint(0, model.n_labels, (batch_shape[0],), device=device)
+    if label is None:
+        labels = torch.randint(0, model.n_labels, (batch_shape[0],), device=device)
+    else:
+        labels = torch.full((batch_shape[0],), fill_value=label, device=device)
     batch = torch.randn(size=batch_shape, generator=rand_generator, device=device)
     variance_schedule = model.variance_schedule
 
@@ -178,7 +182,7 @@ def draw_sample_from_generator(
         alpha = variance_schedule.alpha_t[time_step]
         alpha_bar = variance_schedule.alpha_bar_t[time_step]
         beta_tilde = variance_schedule.beta_tilde_t[time_step]
-        noise_pred = model(batch, t, labels)
+        noise_pred = torch.lerp(model(batch, t, labels), model(batch, t, None), 0.9)
 
         batch = 1 / torch.sqrt(alpha) * (batch - beta / torch.sqrt(1 - alpha_bar) * noise_pred)
         if time_step != 0:
@@ -241,9 +245,9 @@ def train(
     running_loss = 0
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
         for batch_idx, (batch, labels) in enumerate(data_loader):
-            # if use_mnist:  # throw away labels from MNIST
-            #     batch = batch[0]
             labels = labels.to(device)
+            if np.random.random() < 0.1:
+                labels = None
             batch = batch.to(device)
 
             optimizer.zero_grad()

@@ -81,10 +81,10 @@ class LargeLogoDataset(Dataset):
                     stacked_images = stacked_images[self.images_cluster == self.selected_cluster.value, ...]
                 else:
                     stacked_images = stacked_images[()]
-                self.images = self.transform([
+                self.images = [
                     np.swapaxes(np.squeeze(arr), 0, -1)
                     for arr in np.split(stacked_images, stacked_images.shape[0], axis=0)
-                ])
+                ]
             if self.cache_files and not cache_file.exists():
                 pickle.dump(self.images, open(cache_file, "wb"))
 
@@ -98,9 +98,9 @@ class LargeLogoDataset(Dataset):
 
     def __getitem__(self, idx) -> tuple[int, Tensor]:
         if self.selected_cluster is not None:
-            return self.images[idx], self.selected_cluster.value
+            return self.transform(self.images[idx]), self.selected_cluster.value
         else:
-            return self.images[idx], self.images_cluster[idx]
+            return self.transform(self.images[idx]), self.images_cluster[idx]
 
 
 def load_logos(

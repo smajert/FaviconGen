@@ -26,13 +26,13 @@ class ClusterNamesAeGrayscale(Enum):
 
 class DatasetParams:
     CLUSTER: ClusterNamesAeGrayscale | None = None
-    N_IMAGES: int | None = None
+    N_IMAGES: int | None = 100
     SHUFFLE_DATA = True
 
 
 class AutoEncoderParams:
     ADVERSARIAL_LOSS_WEIGHT: float | None = 1
-    BATCH_SIZE: int = 128
+    BATCH_SIZE: int = 256
     EPOCHS_MNIST: int = 25
     EPOCHS_LLD: int = 20
     KL_LOSS_WEIGHT: float = 1
@@ -40,11 +40,11 @@ class AutoEncoderParams:
 
 
 class DiffusionModelParams:
-    BATCH_SIZE: int = 128
+    BATCH_SIZE: int = 256
     DIFFUSION_STEPS: int = 1000
     EMBEDDING_DIMENSION: int = 32
     EPOCHS_MNIST: int = 25
     EPOCHS_LLD: int = 20
-    LEARNING_RATE: float = 0.001
+    LEARNING_RATE: float = 4e-4
     VAR_SCHEDULE_START: float = 0.0001
     VAR_SCHEDULE_END: float = 0.02

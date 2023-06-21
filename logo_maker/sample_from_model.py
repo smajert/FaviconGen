@@ -16,9 +16,14 @@ import logo_maker.params as params
 
 @torch.no_grad()
 def sample_from_autoencoder_model(
-    model_file: Path, in_channels: int, seed: int | None, n_samples: int, device: str, save_as: Path | None = None
+    model_file: Path,
+    n_labels: int,
+    in_channels: int,
+    seed: int | None,
+    n_samples: int,
+    device: str, save_as: Path | None = None
 ) -> typing.Generator[torch.Tensor, None, None]:
-    autoencoder = AutoEncoder(in_channels)
+    autoencoder = AutoEncoder(in_channels, 32, n_labels)
     autoencoder.load_state_dict(torch.load(model_file))
     autoencoder.eval()
     autoencoder.to(device)
@@ -29,7 +34,10 @@ def sample_from_autoencoder_model(
 
     while True:
         random_latent = torch.randn((n_samples, autoencoder.latent_dim), device=device, generator=rand_generator)
-        batch = autoencoder.decoder(autoencoder.convert_from_latent(random_latent))
+        random_labels = autoencoder.label_embedding(
+            torch.randint(0, n_labels, size=(n_samples, ), device=device, generator=rand_generator)
+        )
+        batch = autoencoder.decoder(autoencoder.convert_from_latent(random_latent), random_labels)
         if save_as is not None:
             show_image_grid(batch)
             plt.savefig(save_as)
@@ -40,7 +48,13 @@ def sample_from_autoencoder_model(
 
 @torch.no_grad()
 def sample_from_diffusion_model(
-    model_file: Path, in_channels: int,  seed: int, n_samples: int, device: str, save_as: Path | None = None
+    model_file: Path,
+    n_labels: int,
+    in_channels: int,
+    seed: int,
+    n_samples: int,
+    device: str,
+    save_as: Path | None = None
 ) -> typing.Generator[torch.Tensor, None, None]:
     """
     Sample images from a chosen model.
@@ -54,7 +68,7 @@ def sample_from_diffusion_model(
         (params.DiffusionModelParams.VAR_SCHEDULE_START, params.DiffusionModelParams.VAR_SCHEDULE_END),
         params.DiffusionModelParams.DIFFUSION_STEPS
     )
-    generator = Generator(in_channels, variance_schedule, params.DiffusionModelParams.EMBEDDING_DIMENSION)
+    generator = Generator(in_channels, variance_schedule, params.DiffusionModelParams.EMBEDDING_DIMENSION, n_labels)
     generator.load_state_dict(torch.load(model_file))
     generator = generator.to(device)
     generator.eval()
@@ -89,14 +103,12 @@ def nearest_neighbor_search(
         (generated_batch.shape[0],), fill_value=torch.inf, device=generated_batch.device
     )
     # compare every single image from dataset to generated ones and determine how close they are
-    for single_image in tqdm(data_loader, desc="Searching dataset for nearest neighbors..."):
-        if use_mnist:
-            single_image = single_image[0]
+    for single_image, _ in tqdm(data_loader, desc="Searching dataset for nearest neighbors..."):
         single_image = single_image.to(generated_batch.device)
         # single_image is broadcast along batch dimension
         distances = torch.sum(torch.abs(single_image - generated_batch), axis=(1, 2, 3))
         diffs = distances - current_nearest_neighbor_distances
-        closer_neighbor_idxs = diffs < 0 # idx where the current image is a closer neighbor than the current one
+        closer_neighbor_idxs = diffs < 0  # idx where the current image is a closer neighbor than the current one
         current_nearest_neighbor_distances[closer_neighbor_idxs] = distances[closer_neighbor_idxs]
         nearest_neighbors[closer_neighbor_idxs, ...] = single_image[0, ...]
 
@@ -145,11 +157,18 @@ def main():
         save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion_lld.png"
 
     in_channels = 1 if args.use_mnist else 3
+    n_labels = 10 if args.use_mnist else 100
     auto_gen_batch = next(sample_from_autoencoder_model(
-        model_file_auto, in_channels, args.seed, args.n_samples, device, save_as=save_location_auto_samples
+        model_file_auto, n_labels, in_channels, args.seed, args.n_samples, device, save_as=save_location_auto_samples
     ))
     diffusion_gen_batch = next(sample_from_diffusion_model(
-        model_file_diffusion, in_channels, args.seed, args.n_samples, device, save_as=save_location_diff_samples
+        model_file_diffusion,
+        n_labels,
+        in_channels,
+        args.seed,
+        args.n_samples,
+        device,
+        save_as=save_location_diff_samples
     ))
 
     nearest_neighbor_search(

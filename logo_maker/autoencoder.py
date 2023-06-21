@@ -11,32 +11,67 @@ from logo_maker.data_loading import load_logos, load_mnist, show_image_grid
 import logo_maker.params as params
 
 
+class Encoder(torch.nn.Module):
+    def __init__(
+        self, in_channels: int, embedding_dim: int, n_labels: int, activation: torch.nn.modules.activation
+    ) -> None:
+        super().__init__()
+        self.in_channels = in_channels
+        self.embedding_dim = embedding_dim
+        self.activation = activation
+        self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
+        self.convs = torch.nn.ModuleList([
+            ConvBlock(in_channels, 32, self.activation, time_embedding_dimension=embedding_dim),  # 16 x 16 x 16
+            ConvBlock(32, 64, self.activation, time_embedding_dimension=embedding_dim),  # 16 x 8 x 8
+            ConvBlock(64, 128, self.activation, time_embedding_dimension=embedding_dim),  # 64 x 4 x 4
+        ])
+        self.flatten = torch.nn.Flatten()  # 64*4*4
+
+    def forward(self, x: torch.Tensor, label_embedding: torch.Tensor) -> torch.Tensor:
+        for layer in self.convs:
+            x = layer(x, label_embedding)
+        x = self.flatten(x)
+        return x
+
+
+class Decoder(torch.nn.Module):
+    def __init__(
+        self, out_channels: int, embedding_dim, batch_shape: tuple[int, ...], activation: torch.nn.modules.activation
+    ) -> None:
+        super().__init__()
+        self.activation = activation
+        self.unflatten = torch.nn.Unflatten(1, batch_shape)  # 64 x 4 x 4
+        self.convs = torch.nn.ModuleList([
+            ConvBlock(128, 64, self.activation, do_transpose=True, time_embedding_dimension=embedding_dim),  # 32 x 8 x 8
+            ConvBlock(64, 32, self.activation, do_transpose=True, time_embedding_dimension=embedding_dim),  # 16 x 16 x 16
+            ConvBlock(32, out_channels, self.activation, do_transpose=True, time_embedding_dimension=embedding_dim),  # in_channels x 32 x 32
+        ])
+        self.last_conv = torch.nn.Conv2d(out_channels, out_channels, 5, padding=2, stride=1)  # in_channels x 32 x 32
+        self.last_activation = torch.nn.Tanh()  # in_channels x 32 x 32
+
+    def forward(self, x: torch.Tensor, label_embeddings: torch.Tensor) -> torch.Tensor:
+        x = self.unflatten(x)
+        for layer in self.convs:
+            x = layer(x, label_embeddings)
+        x = self.last_conv(x)
+        return self.last_activation(x)
+
+
 class AutoEncoder(torch.nn.Module):
-    def __init__(self, in_channels: int) -> None:
+    def __init__(self, in_channels: int, embedding_dim: int, n_labels: int) -> None:
         super().__init__()
         self.latent_dim = 512
         self.activation = torch.nn.LeakyReLU()
-        self.encoder = torch.nn.Sequential(  # input: in_channels x 32 x 32
-            ConvBlock(in_channels, 32, self.activation),  # 16 x 16 x 16
-            SelfAttention(32),  # "
-            ConvBlock(32, 64, self.activation),  # 16 x 8 x 8
-            ConvBlock(64, 128, self.activation),  # 64 x 4 x 4
-            torch.nn.Flatten()  # 64*4*4
-        )
+        self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
+
+        self.encoder = Encoder(in_channels, embedding_dim, n_labels, self.activation)
         flattened_dimension = 128 * 4 * 4
         self.to_latent = torch.nn.Linear(flattened_dimension, self.latent_dim)
         self.to_mu = torch.nn.Linear(self.latent_dim, self.latent_dim)
         self.to_log_var = torch.nn.Linear(self.latent_dim, self.latent_dim)
         self.from_latent = torch.nn.Linear(self.latent_dim, flattened_dimension)
 
-        self.decoder = torch.nn.Sequential(  # input: 64*4*4
-            torch.nn.Unflatten(1, (128, 4, 4)),  # 64 x 4 x 4
-            ConvBlock(128, 64, self.activation, do_transpose=True),  # 32 x 8 x 8
-            ConvBlock(64, 32, self.activation, do_transpose=True),  # 16 x 16 x 16
-            ConvBlock(32, in_channels, self.activation, do_transpose=True),  # in_channels x 32 x 32
-            torch.nn.Conv2d(in_channels, in_channels, 5, padding=2, stride=1),  # in_channels x 32 x 32
-            torch.nn.Tanh()  # in_channels x 32 x 32
-        )
+        self.decoder = Decoder(in_channels, embedding_dim, (128, 4, 4), self.activation)
 
     def _reparameterize(self, mu, log_var):
         """
@@ -61,13 +96,14 @@ class AutoEncoder(torch.nn.Module):
         x = self.activation(self.from_latent(z))
         return x
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        x = self.encoder(x)
+    def forward(self, x: torch.Tensor, labels: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        label_emb = self.label_embedding(labels)
+        x = self.encoder(x, label_emb)
         encoded_shape = x.shape
         z, mu, log_var = self.convert_to_latent(x)
         x = self.convert_from_latent(z)
         x = torch.reshape(x, shape=encoded_shape)
-        x = self.decoder(x)
+        x = self.decoder(x, label_emb)
 
         return x, mu, log_var
 
@@ -122,7 +158,7 @@ def train(
         optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=0.2 * learning_rate)  # 0.08
 
     # prepare autoencoder
-    autoencoder = AutoEncoder(in_channels)
+    autoencoder = AutoEncoder(in_channels, 32, 10 if use_mnist else 100)
     if model_file is not None:
         autoencoder.load_state_dict(torch.load(model_file))
     autoencoder.to(device)
@@ -134,13 +170,12 @@ def train(
     value_for_original = torch.tensor([1], device=device, dtype=torch.float)
     value_for_reconstructed = torch.tensor([0], device=device, dtype=torch.float)
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
-        for batch_idx, batch in enumerate(data_loader):
-            if use_mnist:  # throw away labels from MNIST
-                batch = batch[0]
+        for batch_idx, (batch, labels) in enumerate(data_loader):
+            labels = labels.to(device)
             batch = batch.to(device)  # batch does not track gradients -> does not need to be detached ever
 
             optimizer_generator.zero_grad()
-            reconst_batch, mu, log_var = autoencoder(batch)
+            reconst_batch, mu, log_var = autoencoder(batch, labels)
             kl_loss = -0.5 * torch.mean(1 + log_var - mu.pow(2) - log_var.exp())  # Kullblack Leibler loss
             reconstruction_loss = loss_fn(reconst_batch, batch)
             if use_patch_discriminator:
@@ -164,7 +199,7 @@ def train(
             if use_patch_discriminator:
                 optimizer_discriminator.zero_grad()
                 disc_pred_original = patch_disc(batch)
-                reconst_batch, _, _ = autoencoder(batch)
+                reconst_batch, _, _ = autoencoder(batch, labels)
                 disc_pred_reconstructed = patch_disc(reconst_batch.detach())
                 disc_loss = (
                     torch.nn.L1Loss()(disc_pred_original, is_original)
