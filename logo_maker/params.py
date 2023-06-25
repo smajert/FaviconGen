@@ -4,8 +4,6 @@ from pathlib import Path
 
 import torch
 
-# from logo_maker.data_loading import ClusterNamesAeGrayscale #todo: move definition of clusternames here to avoid circular import
-
 REPO_ROOT = Path(__file__).parents[1]
 DATA_BASE_DIR = REPO_ROOT / "data"
 OUTS_BASE_DIR = REPO_ROOT / "outs"

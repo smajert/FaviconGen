@@ -45,9 +45,11 @@ def test_noise_schedule_is_correct():
 
 
 def test_make_batch_noisy(LogoDataset):
+    random.seed(0)
+    torch.random.manual_seed(0)
     steps_to_show = 11
     loader = torch.utils.data.DataLoader(LogoDataset, batch_size=steps_to_show, shuffle=False)
-    image_batch = next(iter(loader))
+    image_batch = next(iter(loader))[0]
 
     n_time_steps = 100
     noise_schedule = sd.VarianceSchedule(
@@ -60,10 +62,10 @@ def test_make_batch_noisy(LogoDataset):
     )
     mean_of_image = torch.mean(noisy_tensor[4, ...])
     mean_of_noise = torch.mean(noise[4, ...])
-    #torch.testing.assert_allclose(mean_of_image, 0.3424, rtol=0, atol=1e-4)
-    #torch.testing.assert_allclose(mean_of_noise, 4.7330e-05, rtol=0, atol=1e-4)
+    torch.testing.assert_allclose(mean_of_image, 0.3498, rtol=0, atol=1e-4)
+    torch.testing.assert_allclose(mean_of_noise, 0.0187, rtol=0, atol=1e-4)
 
-    do_plot = True
+    do_plot = False
     if do_plot:
         show_image_grid(noisy_tensor)
         plt.show()
@@ -71,7 +73,7 @@ def test_make_batch_noisy(LogoDataset):
 
 def test_values_in_noise_and_image_seem_sensible(LogoDataset):
     data_loader = torch.utils.data.DataLoader(LogoDataset, batch_size=128, shuffle=False)
-    image_batch = next(iter(data_loader))
+    image_batch = next(iter(data_loader))[0]
     n_time_steps = 300
     beta_start_end = (0.0001, 0.02)
     variance_schedule = sd.VarianceSchedule(n_time_steps=n_time_steps, beta_start_end=beta_start_end)
@@ -105,25 +107,25 @@ def test_drawing_sample_from_module():
     torch.random.manual_seed(0)
     random.seed(0)
     n_time_steps = 20
-    variance_schedule = sd.VarianceSchedule(n_time_steps=n_time_steps)
-    model = sd.Generator(variance_schedule)
+    variance_schedule = sd.VarianceSchedule(n_time_steps=n_time_steps, beta_start_end=(0.0001, 0.02))
+    model = sd.Generator(3, variance_schedule, 32, 10)
     sample = sd.draw_sample_from_generator(model, (4, 3, 32, 32), seed=0)
-    torch.testing.assert_allclose(torch.mean(sample), 0.0352, rtol=0, atol=1e-4)
+    torch.testing.assert_allclose(torch.mean(sample), -0.0155, rtol=0, atol=1e-4)
 
 
-def test_model_runs(device: str = "cuda"):
+def test_model_runs(device: str = "cpu"):
     torch.random.manual_seed(0)
     random.seed(0)
     pseudo_batch = torch.rand((32, 3, 32, 32), device=device)
     pseudo_time_steps = torch.randint(0, 10, size=(32,), device=device)
+    pseudo_labels = torch.randint(0, 9, size=(32,), device=device)
     model = sd.Generator(
-        sd.VarianceSchedule(n_time_steps=1000, beta_start_end=(0.0001, 0.02)), 32
+        3, sd.VarianceSchedule(n_time_steps=1000, beta_start_end=(0.0001, 0.02)), 32, 10
     ).to(device)
-    test_output = model(pseudo_batch, pseudo_time_steps)
+    test_output = model(pseudo_batch, pseudo_time_steps, pseudo_labels)
+    print(torch.mean(test_output))
     if device == "cpu":
-        torch.testing.assert_allclose(torch.mean(test_output), torch.tensor(-0.0508, device=device), rtol=0, atol=1e-4)
+        torch.testing.assert_allclose(torch.mean(test_output), torch.tensor(0.0899, device=device), rtol=0, atol=1e-4)
     elif device == "cuda":
-        torch.testing.assert_allclose(torch.mean(test_output), torch.tensor(-0.0885, device=device), rtol=0, atol=1e-4)
-    else:
-        pass
+        torch.testing.assert_allclose(torch.mean(test_output), torch.tensor(0.0338, device=device), rtol=0, atol=1e-4)
 
