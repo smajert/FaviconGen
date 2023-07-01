@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import Enum
 import random
 from pathlib import Path
@@ -22,27 +23,30 @@ class ClusterNamesAeGrayscale(Enum):
     colorful_round = 3
 
 
-class DatasetParams:
-    CLUSTER: ClusterNamesAeGrayscale | None = None
-    N_IMAGES: int | None = 100
-    SHUFFLE_DATA = True
+class Dataset:
+    cluster: ClusterNamesAeGrayscale | None = None
+    n_images: int | None = 100
+    shuffle = True
 
 
-class AutoEncoderParams:
-    ADVERSARIAL_LOSS_WEIGHT: float | None = 1
-    BATCH_SIZE: int = 256
-    EPOCHS_MNIST: int = 25
-    EPOCHS_LLD: int = 20
-    KL_LOSS_WEIGHT: float = 1
-    LEARNING_RATE: float = 4e-4
+class AutoEncoder:
+    adversarial_loss_weight: float | None = 1
+    batch_size: int = 256
+    embedding_dim: int = 32
+    epochs_mnist: int = 25
+    epochs_lld: int = 20
+    kl_loss_weight: float = 1
+    learning_rate: float = 4e-4
 
 
-class DiffusionModelParams:
-    BATCH_SIZE: int = 256
-    DIFFUSION_STEPS: int = 1000
-    EMBEDDING_DIMENSION: int = 32
-    EPOCHS_MNIST: int = 25
-    EPOCHS_LLD: int = 20
-    LEARNING_RATE: float = 4e-4
-    VAR_SCHEDULE_START: float = 0.0001
-    VAR_SCHEDULE_END: float = 0.02
+class Diffusion:
+    batch_size: int = 256
+    embedding_dim: int = 32
+    epochs_mnist: int = 25
+    epochs_lld: int = 20
+    guiding_factor: float = 0.1
+    learning_rate: float = 4e-4
+    steps: int = 1000
+    var_schedule_start: float = 0.0001
+    var_schedule_end: float = 0.02
+

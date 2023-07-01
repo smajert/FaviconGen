@@ -7,8 +7,8 @@ stages:
       - outs/train_autoencoder_mnist/model.pt
     params:
       - logo_maker/params.py:
-        - AutoEncoderParams
-        - DatasetParams
+        - AutoEncoder
+        - Dataset
     plots:
       - outs/train_autoencoder_mnist/loss.csv:
           x: Epoch
@@ -22,8 +22,8 @@ stages:
       - outs/train_autoencoder_lld/model.pt
     params:
       - logo_maker/params.py:
-          - AutoEncoderParams
-          - DatasetParams
+          - AutoEncoder
+          - Dataset
     plots:
       - outs/train_autoencoder_lld/loss.csv:
           x: Epoch
@@ -37,8 +37,8 @@ stages:
       - outs/train_diffusion_model_mnist/model.pt
     params:
       - logo_maker/params.py:
-        - DatasetParams
-        - DiffusionModelParams
+        - Dataset
+        - Diffusion
     plots:
       - outs/train_diffusion_model_mnist/loss.csv:
           x: Epoch
@@ -52,8 +52,8 @@ stages:
       - outs/train_diffusion_model_lld/model.pt
     params:
       - logo_maker/params.py:
-          - DatasetParams
-          - DiffusionModelParams
+          - Dataset
+          - Diffusion
     plots:
       - outs/train_diffusion_model_lld/loss.csv:
           x: Epoch

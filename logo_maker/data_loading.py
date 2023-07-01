@@ -16,7 +16,6 @@ import logo_maker.params as params
 
 pytorch_transforms = Any
 
-### WARNING: Do not put anything random into transforms; to increase speed these are currently precomputed
 FORWARD_TRANSFORMS = transforms.Compose([
     transforms.ToTensor(),
     transforms.Lambda(lambda t: (t * 2) - 1)  # Scale between [-1, 1]

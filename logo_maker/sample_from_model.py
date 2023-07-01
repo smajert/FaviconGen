@@ -19,9 +19,9 @@ def sample_from_autoencoder_model(
     model_file: Path,
     n_labels: int,
     in_channels: int,
-    seed: int | None,
     n_samples: int,
-    device: str, save_as: Path | None = None
+    device: str,
+    save_as: Path | None = None
 ) -> typing.Generator[torch.Tensor, None, None]:
     autoencoder = AutoEncoder(in_channels, 32, n_labels)
     autoencoder.load_state_dict(torch.load(model_file))
@@ -29,8 +29,6 @@ def sample_from_autoencoder_model(
     autoencoder.to(device)
 
     rand_generator = torch.Generator(device=device)
-    if seed is not None:
-        rand_generator.manual_seed(seed)
 
     while True:
         random_latent = torch.randn((n_samples, autoencoder.latent_dim), device=device, generator=rand_generator)
@@ -51,9 +49,9 @@ def sample_from_diffusion_model(
     model_file: Path,
     n_labels: int,
     in_channels: int,
-    seed: int,
     n_samples: int,
     device: str,
+    diffusion_info: params.Diffusion = params.Diffusion(),
     save_as: Path | None = None
 ) -> typing.Generator[torch.Tensor, None, None]:
     """
@@ -65,16 +63,15 @@ def sample_from_diffusion_model(
     """
 
     variance_schedule = VarianceSchedule(
-        (params.DiffusionModelParams.VAR_SCHEDULE_START, params.DiffusionModelParams.VAR_SCHEDULE_END),
-        params.DiffusionModelParams.DIFFUSION_STEPS
+        (diffusion_info.var_schedule_start, diffusion_info.var_schedule_end), diffusion_info.steps
     )
-    generator = Generator(in_channels, variance_schedule, params.DiffusionModelParams.EMBEDDING_DIMENSION, n_labels)
+    generator = Generator(in_channels, variance_schedule, diffusion_info.embedding_dim, n_labels)
     generator.load_state_dict(torch.load(model_file))
     generator = generator.to(device)
     generator.eval()
 
     # draw single batch first to set seed
-    batch = draw_sample_from_generator(generator, (n_samples, in_channels, 32, 32), seed=seed)
+    batch = draw_sample_from_generator(generator, (n_samples, in_channels, 32, 32), diffusion_info.guiding_factor)
     while True:
         if save_as is not None:
             show_image_grid(batch)
@@ -82,7 +79,7 @@ def sample_from_diffusion_model(
             plt.show()
         yield batch
         # draw batch without setting seed again
-        batch = draw_sample_from_generator(generator, (n_samples, in_channels, 32, 32))
+        batch = draw_sample_from_generator(generator, (n_samples, in_channels, 32, 32), diffusion_info.guiding_factor)
 
 
 @torch.no_grad()
@@ -122,9 +119,6 @@ def nearest_neighbor_search(
 
 def main():
     parser = argparse.ArgumentParser(description="Get sample images from models")
-    parser.add_argument(
-        "--seed", type=int, default=None, help="Random number seed to generate Gaussian noise (first timestep) from."
-    )
     parser.add_argument("--n_samples", type=int, default=64, help="Number of samples to get from model.")
     parser.add_argument(
         "--use_gpu",
@@ -141,10 +135,6 @@ def main():
     else:
         device = "cpu"
 
-    if args.seed is None:
-        torch.random.manual_seed(datetime.now().timestamp())
-        random.seed(datetime.now().timestamp())
-
     if args.use_mnist:
         model_file_auto = params.OUTS_BASE_DIR / "train_autoencoder_mnist/model.pt"
         save_location_auto_samples = params.OUTS_BASE_DIR / "samples_autoencoder_mnist.png"
@@ -159,13 +149,12 @@ def main():
     in_channels = 1 if args.use_mnist else 3
     n_labels = 10 if args.use_mnist else 100
     auto_gen_batch = next(sample_from_autoencoder_model(
-        model_file_auto, n_labels, in_channels, args.seed, args.n_samples, device, save_as=save_location_auto_samples
+        model_file_auto, n_labels, in_channels, args.n_samples, device, save_as=save_location_auto_samples
     ))
     diffusion_gen_batch = next(sample_from_diffusion_model(
         model_file_diffusion,
         n_labels,
         in_channels,
-        args.seed,
         args.n_samples,
         device,
         save_as=save_location_diff_samples
@@ -173,17 +162,17 @@ def main():
 
     nearest_neighbor_search(
         auto_gen_batch,
-        params.DatasetParams.N_IMAGES,
+        params.Dataset.n_images,
         args.use_mnist,
-        params.DatasetParams.CLUSTER,
+        params.Dataset.cluster,
         save_as=params.OUTS_BASE_DIR / f"auto_nearest_neighbors_mnist_{args.use_mnist}.png"
     )
 
     nearest_neighbor_search(
         diffusion_gen_batch,
-        params.DatasetParams.N_IMAGES,
+        params.Dataset.n_images,
         args.use_mnist,
-        params.DatasetParams.CLUSTER,
+        params.Dataset.cluster,
         save_as=params.OUTS_BASE_DIR / f"diffusion_nearest_neighbors_mnist_{args.use_mnist}.png"
     )
 

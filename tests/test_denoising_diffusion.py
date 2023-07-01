@@ -109,7 +109,7 @@ def test_drawing_sample_from_module():
     n_time_steps = 20
     variance_schedule = sd.VarianceSchedule(n_time_steps=n_time_steps, beta_start_end=(0.0001, 0.02))
     model = sd.Generator(3, variance_schedule, 32, 10)
-    sample = sd.draw_sample_from_generator(model, (4, 3, 32, 32), seed=0)
+    sample = sd.draw_sample_from_generator(model, (4, 3, 32, 32), 0.9, seed=0)
     torch.testing.assert_allclose(torch.mean(sample), -0.0155, rtol=0, atol=1e-4)
 
 

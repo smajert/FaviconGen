@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from logo_maker.blocks import ConvBlock, SelfAttention
+from logo_maker.blocks import ConvBlock
 from logo_maker.data_loading import load_logos, load_mnist, show_image_grid
 import logo_maker.params as params
 
@@ -151,6 +151,7 @@ class Generator(torch.nn.Module):
 def draw_sample_from_generator(
     model: Generator,
     batch_shape: tuple[int, ...],
+    guiding_factor: float,
     seed: int | None = None,
     label: int | None = None,
     save_sample_as: Path | None = None
@@ -182,7 +183,7 @@ def draw_sample_from_generator(
         alpha = variance_schedule.alpha_t[time_step]
         alpha_bar = variance_schedule.alpha_bar_t[time_step]
         beta_tilde = variance_schedule.beta_tilde_t[time_step]
-        noise_pred = torch.lerp(model(batch, t, labels), model(batch, t, None), 0.9)
+        noise_pred = torch.lerp(model(batch, t, labels), model(batch, t, None), guiding_factor)
 
         batch = 1 / torch.sqrt(alpha) * (batch - beta / torch.sqrt(1 - alpha_bar) * noise_pred)
         if time_step != 0:
@@ -203,25 +204,19 @@ def draw_sample_from_generator(
 
 
 def train(
-    batch_size: int,
-    beta_start_end: tuple[float, float],
-    cluster: params.ClusterNamesAeGrayscale | None,
-    device: str,
-    embedding_dim: int,
-    learning_rate: float,
-    model_file: Path | None,
-    n_epochs: int,
-    n_diffusion_steps: int,
-    n_images: int,
-    shuffle_data: bool,
-    use_mnist: bool
+    dataset_info: params.Dataset,
+    diffusion_info: params.Diffusion,
+    use_mnist: bool,
+    model_file: Path | None = None
 ) -> None:
     if use_mnist:
-        n_samples, data_loader = load_mnist(batch_size, shuffle_data, n_images)
+        n_samples, data_loader = load_mnist(diffusion_info.batch_size, dataset_info.shuffle, dataset_info.n_images)
         model_storage_directory = params.OUTS_BASE_DIR / "train_diffusion_model_mnist"
         in_channels = 1
     else:
-        n_samples, data_loader = load_logos(batch_size, shuffle_data, n_images, cluster=cluster)
+        n_samples, data_loader = load_logos(
+            diffusion_info.batch_size, dataset_info.shuffle, dataset_info.n_images, cluster=dataset_info.cluster
+        )
         model_storage_directory = params.OUTS_BASE_DIR / "train_diffusion_model_lld"
         in_channels = 3
 
@@ -230,33 +225,40 @@ def train(
         shutil.rmtree(model_storage_directory)
     model_storage_directory.mkdir(exist_ok=True)
 
-    schedule = VarianceSchedule(beta_start_end, n_diffusion_steps, device=device)
-    model = Generator(in_channels, schedule, embedding_dim, 10 if use_mnist else 100)
+    beta_start_end = (diffusion_info.var_schedule_start, diffusion_info.var_schedule_end)
+    schedule = VarianceSchedule(
+        beta_start_end=beta_start_end,
+        n_time_steps=diffusion_info.steps,
+        device=params.DEVICE
+    )
+    n_labels = 10 if use_mnist else 100
+    model = Generator(in_channels, schedule, params.Diffusion.embedding_dim, n_labels)
     if model_file is not None:
         model.load_state_dict(torch.load(model_file))
-    model.to(device)
+    model.to(params.DEVICE)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=diffusion_info.learning_rate)
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, factor=0.8, patience=5, verbose=True
     )
     loss_fn = torch.nn.MSELoss()
     running_losses = []
     running_loss = 0
+    n_epochs = diffusion_info.epochs_mnist if use_mnist else diffusion_info.epochs_lld
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
         for batch_idx, (batch, labels) in enumerate(data_loader):
-            labels = labels.to(device)
+            labels = labels.to(params.DEVICE)
             if np.random.random() < 0.1:
                 labels = None
-            batch = batch.to(device)
+            batch = batch.to(params.DEVICE)
 
             optimizer.zero_grad()
             # pytorch expects tuple for size here:
             actual_batch_size = batch.shape[0]
-            t = torch.randint(low=0, high=n_diffusion_steps, size=(actual_batch_size,))
+            t = torch.randint(low=0, high=diffusion_info.steps, size=(actual_batch_size,))
             noisy_batch, noise = get_noisy_batch_at_step_t(batch, t, schedule)
 
-            noise_pred = model(noisy_batch, t.to(device), labels)
+            noise_pred = model(noisy_batch, t.to(params.DEVICE), labels)
             loss = loss_fn(noise_pred, noise)
 
             loss.backward()
@@ -269,6 +271,7 @@ def train(
             _ = draw_sample_from_generator(
                 model,
                 sample_shape,
+                diffusion_info.guiding_factor,
                 save_sample_as=model_storage_directory / f"epoch_{epoch + 1}.png"
             )
 
@@ -291,19 +294,9 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    model_file = None
     train(
-        batch_size=params.DiffusionModelParams.BATCH_SIZE,
-        beta_start_end=(params.DiffusionModelParams.VAR_SCHEDULE_START, params.DiffusionModelParams.VAR_SCHEDULE_END),
-        cluster=params.DatasetParams.CLUSTER,
-        device=params.DEVICE,
-        embedding_dim=params.DiffusionModelParams.EMBEDDING_DIMENSION,
-        learning_rate=params.DiffusionModelParams.LEARNING_RATE,
-        model_file=model_file,
-        n_images=params.DatasetParams.N_IMAGES,
-        n_epochs=params.DiffusionModelParams.EPOCHS_MNIST if args.use_mnist else params.DiffusionModelParams.EPOCHS_LLD,
-        n_diffusion_steps=params.DiffusionModelParams.DIFFUSION_STEPS,
-        shuffle_data=params.DatasetParams.SHUFFLE_DATA,
+        dataset_info=params.Dataset(),
+        diffusion_info=params.Diffusion(),
         use_mnist=args.use_mnist
     )
 
