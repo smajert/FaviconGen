@@ -87,12 +87,12 @@ stages:
     outs:
     - path: outs/train_autoencoder_lld/loss.csv
       hash: md5
-      md5: 725ba0b97a519e382bfe3f2c35d19c3d
-      size: 460
+      md5: c5bbbd836a0e210255950c6cafb732aa
+      size: 458
     - path: outs/train_autoencoder_lld/model.pt
       hash: md5
-      md5: 20c1a662a5dfed91ef49959cbb8de080
-      size: 13861277
+      md5: 395f2ab5d51467a5a4f2fd15b9beccf9
+      size: 19834125
   train_autoencoder_mnist:
     cmd: python logo_maker/autoencoder.py --use_mnist
     deps:
@@ -117,34 +117,34 @@ stages:
     outs:
     - path: outs/train_autoencoder_mnist/loss.csv
       hash: md5
-      md5: efbbb438e097ee4ac1909caa9089cd98
-      size: 569
+      md5: 00b9d68eef94420d09d3150f59d7f673
+      size: 572
     - path: outs/train_autoencoder_mnist/model.pt
       hash: md5
-      md5: 20e00f37624581b94960863384e7611c
-      size: 13828317
+      md5: 948f8b4fc8a65d288510d0f1f45e7e72
+      size: 19801165
   draw_samples_mnist:
     cmd: python logo_maker/sample_from_model.py --use_mnist --use_gpu --n_samples
       64
     deps:
     - path: outs/train_autoencoder_mnist/model.pt
       hash: md5
-      md5: 20e00f37624581b94960863384e7611c
-      size: 13828317
+      md5: 948f8b4fc8a65d288510d0f1f45e7e72
+      size: 19801165
     - path: outs/train_diffusion_model_mnist/model.pt
       hash: md5
-      md5: 3554936fb7d226402a879c7de1ff1d0c
+      md5: e3f0c4c8f6f967fd0392ed254c9bb81e
       size: 13550121
   draw_samples_lld:
     cmd: python logo_maker/sample_from_model.py --use_gpu --n_samples 64
     deps:
     - path: outs/train_autoencoder_lld/model.pt
       hash: md5
-      md5: 20c1a662a5dfed91ef49959cbb8de080
-      size: 13861277
+      md5: 395f2ab5d51467a5a4f2fd15b9beccf9
+      size: 19834125
     - path: outs/train_diffusion_model_lld/model.pt
       hash: md5
-      md5: 10a99d71a69e4146b64405cec189c3de
+      md5: 402f164227d38236a19d723bf500b164
       size: 13566889
   train_diffusion_model_mnist:
     cmd: python logo_maker/denoising_diffusion.py --use_mnist
@@ -172,11 +172,11 @@ stages:
     outs:
     - path: outs/train_diffusion_model_mnist/loss.csv
       hash: md5
-      md5: 11b417694f11b6a96a5cc7b9e0d7e1ad
-      size: 574
+      md5: af3a9f1145a138579532f59db0e61284
+      size: 571
     - path: outs/train_diffusion_model_mnist/model.pt
       hash: md5
-      md5: 3554936fb7d226402a879c7de1ff1d0c
+      md5: e3f0c4c8f6f967fd0392ed254c9bb81e
       size: 13550121
   train_diffusion_model_lld:
     cmd: python logo_maker/denoising_diffusion.py
@@ -204,9 +204,9 @@ stages:
     outs:
     - path: outs/train_diffusion_model_lld/loss.csv
       hash: md5
-      md5: 86aa61411d54537be7031c37ef96b5bb
-      size: 459
+      md5: e2d7f1a16a17be2907b46918f0bc2065
+      size: 460
     - path: outs/train_diffusion_model_lld/model.pt
       hash: md5
-      md5: 10a99d71a69e4146b64405cec189c3de
+      md5: 402f164227d38236a19d723bf500b164
       size: 13566889

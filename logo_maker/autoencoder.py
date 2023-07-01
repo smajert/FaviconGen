@@ -21,11 +21,12 @@ class Encoder(torch.nn.Module):
         self.activation = activation
         self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
         self.convs = torch.nn.ModuleList([
-            ConvBlock(in_channels, 32, self.activation, time_embedding_dimension=embedding_dim),  # 16 x 16 x 16
-            ConvBlock(32, 64, self.activation, time_embedding_dimension=embedding_dim),  # 16 x 8 x 8
-            ConvBlock(64, 128, self.activation, time_embedding_dimension=embedding_dim),  # 64 x 4 x 4
+            ConvBlock(in_channels, 32, self.activation, time_embedding_dimension=embedding_dim),  # 32 x 16 x 16
+            ConvBlock(32, 64, self.activation, time_embedding_dimension=embedding_dim),  # 64 x 8 x 8
+            ConvBlock(64, 128, self.activation, time_embedding_dimension=embedding_dim),  # 128 x 4 x 4
+            ConvBlock(128, 256, self.activation, time_embedding_dimension=embedding_dim),  # 256 x 2 x 2
         ])
-        self.flatten = torch.nn.Flatten()  # 64*4*4
+        self.flatten = torch.nn.Flatten()  # 256*2*2
 
     def forward(self, x: torch.Tensor, label_embedding: torch.Tensor) -> torch.Tensor:
         for layer in self.convs:
@@ -40,10 +41,11 @@ class Decoder(torch.nn.Module):
     ) -> None:
         super().__init__()
         self.activation = activation
-        self.unflatten = torch.nn.Unflatten(1, batch_shape)  # 64 x 4 x 4
+        self.unflatten = torch.nn.Unflatten(1, batch_shape)  # 256 x 2 x 2
         self.convs = torch.nn.ModuleList([
-            ConvBlock(128, 64, self.activation, do_transpose=True, time_embedding_dimension=embedding_dim),  # 32 x 8 x 8
-            ConvBlock(64, 32, self.activation, do_transpose=True, time_embedding_dimension=embedding_dim),  # 16 x 16 x 16
+            ConvBlock(256, 128, self.activation, do_transpose=True, time_embedding_dimension=embedding_dim),  # 128 x 4 x 4
+            ConvBlock(128, 64, self.activation, do_transpose=True, time_embedding_dimension=embedding_dim),  # 64 x 8 x 8
+            ConvBlock(64, 32, self.activation, do_transpose=True, time_embedding_dimension=embedding_dim),  # 64 x 16 x 16
             ConvBlock(32, out_channels, self.activation, do_transpose=True, time_embedding_dimension=embedding_dim),  # in_channels x 32 x 32
         ])
         self.last_conv = torch.nn.Conv2d(out_channels, out_channels, 5, padding=2, stride=1)  # in_channels x 32 x 32
@@ -65,13 +67,13 @@ class AutoEncoder(torch.nn.Module):
         self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
 
         self.encoder = Encoder(in_channels, embedding_dim, n_labels, self.activation)
-        flattened_dimension = 128 * 4 * 4
+        flattened_dimension = 256 * 2 * 2
         self.to_latent = torch.nn.Linear(flattened_dimension, self.latent_dim)
         self.to_mu = torch.nn.Linear(self.latent_dim, self.latent_dim)
         self.to_log_var = torch.nn.Linear(self.latent_dim, self.latent_dim)
         self.from_latent = torch.nn.Linear(self.latent_dim, flattened_dimension)
 
-        self.decoder = Decoder(in_channels, embedding_dim, (128, 4, 4), self.activation)
+        self.decoder = Decoder(in_channels, embedding_dim, (256, 2, 2), self.activation)
 
     def _reparameterize(self, mu, log_var):
         """
