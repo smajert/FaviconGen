@@ -1,8 +1,8 @@
 from matplotlib import pyplot as plt
 import pytest
 
-import logo_maker.data_loading as testee
-import logo_maker.params as params
+import favicon_gen.data_loading as testee
+import favicon_gen.params as params
 
 
 def test_all_files_found(LogoDatasetLocation):

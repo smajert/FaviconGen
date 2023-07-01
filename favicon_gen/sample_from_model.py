@@ -8,10 +8,10 @@ from matplotlib import pyplot as plt
 import torch
 from tqdm import tqdm
 
-from logo_maker.autoencoder import AutoEncoder
-from logo_maker.data_loading import show_image_grid, load_logos, load_mnist
-from logo_maker.denoising_diffusion import Generator, draw_sample_from_generator, VarianceSchedule
-import logo_maker.params as params
+from favicon_gen.autoencoder import AutoEncoder
+from favicon_gen.data_loading import show_image_grid, load_logos, load_mnist
+from favicon_gen.denoising_diffusion import Generator, draw_sample_from_generator, VarianceSchedule
+import favicon_gen.params as params
 
 
 @torch.no_grad()

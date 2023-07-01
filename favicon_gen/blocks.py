@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-import logo_maker.params as params
+import favicon_gen.params as params
 
 
 class ConvBlock(torch.nn.Module):

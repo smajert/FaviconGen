@@ -12,7 +12,7 @@ from torch import Tensor
 from torch.utils.data import ConcatDataset, Dataset, DataLoader, Subset
 from torchvision import datasets, transforms, utils
 
-import logo_maker.params as params
+import favicon_gen.params as params
 
 pytorch_transforms = Any
 

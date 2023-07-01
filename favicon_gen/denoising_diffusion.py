@@ -8,9 +8,9 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from logo_maker.blocks import ConvBlock
-from logo_maker.data_loading import load_logos, load_mnist, show_image_grid
-import logo_maker.params as params
+from favicon_gen.blocks import ConvBlock
+from favicon_gen.data_loading import load_logos, load_mnist, show_image_grid
+import favicon_gen.params as params
 
 
 @dataclass

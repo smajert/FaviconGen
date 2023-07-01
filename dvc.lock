@@ -64,14 +64,14 @@ stages:
       md5: f0faa6c6a1d9121cea100b16b5c3bd09
       size: 54153325
   train_autoencoder_lld:
-    cmd: python logo_maker/autoencoder.py
+    cmd: python favicon_gen/autoencoder.py
     deps:
     - path: data/LLD-icon.hdf5
       hash: md5
       md5: 91f56af2235117e44629fa608fed59ef
       size: 798927457
     params:
-      logo_maker/params.py:
+      favicon_gen/params.py:
         AutoEncoder:
           adversarial_loss_weight: 1
           batch_size: 256
@@ -87,21 +87,21 @@ stages:
     outs:
     - path: outs/train_autoencoder_lld/loss.csv
       hash: md5
-      md5: c5bbbd836a0e210255950c6cafb732aa
-      size: 458
+      md5: fc43a91bf309cea8ff08ee71bfb65316
+      size: 460
     - path: outs/train_autoencoder_lld/model.pt
       hash: md5
-      md5: 395f2ab5d51467a5a4f2fd15b9beccf9
-      size: 19834125
+      md5: 34cb4a818cd3b7eff1430fc42a2c2916
+      size: 19834253
   train_autoencoder_mnist:
-    cmd: python logo_maker/autoencoder.py --use_mnist
+    cmd: python favicon_gen/autoencoder.py --use_mnist
     deps:
     - path: data/LLD-icon.hdf5
       hash: md5
       md5: 91f56af2235117e44629fa608fed59ef
       size: 798927457
     params:
-      logo_maker/params.py:
+      favicon_gen/params.py:
         AutoEncoder:
           adversarial_loss_weight: 1
           batch_size: 256
@@ -117,44 +117,44 @@ stages:
     outs:
     - path: outs/train_autoencoder_mnist/loss.csv
       hash: md5
-      md5: 00b9d68eef94420d09d3150f59d7f673
-      size: 572
+      md5: 4cd444f9cc0403862986b9184491b3ea
+      size: 574
     - path: outs/train_autoencoder_mnist/model.pt
       hash: md5
-      md5: 948f8b4fc8a65d288510d0f1f45e7e72
-      size: 19801165
+      md5: e70b1a665561e1f7a39adf53e2be42f0
+      size: 19801293
   draw_samples_mnist:
-    cmd: python logo_maker/sample_from_model.py --use_mnist --use_gpu --n_samples
+    cmd: python favicon_gen/sample_from_model.py --use_mnist --use_gpu --n_samples
       64
     deps:
     - path: outs/train_autoencoder_mnist/model.pt
       hash: md5
-      md5: 948f8b4fc8a65d288510d0f1f45e7e72
-      size: 19801165
+      md5: e70b1a665561e1f7a39adf53e2be42f0
+      size: 19801293
     - path: outs/train_diffusion_model_mnist/model.pt
       hash: md5
-      md5: e3f0c4c8f6f967fd0392ed254c9bb81e
+      md5: 67642ada9df687e401250db18e739171
       size: 13550121
   draw_samples_lld:
-    cmd: python logo_maker/sample_from_model.py --use_gpu --n_samples 64
+    cmd: python favicon_gen/sample_from_model.py --use_gpu --n_samples 64
     deps:
     - path: outs/train_autoencoder_lld/model.pt
       hash: md5
-      md5: 395f2ab5d51467a5a4f2fd15b9beccf9
-      size: 19834125
+      md5: 34cb4a818cd3b7eff1430fc42a2c2916
+      size: 19834253
     - path: outs/train_diffusion_model_lld/model.pt
       hash: md5
-      md5: 402f164227d38236a19d723bf500b164
+      md5: e684bb06692c5c842e4a0cbf39269c35
       size: 13566889
   train_diffusion_model_mnist:
-    cmd: python logo_maker/denoising_diffusion.py --use_mnist
+    cmd: python favicon_gen/denoising_diffusion.py --use_mnist
     deps:
     - path: data/LLD-icon.hdf5
       hash: md5
       md5: 91f56af2235117e44629fa608fed59ef
       size: 798927457
     params:
-      logo_maker/params.py:
+      favicon_gen/params.py:
         Dataset:
           cluster:
           n_images: 100
@@ -172,21 +172,21 @@ stages:
     outs:
     - path: outs/train_diffusion_model_mnist/loss.csv
       hash: md5
-      md5: af3a9f1145a138579532f59db0e61284
-      size: 571
+      md5: f8700653cbf793a28e9d0ede586791ef
+      size: 575
     - path: outs/train_diffusion_model_mnist/model.pt
       hash: md5
-      md5: e3f0c4c8f6f967fd0392ed254c9bb81e
+      md5: 67642ada9df687e401250db18e739171
       size: 13550121
   train_diffusion_model_lld:
-    cmd: python logo_maker/denoising_diffusion.py
+    cmd: python favicon_gen/denoising_diffusion.py
     deps:
     - path: data/LLD-icon.hdf5
       hash: md5
       md5: 91f56af2235117e44629fa608fed59ef
       size: 798927457
     params:
-      logo_maker/params.py:
+      favicon_gen/params.py:
         Dataset:
           cluster:
           n_images: 100
@@ -204,9 +204,9 @@ stages:
     outs:
     - path: outs/train_diffusion_model_lld/loss.csv
       hash: md5
-      md5: e2d7f1a16a17be2907b46918f0bc2065
-      size: 460
+      md5: a5401233506ecd4f5567c91ec4e5bb9b
+      size: 456
     - path: outs/train_diffusion_model_lld/model.pt
       hash: md5
-      md5: 402f164227d38236a19d723bf500b164
+      md5: e684bb06692c5c842e4a0cbf39269c35
       size: 13566889

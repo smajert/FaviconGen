@@ -6,9 +6,9 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from logo_maker.blocks import ConvBlock
-from logo_maker.data_loading import load_logos, load_mnist, show_image_grid
-import logo_maker.params as params
+from favicon_gen.blocks import ConvBlock
+from favicon_gen.data_loading import load_logos, load_mnist, show_image_grid
+import favicon_gen.params as params
 
 
 class Encoder(torch.nn.Module):
@@ -64,7 +64,9 @@ class AutoEncoder(torch.nn.Module):
         super().__init__()
         self.latent_dim = 512
         self.activation = torch.nn.LeakyReLU()
-        self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
+        self.n_labels = n_labels
+        n_labels_with_neutral_label = n_labels + 1
+        self.label_embedding = torch.nn.Embedding(n_labels_with_neutral_label, embedding_dim)
 
         self.encoder = Encoder(in_channels, embedding_dim, n_labels, self.activation)
         flattened_dimension = 256 * 2 * 2
@@ -98,7 +100,9 @@ class AutoEncoder(torch.nn.Module):
         x = self.activation(self.from_latent(z))
         return x
 
-    def forward(self, x: torch.Tensor, labels: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, labels: torch.Tensor | None) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        if labels is None:
+            labels = torch.full((x.shape[0],), fill_value=self.n_labels, device=x.device)
         label_emb = self.label_embedding(labels)
         x = self.encoder(x, label_emb)
         encoded_shape = x.shape
@@ -156,7 +160,7 @@ def train(
     if use_patch_discriminator:
         patch_disc = PatchDiscriminator(in_channels)
         patch_disc.to(params.DEVICE)
-        optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=0.2 * auto_info.learning_rate)
+        optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=0.1 * auto_info.learning_rate)
 
     # prepare autoencoder
     n_labels = 10 if use_mnist else 100
@@ -173,8 +177,12 @@ def train(
     value_for_reconstructed = torch.tensor([0], device=params.DEVICE, dtype=torch.float)
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
         for batch_idx, (batch, labels) in enumerate(data_loader):
-            labels = labels.to(params.DEVICE)
+            if np.random.random() < 0.1:
+                labels = None
+            else:
+                labels = labels.to(params.DEVICE)
             batch = batch.to(params.DEVICE)  # batch does not track gradients -> does not need to be detached ever
+
 
             optimizer_generator.zero_grad()
             reconst_batch, mu, log_var = autoencoder(batch, labels)

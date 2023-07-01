@@ -4,9 +4,9 @@ import pytest
 import random
 import torch
 
-from logo_maker.data_loading import LargeLogoDataset, show_image_grid
-import logo_maker.params as params
-import logo_maker.denoising_diffusion as sd
+from favicon_gen.data_loading import LargeLogoDataset, show_image_grid
+import favicon_gen.params as params
+import favicon_gen.denoising_diffusion as sd
 
 
 @pytest.fixture()
