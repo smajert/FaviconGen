@@ -2,7 +2,6 @@ import argparse
 from pathlib import Path
 import shutil
 
-import numpy as np
 import torch
 from tqdm import tqdm
 
@@ -103,7 +102,7 @@ class AutoEncoder(torch.nn.Module):
         x = self.encoder(x, label_emb)
         encoded_shape = x.shape
         z, mu, log_var = self.convert_to_latent(x)
-        x = self.convert_from_latent(z)
+        x = self.convert_32from_latent(z)
         x = torch.reshape(x, shape=encoded_shape)
         x = self.decoder(x, label_emb)
 

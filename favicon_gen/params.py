@@ -30,7 +30,7 @@ class Dataset:
 
 
 class AutoEncoder:
-    adversarial_loss_weight: float | None = 1
+    adversarial_loss_weight: float | None = None
     batch_size: int = 512
     embedding_dim: int = 32
     epochs_mnist: int = 25
