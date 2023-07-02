@@ -25,16 +25,16 @@ class ClusterNamesAeGrayscale(Enum):
 
 class Dataset:
     cluster: ClusterNamesAeGrayscale | None = None
-    n_images: int | None = 100
+    n_images: int | None = None
     shuffle = True
 
 
 class AutoEncoder:
     adversarial_loss_weight: float | None = 1
-    batch_size: int = 256
+    batch_size: int = 512
     embedding_dim: int = 32
     epochs_mnist: int = 25
-    epochs_lld: int = 20
+    epochs_lld: int = 30
     kl_loss_weight: float = 1
     learning_rate: float = 4e-4
 

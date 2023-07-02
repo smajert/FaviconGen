@@ -64,9 +64,7 @@ class AutoEncoder(torch.nn.Module):
         super().__init__()
         self.latent_dim = 512
         self.activation = torch.nn.LeakyReLU()
-        self.n_labels = n_labels
-        n_labels_with_neutral_label = n_labels + 1
-        self.label_embedding = torch.nn.Embedding(n_labels_with_neutral_label, embedding_dim)
+        self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
 
         self.encoder = Encoder(in_channels, embedding_dim, n_labels, self.activation)
         flattened_dimension = 256 * 2 * 2
@@ -101,8 +99,6 @@ class AutoEncoder(torch.nn.Module):
         return x
 
     def forward(self, x: torch.Tensor, labels: torch.Tensor | None) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        if labels is None:
-            labels = torch.full((x.shape[0],), fill_value=self.n_labels, device=x.device)
         label_emb = self.label_embedding(labels)
         x = self.encoder(x, label_emb)
         encoded_shape = x.shape
@@ -177,10 +173,7 @@ def train(
     value_for_reconstructed = torch.tensor([0], device=params.DEVICE, dtype=torch.float)
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
         for batch_idx, (batch, labels) in enumerate(data_loader):
-            if np.random.random() < 0.1:
-                labels = None
-            else:
-                labels = labels.to(params.DEVICE)
+            labels = labels.to(params.DEVICE)
             batch = batch.to(params.DEVICE)  # batch does not track gradients -> does not need to be detached ever
 
 

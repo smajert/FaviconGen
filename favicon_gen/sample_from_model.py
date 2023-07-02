@@ -137,14 +137,14 @@ def main():
 
     if args.use_mnist:
         model_file_auto = params.OUTS_BASE_DIR / "train_autoencoder_mnist/model.pt"
-        save_location_auto_samples = params.OUTS_BASE_DIR / "samples_autoencoder_mnist.png"
+        save_location_auto_samples = params.OUTS_BASE_DIR / "samples_autoencoder_mnist.pdf"
         model_file_diffusion = params.OUTS_BASE_DIR / "train_diffusion_model_mnist/model.pt"
-        save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion_mnist.png"
+        save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion_mnist.pdf"
     else:
         model_file_auto = params.OUTS_BASE_DIR / f"train_autoencoder_lld/model.pt"
-        save_location_auto_samples = params.OUTS_BASE_DIR / "samples_autoencoder_lld.png"
+        save_location_auto_samples = params.OUTS_BASE_DIR / "samples_autoencoder_lld.pdf"
         model_file_diffusion = params.OUTS_BASE_DIR / "train_diffusion_model_lld/model.pt"
-        save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion_lld.png"
+        save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion_lld.pdf"
 
     in_channels = 1 if args.use_mnist else 3
     n_labels = 10 if args.use_mnist else 100
@@ -165,7 +165,7 @@ def main():
         params.Dataset.n_images,
         args.use_mnist,
         params.Dataset.cluster,
-        save_as=params.OUTS_BASE_DIR / f"auto_nearest_neighbors_mnist_{args.use_mnist}.png"
+        save_as=params.OUTS_BASE_DIR / f"auto_nearest_neighbors_mnist_{args.use_mnist}.pdf"
     )
 
     nearest_neighbor_search(
@@ -173,7 +173,7 @@ def main():
         params.Dataset.n_images,
         args.use_mnist,
         params.Dataset.cluster,
-        save_as=params.OUTS_BASE_DIR / f"diffusion_nearest_neighbors_mnist_{args.use_mnist}.png"
+        save_as=params.OUTS_BASE_DIR / f"diffusion_nearest_neighbors_mnist_{args.use_mnist}.pdf"
     )
 
 
