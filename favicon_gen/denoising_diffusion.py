@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from favicon_gen.blocks import ConvBlock
+from favicon_gen.blocks import AttentiveSkipConnection, ConvBlock
 from favicon_gen.data_loading import load_logos, load_mnist, show_image_grid
 import favicon_gen.params as params
 
@@ -125,11 +125,14 @@ class Generator(torch.nn.Module):
             ConvBlock(64, 128, self.activation, time_embedding_dimension=embedding_dim),  # 3: 128 x 4 x 4
             ConvBlock(128, 256, self.activation, time_embedding_dimension=embedding_dim),  # 4: 256 x 2 x 2
             ConvBlock(256, 128, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True), # 5: 128 x 4 x 4
-            ConvBlock(128, 64, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 6: 64 x 8 x 8
-            ConvBlock(64, 32, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True), # 7: 32 x 16 x 16
-            ConvBlock(32, 16, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 9: 3 x 32 x 32
+            ConvBlock(256, 64, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 6: 64 x 8 x 8
+            ConvBlock(128, 32, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True), # 7: 32 x 16 x 16
+            ConvBlock(64, 16, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 9: 3 x 32 x 32
             torch.nn.Conv2d(16, in_channels, 3, padding=1),  # 11: 3 x 32 x 32
         ])
+        # self.skip_connect_1 = AttentiveSkipConnection(128)
+        # self.skip_connect_2 = AttentiveSkipConnection(64)
+        # self.skip_connect_3 = AttentiveSkipConnection(32)
 
     def forward(self, x: torch.Tensor, time_step: torch.Tensor, labels: torch.Tensor | None) -> torch.Tensor:
         time_emb = self.time_mlp(time_step)
@@ -140,10 +143,10 @@ class Generator(torch.nn.Module):
         x_down2 = self.layers[1](x_down1, time_emb)
         x_down3 = self.layers[2](x_down2, time_emb)
         x_down4 = self.layers[3](x_down3, time_emb)
-        x_up1 = self.layers[4](x_down4, time_emb) + x_down3
-        x_up2 = self.layers[5](x_up1, time_emb) + x_down2
-        x_up3 = self.layers[6](x_up2, time_emb) + x_down1
-        x_up4 = self.layers[7](x_up3, time_emb)
+        x_up1 = self.layers[4](x_down4, time_emb)
+        x_up2 = self.layers[5](torch.concatenate((x_up1, x_down3), dim=1), time_emb)
+        x_up3 = self.layers[6](torch.concatenate((x_up2, x_down2), dim=1), time_emb)
+        x_up4 = self.layers[7](torch.concatenate((x_up3, x_down1), dim=1), time_emb)
         return self.layers[8](x_up4)
 
 
@@ -183,7 +186,7 @@ def draw_sample_from_generator(
         alpha = variance_schedule.alpha_t[time_step]
         alpha_bar = variance_schedule.alpha_bar_t[time_step]
         beta_tilde = variance_schedule.beta_tilde_t[time_step]
-        noise_pred = torch.lerp(model(batch, t, labels), model(batch, t, None), guiding_factor)
+        noise_pred = torch.lerp(model(batch, t, None), model(batch, t, labels), guiding_factor)
 
         batch = 1 / torch.sqrt(alpha) * (batch - beta / torch.sqrt(1 - alpha_bar) * noise_pred)
         if time_step != 0:
@@ -239,7 +242,7 @@ def train(
 
     optimizer = torch.optim.Adam(model.parameters(), lr=diffusion_info.learning_rate)
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, factor=0.8, patience=5, verbose=True
+        optimizer, factor=0.7, patience=3, verbose=True, min_lr=1e-4
     )
     loss_fn = torch.nn.MSELoss()
     running_losses = []

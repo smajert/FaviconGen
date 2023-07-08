@@ -65,3 +65,36 @@ class ConvBlock(torch.nn.Module):
         for layer in self.non_transform_layers:
             x = layer(x)
         return x
+
+
+class AttentiveSkipConnection(torch.nn.Module):
+    def __init__(self, in_channels: int, do_norm: bool = params.DO_NORM) -> None:
+        super().__init__()
+        self.entry_conv_spatial_downsample = torch.nn.Conv2d(in_channels, in_channels, stride=2, kernel_size=1)
+        self.entry_conv_channel_downsample = torch.nn.Conv2d(2 * in_channels, in_channels, kernel_size=1, padding="same")
+        self.relu = torch.nn.ReLU()
+        self.conv = torch.nn.Conv2d(in_channels, in_channels, kernel_size=1, padding="same")
+        self.sigmoid = torch.nn.Sigmoid()
+        self.upsample = torch.nn.UpsamplingNearest2d(scale_factor=2)
+        self.exit_conv = torch.nn.Conv2d(in_channels, in_channels, kernel_size=1, padding="same")
+        if do_norm:
+            self.norm = torch.nn.LazyBatchNorm2d()
+        else:
+            self.norm = torch.nn.Identity()
+
+    def forward(self, x: torch.Tensor, x_skip: torch.Tensor) -> torch.Tensor:
+        """
+        :param x: [N x C x H x W ]
+        :param x_skip: [N x C * 2 x H // 2 x W // 2]
+        :return: [N x C x H x W]
+        """
+        spatial_downsample = self.entry_conv_spatial_downsample(x)
+        channel_downsample = self.entry_conv_channel_downsample(x_skip)
+        x_skip = spatial_downsample + channel_downsample
+        x_skip = self.relu(x_skip)
+        x_skip = self.conv(x_skip)
+        x_skip = self.sigmoid(x_skip)
+        x_skip = self.upsample(x_skip)
+        x = x * x_skip
+        return self.norm(self.exit_conv(x))
+

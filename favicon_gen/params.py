@@ -42,10 +42,10 @@ class AutoEncoder:
 class Diffusion:
     batch_size: int = 256
     embedding_dim: int = 32
-    epochs_mnist: int = 25
-    epochs_lld: int = 20
-    guiding_factor: float = 0.1
-    learning_rate: float = 4e-4
+    epochs_mnist: int = 40
+    epochs_lld: int = 30
+    guiding_factor: float = 0.5
+    learning_rate: float = 1e-3
     steps: int = 1000
     var_schedule_start: float = 0.0001
     var_schedule_end: float = 0.02

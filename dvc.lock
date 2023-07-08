@@ -133,8 +133,8 @@ stages:
       size: 19801165
     - path: outs/train_diffusion_model_mnist/model.pt
       hash: md5
-      md5: 0c36a679d065fbc00d66223ca9dce678
-      size: 13550121
+      md5: 119b0bf6d7196f6ffee63a9eecf74f0e
+      size: 14238249
   draw_samples_lld:
     cmd: python favicon_gen/sample_from_model.py --use_gpu --n_samples 64
     deps:
@@ -144,8 +144,8 @@ stages:
       size: 19834125
     - path: outs/train_diffusion_model_lld/model.pt
       hash: md5
-      md5: eee02ac7401d9761eeb80a8299751fed
-      size: 13566889
+      md5: a4757fc5d922b0c9625ae5b4bf9df7d1
+      size: 14255017
   train_diffusion_model_mnist:
     cmd: python favicon_gen/denoising_diffusion.py --use_mnist
     deps:
@@ -162,22 +162,22 @@ stages:
         Diffusion:
           batch_size: 256
           embedding_dim: 32
-          epochs_mnist: 25
-          epochs_lld: 20
-          guiding_factor: 0.1
-          learning_rate: 0.0004
+          epochs_mnist: 40
+          epochs_lld: 30
+          guiding_factor: 0.5
+          learning_rate: 0.001
           steps: 1000
           var_schedule_start: 0.0001
           var_schedule_end: 0.02
     outs:
     - path: outs/train_diffusion_model_mnist/loss.csv
       hash: md5
-      md5: 588eb8851c9d41668af12fd0c3e7ebde
-      size: 610
+      md5: 770d6ca0f5d82e8693ef6b5b17957433
+      size: 981
     - path: outs/train_diffusion_model_mnist/model.pt
       hash: md5
-      md5: 0c36a679d065fbc00d66223ca9dce678
-      size: 13550121
+      md5: 119b0bf6d7196f6ffee63a9eecf74f0e
+      size: 14238249
   train_diffusion_model_lld:
     cmd: python favicon_gen/denoising_diffusion.py
     deps:
@@ -194,19 +194,19 @@ stages:
         Diffusion:
           batch_size: 256
           embedding_dim: 32
-          epochs_mnist: 25
-          epochs_lld: 20
-          guiding_factor: 0.1
-          learning_rate: 0.0004
+          epochs_mnist: 40
+          epochs_lld: 30
+          guiding_factor: 0.5
+          learning_rate: 0.001
           steps: 1000
           var_schedule_start: 0.0001
           var_schedule_end: 0.02
     outs:
     - path: outs/train_diffusion_model_lld/loss.csv
       hash: md5
-      md5: b23df3188ef1359b7561ec7790c7de1f
-      size: 485
+      md5: 1dad9c4b021b2b0b427e08133eaf0bac
+      size: 726
     - path: outs/train_diffusion_model_lld/model.pt
       hash: md5
-      md5: eee02ac7401d9761eeb80a8299751fed
-      size: 13566889
+      md5: a4757fc5d922b0c9625ae5b4bf9df7d1
+      size: 14255017
