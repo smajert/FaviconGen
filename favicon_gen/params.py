@@ -14,6 +14,7 @@ torch.random.manual_seed(RANDOM_SEED)
 random.seed(RANDOM_SEED)
 DEVICE: str = "cuda"
 
+EMBEDDING_DIM: int = 32
 DO_NORM: bool = True
 
 
@@ -32,7 +33,6 @@ class Dataset:
 class AutoEncoder:
     adversarial_loss_weight: float | None = None
     batch_size: int = 512
-    embedding_dim: int = 32
     epochs_mnist: int = 25
     epochs_lld: int = 30
     kl_loss_weight: float = 1
@@ -41,10 +41,9 @@ class AutoEncoder:
 
 class Diffusion:
     batch_size: int = 256
-    embedding_dim: int = 32
     epochs_mnist: int = 40
     epochs_lld: int = 30
-    guiding_factor: float = 0.5
+    guiding_factor: float = 0.90
     learning_rate: float = 1e-3
     steps: int = 1000
     var_schedule_start: float = 0.0001

@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from favicon_gen.blocks import AttentiveSkipConnection, ConvBlock
+from favicon_gen.blocks import ConvBlock, ResampleModi
 from favicon_gen.data_loading import load_logos, load_mnist, show_image_grid
 import favicon_gen.params as params
 
@@ -103,12 +103,12 @@ class SinusoidalPositionEmbeddings(torch.nn.Module):
 
 class Generator(torch.nn.Module):
     def __init__(
-        self, in_channels: int, variance_schedule: VarianceSchedule, embedding_dim: int, n_labels: int
+        self, in_channels: int, variance_schedule: VarianceSchedule, n_labels: int
     ) -> None:
         super().__init__()
         self.variance_schedule = variance_schedule
-        self.embedding_dim = embedding_dim
         self.n_labels = n_labels
+        embedding_dim = params.EMBEDDING_DIM
 
         self.time_mlp = torch.nn.Sequential(
             SinusoidalPositionEmbeddings(embedding_dim),
@@ -119,20 +119,18 @@ class Generator(torch.nn.Module):
         self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
 
         self.activation = torch.nn.LeakyReLU()
-        self.layers = torch.nn.ModuleList([  # input: in_channels x 32 x 32
-            ConvBlock(in_channels, 32, self.activation, time_embedding_dimension=embedding_dim),  # 0: 32 x 16 x 16
-            ConvBlock(32, 64, self.activation, time_embedding_dimension=embedding_dim),  # 2: 64 x 8 x 8
-            ConvBlock(64, 128, self.activation, time_embedding_dimension=embedding_dim),  # 3: 128 x 4 x 4
-            ConvBlock(128, 256, self.activation, time_embedding_dimension=embedding_dim),  # 4: 256 x 2 x 2
-            ConvBlock(256, 128, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True), # 5: 128 x 4 x 4
-            ConvBlock(256, 64, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 6: 64 x 8 x 8
-            ConvBlock(128, 32, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True), # 7: 32 x 16 x 16
-            ConvBlock(64, 16, self.activation, time_embedding_dimension=embedding_dim, do_transpose=True),  # 9: 3 x 32 x 32
-            torch.nn.Conv2d(16, in_channels, 3, padding=1),  # 11: 3 x 32 x 32
+        self.layers = torch.nn.ModuleList([                                       # input: in_channels x 32 x 32
+            ConvBlock(in_channels, 32, resample_modus=ResampleModi.no),           # 0: 32 x 32 x 32
+            ConvBlock(32, 64, resample_modus=ResampleModi.down),                  # 1: 64 x 16 x 16
+            ConvBlock(64, 128, resample_modus=ResampleModi.down),                 # 2: 128 x 8 x 8
+            ConvBlock(128, 256, resample_modus=ResampleModi.down),                # 3: 256 x 4 x 4
+            ConvBlock(256, 256, resample_modus=ResampleModi.down_and_up),         # 4: 256 x 4 x 4  <-+ skip after 3
+            ConvBlock(512, 128, resample_modus=ResampleModi.up),                  # 5: 128 x 8 x 8  <-+ skip after 2
+            ConvBlock(256, 64, resample_modus=ResampleModi.up),                   # 6: 64 x 16 x 16 <-+ skip after 1
+            ConvBlock(128, 32, resample_modus=ResampleModi.up),                   # 7: 32 x 32 x 32 <-+ skip after 0
+            ConvBlock(64, 32, resample_modus=ResampleModi.no),                    # 8: 32 x 32 x 32
+            torch.nn.Conv2d(32, in_channels, 3, padding=1)                        # 9: in_channels x 32 x 32
         ])
-        # self.skip_connect_1 = AttentiveSkipConnection(128)
-        # self.skip_connect_2 = AttentiveSkipConnection(64)
-        # self.skip_connect_3 = AttentiveSkipConnection(32)
 
     def forward(self, x: torch.Tensor, time_step: torch.Tensor, labels: torch.Tensor | None) -> torch.Tensor:
         time_emb = self.time_mlp(time_step)
@@ -143,11 +141,17 @@ class Generator(torch.nn.Module):
         x_down2 = self.layers[1](x_down1, time_emb)
         x_down3 = self.layers[2](x_down2, time_emb)
         x_down4 = self.layers[3](x_down3, time_emb)
-        x_up1 = self.layers[4](x_down4, time_emb)
-        x_up2 = self.layers[5](torch.concatenate((x_up1, x_down3), dim=1), time_emb)
-        x_up3 = self.layers[6](torch.concatenate((x_up2, x_down2), dim=1), time_emb)
-        x_up4 = self.layers[7](torch.concatenate((x_up3, x_down1), dim=1), time_emb)
-        return self.layers[8](x_up4)
+        x = self.layers[4](x_down4, time_emb)
+        x = torch.concatenate((x, x_down4), dim=1)
+        x = self.layers[5](x, time_emb)
+        x = torch.concatenate((x, x_down3), dim=1)
+        x = self.layers[6](x, time_emb)
+        x = torch.concatenate((x, x_down2), dim=1)
+        x = self.layers[7](x, time_emb)
+        x = torch.concatenate((x, x_down1), dim=1)
+        x = self.layers[8](x, time_emb)
+        x = self.layers[9](x)
+        return x
 
 
 @torch.no_grad()
@@ -235,7 +239,7 @@ def train(
         device=params.DEVICE
     )
     n_labels = 10 if use_mnist else 100
-    model = Generator(in_channels, schedule, params.Diffusion.embedding_dim, n_labels)
+    model = Generator(in_channels, schedule, n_labels)
     if model_file is not None:
         model.load_state_dict(torch.load(model_file))
     model.to(params.DEVICE)

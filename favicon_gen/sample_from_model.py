@@ -65,7 +65,7 @@ def sample_from_diffusion_model(
     variance_schedule = VarianceSchedule(
         (diffusion_info.var_schedule_start, diffusion_info.var_schedule_end), diffusion_info.steps
     )
-    generator = Generator(in_channels, variance_schedule, diffusion_info.embedding_dim, n_labels)
+    generator = Generator(in_channels, variance_schedule, n_labels)
     generator.load_state_dict(torch.load(model_file))
     generator = generator.to(device)
     generator.eval()
@@ -148,9 +148,9 @@ def main():
 
     in_channels = 1 if args.use_mnist else 3
     n_labels = 10 if args.use_mnist else 100
-    auto_gen_batch = next(sample_from_autoencoder_model(
-        model_file_auto, n_labels, in_channels, args.n_samples, device, save_as=save_location_auto_samples
-    ))
+    # auto_gen_batch = next(sample_from_autoencoder_model(
+    #     model_file_auto, n_labels, in_channels, args.n_samples, device, save_as=save_location_auto_samples
+    # ))
     diffusion_gen_batch = next(sample_from_diffusion_model(
         model_file_diffusion,
         n_labels,
@@ -160,13 +160,13 @@ def main():
         save_as=save_location_diff_samples
     ))
 
-    nearest_neighbor_search(
-        auto_gen_batch,
-        params.Dataset.n_images,
-        args.use_mnist,
-        params.Dataset.cluster,
-        save_as=params.OUTS_BASE_DIR / f"auto_nearest_neighbors_mnist_{args.use_mnist}.pdf"
-    )
+    # nearest_neighbor_search(
+    #     auto_gen_batch,
+    #     params.Dataset.n_images,
+    #     args.use_mnist,
+    #     params.Dataset.cluster,
+    #     save_as=params.OUTS_BASE_DIR / f"auto_nearest_neighbors_mnist_{args.use_mnist}.pdf"
+    # )
 
     nearest_neighbor_search(
         diffusion_gen_batch,
