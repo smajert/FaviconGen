@@ -7,6 +7,8 @@ stages:
       - outs/train_autoencoder_mnist/model.pt
     params:
       - favicon_gen/params.py:
+        - DO_NORM
+        - EMBEDDING_DIM
         - AutoEncoder
         - Dataset
     plots:
@@ -22,6 +24,8 @@ stages:
       - outs/train_autoencoder_lld/model.pt
     params:
       - favicon_gen/params.py:
+          - DO_NORM
+          - EMBEDDING_DIM
           - AutoEncoder
           - Dataset
     plots:
@@ -37,6 +41,8 @@ stages:
       - outs/train_diffusion_model_mnist/model.pt
     params:
       - favicon_gen/params.py:
+        - DO_NORM
+        - EMBEDDING_DIM
         - Dataset
         - Diffusion
     plots:
@@ -52,6 +58,8 @@ stages:
       - outs/train_diffusion_model_lld/model.pt
     params:
       - favicon_gen/params.py:
+          - DO_NORM
+          - EMBEDDING_DIM
           - Dataset
           - Diffusion
     plots:

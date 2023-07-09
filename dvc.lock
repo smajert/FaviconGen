@@ -73,26 +73,37 @@ stages:
     params:
       favicon_gen/params.py:
         AutoEncoder:
-          adversarial_loss_weight:
+          adversarial_loss_weight: 1
           batch_size: 512
-          embedding_dim: 32
-          epochs_mnist: 25
-          epochs_lld: 30
+          epochs_mnist: 30
+          epochs_lld: 40
           kl_loss_weight: 1
           learning_rate: 0.0004
+        DO_NORM: true
         Dataset:
-          cluster:
+          clusters:
+          - 0
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
+          - 6
+          - 7
+          - 8
+          - 9
           n_images:
           shuffle: true
+        EMBEDDING_DIM: 32
     outs:
     - path: outs/train_autoencoder_lld/loss.csv
       hash: md5
-      md5: 9aaf97c5bf5d778c1d5e7d81eff77fb9
-      size: 716
+      md5: f2ff92e0ac70550ad0c8904a3deb6469
+      size: 918
     - path: outs/train_autoencoder_lld/model.pt
       hash: md5
-      md5: d06a8da5857b5212a127a045eb3ee8ae
-      size: 19834125
+      md5: cb729cf9bdcf098bc41c41ecea7819c5
+      size: 21597325
   train_autoencoder_mnist:
     cmd: python favicon_gen/autoencoder.py --use_mnist
     deps:
@@ -103,49 +114,60 @@ stages:
     params:
       favicon_gen/params.py:
         AutoEncoder:
-          adversarial_loss_weight:
+          adversarial_loss_weight: 1
           batch_size: 512
-          embedding_dim: 32
-          epochs_mnist: 25
-          epochs_lld: 30
+          epochs_mnist: 30
+          epochs_lld: 40
           kl_loss_weight: 1
           learning_rate: 0.0004
+        DO_NORM: true
         Dataset:
-          cluster:
+          clusters:
+          - 0
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
+          - 6
+          - 7
+          - 8
+          - 9
           n_images:
           shuffle: true
+        EMBEDDING_DIM: 32
     outs:
     - path: outs/train_autoencoder_mnist/loss.csv
       hash: md5
-      md5: 4a9005b84d823bc691eb675e5f48ae90
-      size: 591
+      md5: ec446a45e2234bad7cd4f00904219150
+      size: 690
     - path: outs/train_autoencoder_mnist/model.pt
       hash: md5
-      md5: 1b0c0849d343bd690a99967871db82ea
-      size: 19801165
+      md5: 1c30825017b6b039d5c22867c8f54d2a
+      size: 21566285
   draw_samples_mnist:
     cmd: python favicon_gen/sample_from_model.py --use_mnist --use_gpu --n_samples
       64
     deps:
     - path: outs/train_autoencoder_mnist/model.pt
       hash: md5
-      md5: 1b0c0849d343bd690a99967871db82ea
-      size: 19801165
+      md5: 1c30825017b6b039d5c22867c8f54d2a
+      size: 21566285
     - path: outs/train_diffusion_model_mnist/model.pt
       hash: md5
-      md5: 119b0bf6d7196f6ffee63a9eecf74f0e
-      size: 14238249
+      md5: 9e0b774da017a4e20c2b3c8d0213ad20
+      size: 63514665
   draw_samples_lld:
     cmd: python favicon_gen/sample_from_model.py --use_gpu --n_samples 64
     deps:
     - path: outs/train_autoencoder_lld/model.pt
       hash: md5
-      md5: d06a8da5857b5212a127a045eb3ee8ae
-      size: 19834125
+      md5: cb729cf9bdcf098bc41c41ecea7819c5
+      size: 21597325
     - path: outs/train_diffusion_model_lld/model.pt
       hash: md5
-      md5: a4757fc5d922b0c9625ae5b4bf9df7d1
-      size: 14255017
+      md5: 6f3b9949cd39fbb8c60c1788f5cdbd06
+      size: 63535145
   train_diffusion_model_mnist:
     cmd: python favicon_gen/denoising_diffusion.py --use_mnist
     deps:
@@ -155,29 +177,40 @@ stages:
       size: 798927457
     params:
       favicon_gen/params.py:
+        DO_NORM: true
         Dataset:
-          cluster:
+          clusters:
+          - 0
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
+          - 6
+          - 7
+          - 8
+          - 9
           n_images:
           shuffle: true
         Diffusion:
-          batch_size: 256
-          embedding_dim: 32
-          epochs_mnist: 40
-          epochs_lld: 30
-          guiding_factor: 0.5
+          batch_size: 512
+          epochs_mnist: 30
+          epochs_lld: 40
+          guiding_factor: 0.9
           learning_rate: 0.001
           steps: 1000
           var_schedule_start: 0.0001
           var_schedule_end: 0.02
+        EMBEDDING_DIM: 32
     outs:
     - path: outs/train_diffusion_model_mnist/loss.csv
       hash: md5
-      md5: 770d6ca0f5d82e8693ef6b5b17957433
-      size: 981
+      md5: 1158b83dc9a0c7f34c26a6c873b6f7c6
+      size: 740
     - path: outs/train_diffusion_model_mnist/model.pt
       hash: md5
-      md5: 119b0bf6d7196f6ffee63a9eecf74f0e
-      size: 14238249
+      md5: 9e0b774da017a4e20c2b3c8d0213ad20
+      size: 63514665
   train_diffusion_model_lld:
     cmd: python favicon_gen/denoising_diffusion.py
     deps:
@@ -187,26 +220,37 @@ stages:
       size: 798927457
     params:
       favicon_gen/params.py:
+        DO_NORM: true
         Dataset:
-          cluster:
+          clusters:
+          - 0
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
+          - 6
+          - 7
+          - 8
+          - 9
           n_images:
           shuffle: true
         Diffusion:
-          batch_size: 256
-          embedding_dim: 32
-          epochs_mnist: 40
-          epochs_lld: 30
-          guiding_factor: 0.5
+          batch_size: 512
+          epochs_mnist: 30
+          epochs_lld: 40
+          guiding_factor: 0.9
           learning_rate: 0.001
           steps: 1000
           var_schedule_start: 0.0001
           var_schedule_end: 0.02
+        EMBEDDING_DIM: 32
     outs:
     - path: outs/train_diffusion_model_lld/loss.csv
       hash: md5
-      md5: 1dad9c4b021b2b0b427e08133eaf0bac
-      size: 726
+      md5: 88e2e76c015bb45100abf9809dfc2287
+      size: 978
     - path: outs/train_diffusion_model_lld/model.pt
       hash: md5
-      md5: a4757fc5d922b0c9625ae5b4bf9df7d1
-      size: 14255017
+      md5: 6f3b9949cd39fbb8c60c1788f5cdbd06
+      size: 63535145

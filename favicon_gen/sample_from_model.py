@@ -23,7 +23,7 @@ def sample_from_autoencoder_model(
     device: str,
     save_as: Path | None = None
 ) -> typing.Generator[torch.Tensor, None, None]:
-    autoencoder = AutoEncoder(in_channels, 32, n_labels)
+    autoencoder = AutoEncoder(in_channels, n_labels)
     autoencoder.load_state_dict(torch.load(model_file))
     autoencoder.eval()
     autoencoder.to(device)
@@ -39,7 +39,7 @@ def sample_from_autoencoder_model(
         if save_as is not None:
             show_image_grid(batch)
             plt.savefig(save_as)
-            plt.show()
+            #plt.show()
 
         yield batch
 
@@ -76,7 +76,7 @@ def sample_from_diffusion_model(
         if save_as is not None:
             show_image_grid(batch)
             plt.savefig(save_as)
-            plt.show()
+            #plt.show()
         yield batch
         # draw batch without setting seed again
         batch = draw_sample_from_generator(generator, (n_samples, in_channels, 32, 32), diffusion_info.guiding_factor)
@@ -87,13 +87,13 @@ def nearest_neighbor_search(
     generated_batch: torch.Tensor,
     n_images: int,
     use_mnist: bool,
-    cluster: params.ClusterNamesAeGrayscale | None,
+    clusters: list[int] | None,
     save_as: Path | None = None
 ) -> torch.Tensor:
     if use_mnist:
         _, data_loader = load_mnist(1, False, n_images)
     else:
-        _, data_loader = load_logos(1, False, n_images, cluster)
+        _, data_loader = load_logos(1, False, n_images, clusters)
 
     nearest_neighbors = torch.zeros(generated_batch.shape, device=generated_batch.device)
     current_nearest_neighbor_distances = torch.full(
@@ -112,7 +112,7 @@ def nearest_neighbor_search(
     if save_as is not None:
         show_image_grid(nearest_neighbors)
         plt.savefig(save_as)
-        plt.show()
+        #plt.show()
 
     return nearest_neighbors
 
@@ -148,9 +148,9 @@ def main():
 
     in_channels = 1 if args.use_mnist else 3
     n_labels = 10 if args.use_mnist else 100
-    # auto_gen_batch = next(sample_from_autoencoder_model(
-    #     model_file_auto, n_labels, in_channels, args.n_samples, device, save_as=save_location_auto_samples
-    # ))
+    auto_gen_batch = next(sample_from_autoencoder_model(
+        model_file_auto, n_labels, in_channels, args.n_samples, device, save_as=save_location_auto_samples
+    ))
     diffusion_gen_batch = next(sample_from_diffusion_model(
         model_file_diffusion,
         n_labels,
@@ -160,19 +160,19 @@ def main():
         save_as=save_location_diff_samples
     ))
 
-    # nearest_neighbor_search(
-    #     auto_gen_batch,
-    #     params.Dataset.n_images,
-    #     args.use_mnist,
-    #     params.Dataset.cluster,
-    #     save_as=params.OUTS_BASE_DIR / f"auto_nearest_neighbors_mnist_{args.use_mnist}.pdf"
-    # )
+    nearest_neighbor_search(
+        auto_gen_batch,
+        params.Dataset.n_images,
+        args.use_mnist,
+        params.Dataset.clusters,
+        save_as=params.OUTS_BASE_DIR / f"auto_nearest_neighbors_mnist_{args.use_mnist}.pdf"
+    )
 
     nearest_neighbor_search(
         diffusion_gen_batch,
         params.Dataset.n_images,
         args.use_mnist,
-        params.Dataset.cluster,
+        params.Dataset.clusters,
         save_as=params.OUTS_BASE_DIR / f"diffusion_nearest_neighbors_mnist_{args.use_mnist}.pdf"
     )
 

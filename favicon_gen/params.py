@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-from enum import Enum
 import random
 from pathlib import Path
 
@@ -18,31 +16,25 @@ EMBEDDING_DIM: int = 32
 DO_NORM: bool = True
 
 
-class ClusterNamesAeGrayscale(Enum):
-    writing_on_black = 2
-    round_on_white = 25
-    colorful_round = 3
-
-
 class Dataset:
-    cluster: ClusterNamesAeGrayscale | None = None
+    clusters: list[int] | None = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     n_images: int | None = None
     shuffle = True
 
 
 class AutoEncoder:
-    adversarial_loss_weight: float | None = None
+    adversarial_loss_weight: float | None = 1
     batch_size: int = 512
-    epochs_mnist: int = 25
-    epochs_lld: int = 30
+    epochs_mnist: int = 30
+    epochs_lld: int = 40
     kl_loss_weight: float = 1
     learning_rate: float = 4e-4
 
 
 class Diffusion:
-    batch_size: int = 256
-    epochs_mnist: int = 40
-    epochs_lld: int = 30
+    batch_size: int = 512
+    epochs_mnist: int = 30
+    epochs_lld: int = 40
     guiding_factor: float = 0.90
     learning_rate: float = 1e-3
     steps: int = 1000

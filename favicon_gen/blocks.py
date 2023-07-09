@@ -5,6 +5,7 @@ import torch
 
 import favicon_gen.params as params
 
+
 class ResampleModi(Enum):
     up = auto()
     down = auto()
@@ -25,6 +26,8 @@ class ConvBlock(torch.nn.Module):
         channels_out: int,
         activation: torch.nn.modules.activation = torch.nn.LeakyReLU(),
         resample_modus: ResampleModi = ResampleModi.no,
+        kernel_size: int = 4,
+        padding: int = 1
     ) -> None:
         super().__init__()
         self.activation = activation
@@ -32,18 +35,19 @@ class ConvBlock(torch.nn.Module):
         embedding_dimension = params.EMBEDDING_DIM
         norm_fn = torch.nn.LazyBatchNorm2d if params.DO_NORM else torch.nn.Identity
 
+        conv_conf = {"kernel_size": kernel_size, "padding": padding, "stride": 2}
         match resample_modus:
             case ResampleModi.up:
                 self.conv_in = torch.nn.Identity()
-                self.conv_out = torch.nn.ConvTranspose2d(channels_in, channels_out, 2, stride=2)
+                self.conv_out = torch.nn.ConvTranspose2d(channels_in, channels_out, **conv_conf)
                 channels_non_transform_conv = ((channels_in, channels_in), (channels_in, channels_in))
             case ResampleModi.down:
-                self.conv_in = torch.nn.Conv2d(channels_in, channels_in, 2, stride=2)
+                self.conv_in = torch.nn.Conv2d(channels_in, channels_in, **conv_conf)
                 self.conv_out = torch.nn.Identity()
                 channels_non_transform_conv = ((channels_in, channels_out), (channels_out, channels_out))
             case ResampleModi.down_and_up:
-                self.conv_in = torch.nn.Conv2d(channels_in, channels_in, 2, stride=2)
-                self.conv_out = torch.nn.ConvTranspose2d(2 * channels_in, channels_out, 2, stride=2)
+                self.conv_in = torch.nn.Conv2d(channels_in, channels_in, **conv_conf)
+                self.conv_out = torch.nn.ConvTranspose2d(2 * channels_in, channels_out, **conv_conf)
                 channels_non_transform_conv = ((channels_in, 2 * channels_in), (2 * channels_in, 2 * channels_in))
             case ResampleModi.no:
                 self.conv_in = torch.nn.Identity()

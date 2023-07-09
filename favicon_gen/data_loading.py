@@ -51,41 +51,32 @@ class LargeLogoDataset(Dataset):
     def __init__(
         self,
         hdf5_file_location: Path,
-        cache_files: bool = True,
         n_images: int | None = None,
-        cluster: params.ClusterNamesAeGrayscale | None = None,
+        clusters: list[int] | None = None,
         cluster_type: ClusterMethod = ClusterMethod.ae_grayscale
     ) -> None:
         self.transform = FORWARD_TRANSFORMS
-        self.cache_files = cache_files
         self.images = None
-        self.images_cluster = None
-        self.selected_cluster = cluster
+        self.image_labels = None
+        self.selected_clusters = clusters
 
-        cache_file = tempfile.gettempdir() / Path(f"LargeLogoDataset.pkl")
-
-        if self.cache_files:
-            if cache_file.exists():
-                self.images = pickle.load(open(cache_file, "rb"))
-
-        if self.images is None:
-            with h5py.File(hdf5_file_location) as file:
-                stacked_images = file["data"]
-                if cluster_type == ClusterMethod.ae_grayscale:
-                    self.images_cluster = file[f"labels/{cluster_type.name}"][()].astype(int)
-                else:
-                    self.images_cluster = file[f"labels/resnet/{cluster_type.name}"][()].astype(int)
-                if self.selected_cluster is not None:
-                    stacked_images = stacked_images[:len(self.images_cluster)]
-                    stacked_images = stacked_images[self.images_cluster == self.selected_cluster.value, ...]
-                else:
-                    stacked_images = stacked_images[()]
-                self.images = [
-                    np.swapaxes(np.squeeze(arr), 0, -1)
-                    for arr in np.split(stacked_images, stacked_images.shape[0], axis=0)
-                ]
-            if self.cache_files and not cache_file.exists():
-                pickle.dump(self.images, open(cache_file, "wb"))
+        with h5py.File(hdf5_file_location) as file:
+            stacked_images = file["data"]
+            if cluster_type == ClusterMethod.ae_grayscale:
+                self.image_labels = file[f"labels/{cluster_type.name}"][()].astype(int)
+            else:
+                self.image_labels = file[f"labels/resnet/{cluster_type.name}"][()].astype(int)
+            if self.selected_clusters is not None:
+                stacked_images = stacked_images[:len(self.image_labels)]
+                image_in_clusters = np.isin(self.image_labels, self.selected_clusters)
+                stacked_images = stacked_images[image_in_clusters, ...]
+                self.image_labels = self.image_labels[image_in_clusters]
+            else:
+                stacked_images = stacked_images[()]
+            self.images = [
+                np.swapaxes(np.squeeze(arr), 0, -1)
+                for arr in np.split(stacked_images, stacked_images.shape[0], axis=0)
+            ]
 
         if n_images is not None:
             if n_images > len(self.images):
@@ -96,17 +87,14 @@ class LargeLogoDataset(Dataset):
         return len(self.images)
 
     def __getitem__(self, idx) -> tuple[int, Tensor]:
-        if self.selected_cluster is not None:
-            return self.transform(self.images[idx]), self.selected_cluster.value
-        else:
-            return self.transform(self.images[idx]), self.images_cluster[idx]
+        return self.transform(self.images[idx]), self.image_labels[idx]
 
 
 def load_logos(
-    batch_size: int, shuffle: bool, n_images: int | None, cluster: params.ClusterNamesAeGrayscale | None = None
+    batch_size: int, shuffle: bool, n_images: int | None, clusters: list[int] | None = None
 ) -> tuple[int, DataLoader]:
     dataset_location = params.DATA_BASE_DIR / "LLD-icon.hdf5"
-    logos = LargeLogoDataset(dataset_location, cluster=cluster, cache_files=False, n_images=n_images)
+    logos = LargeLogoDataset(dataset_location, clusters=clusters, n_images=n_images)
     loader = DataLoader(logos, batch_size=batch_size, shuffle=shuffle)
     if n_images is None:
         print(f"Loading {len(logos)} LLD images ...")

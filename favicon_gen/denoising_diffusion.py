@@ -117,19 +117,17 @@ class Generator(torch.nn.Module):
         )
 
         self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
-
-        self.activation = torch.nn.LeakyReLU()
-        self.layers = torch.nn.ModuleList([                                       # input: in_channels x 32 x 32
-            ConvBlock(in_channels, 32, resample_modus=ResampleModi.no),           # 0: 32 x 32 x 32
-            ConvBlock(32, 64, resample_modus=ResampleModi.down),                  # 1: 64 x 16 x 16
-            ConvBlock(64, 128, resample_modus=ResampleModi.down),                 # 2: 128 x 8 x 8
-            ConvBlock(128, 256, resample_modus=ResampleModi.down),                # 3: 256 x 4 x 4
-            ConvBlock(256, 256, resample_modus=ResampleModi.down_and_up),         # 4: 256 x 4 x 4  <-+ skip after 3
-            ConvBlock(512, 128, resample_modus=ResampleModi.up),                  # 5: 128 x 8 x 8  <-+ skip after 2
-            ConvBlock(256, 64, resample_modus=ResampleModi.up),                   # 6: 64 x 16 x 16 <-+ skip after 1
-            ConvBlock(128, 32, resample_modus=ResampleModi.up),                   # 7: 32 x 32 x 32 <-+ skip after 0
-            ConvBlock(64, 32, resample_modus=ResampleModi.no),                    # 8: 32 x 32 x 32
-            torch.nn.Conv2d(32, in_channels, 3, padding=1)                        # 9: in_channels x 32 x 32
+        self.layers = torch.nn.ModuleList([                                  # input: in_channels x 32 x 32
+            ConvBlock(in_channels, 32, resample_modus=ResampleModi.no),      # 0: 32 x 32 x 32
+            ConvBlock(32, 64, resample_modus=ResampleModi.down),             # 1: 64 x 16 x 16
+            ConvBlock(64, 128, resample_modus=ResampleModi.down),            # 2: 128 x 8 x 8
+            ConvBlock(128, 256, resample_modus=ResampleModi.down),           # 3: 256 x 4 x 4
+            ConvBlock(256, 256, resample_modus=ResampleModi.down_and_up),    # 4: 256 x 4 x 4  <-+ skip after 3
+            ConvBlock(512, 128, resample_modus=ResampleModi.up),             # 5: 128 x 8 x 8  <-+ skip after 2
+            ConvBlock(256, 64, resample_modus=ResampleModi.up),              # 6: 64 x 16 x 16 <-+ skip after 1
+            ConvBlock(128, 32, resample_modus=ResampleModi.up),              # 7: 32 x 32 x 32 <-+ skip after 0
+            ConvBlock(64, 32, resample_modus=ResampleModi.no),               # 8: 32 x 32 x 32
+            torch.nn.Conv2d(32, in_channels, 5, padding=2)                   # 9: in_channels x 32 x 32
         ])
 
     def forward(self, x: torch.Tensor, time_step: torch.Tensor, labels: torch.Tensor | None) -> torch.Tensor:
@@ -222,7 +220,7 @@ def train(
         in_channels = 1
     else:
         n_samples, data_loader = load_logos(
-            diffusion_info.batch_size, dataset_info.shuffle, dataset_info.n_images, cluster=dataset_info.cluster
+            diffusion_info.batch_size, dataset_info.shuffle, dataset_info.n_images, clusters=dataset_info.clusters
         )
         model_storage_directory = params.OUTS_BASE_DIR / "train_diffusion_model_lld"
         in_channels = 3

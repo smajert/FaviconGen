@@ -5,7 +5,7 @@ import shutil
 import torch
 from tqdm import tqdm
 
-from favicon_gen.blocks import ConvBlock
+from favicon_gen.blocks import ConvBlock, ResampleModi
 from favicon_gen.data_loading import load_logos, load_mnist, show_image_grid
 import favicon_gen.params as params
 
@@ -19,13 +19,13 @@ class Encoder(torch.nn.Module):
         self.embedding_dim = embedding_dim
         self.activation = activation
         self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
-        self.convs = torch.nn.ModuleList([
-            ConvBlock(in_channels, 32, self.activation, embedding_dimension=embedding_dim),  # 32 x 16 x 16
-            ConvBlock(32, 64, self.activation, embedding_dimension=embedding_dim),  # 64 x 8 x 8
-            ConvBlock(64, 128, self.activation, embedding_dimension=embedding_dim),  # 128 x 4 x 4
-            ConvBlock(128, 256, self.activation, embedding_dimension=embedding_dim),  # 256 x 2 x 2
+        self.convs = torch.nn.ModuleList([                                  # input: in_channels x 32 x 32
+            ConvBlock(in_channels, 32, resample_modus=ResampleModi.down),   # 32 x 16 x 16
+            ConvBlock(32, 64, resample_modus=ResampleModi.down),            # 64 x 8 x 8
+            ConvBlock(64, 128, resample_modus=ResampleModi.down),           # 128 x 4 x 4
+            ConvBlock(128, 256, resample_modus=ResampleModi.down),          # 256 x 2 x 2
         ])
-        self.flatten = torch.nn.Flatten()  # 256*2*2
+        self.flatten = torch.nn.Flatten()                                   # 256*2*2 = 1024
 
     def forward(self, x: torch.Tensor, label_embedding: torch.Tensor) -> torch.Tensor:
         for layer in self.convs:
@@ -36,19 +36,19 @@ class Encoder(torch.nn.Module):
 
 class Decoder(torch.nn.Module):
     def __init__(
-        self, out_channels: int, embedding_dim, batch_shape: tuple[int, ...], activation: torch.nn.modules.activation
+        self, out_channels: int, batch_shape: tuple[int, ...], activation: torch.nn.modules.activation
     ) -> None:
         super().__init__()
         self.activation = activation
-        self.unflatten = torch.nn.Unflatten(1, batch_shape)  # 256 x 2 x 2
+        self.unflatten = torch.nn.Unflatten(1, batch_shape)               # 256 x 2 x 2
         self.convs = torch.nn.ModuleList([
-            ConvBlock(256, 128, self.activation, do_transpose=True, embedding_dimension=embedding_dim),  # 128 x 4 x 4
-            ConvBlock(128, 64, self.activation, do_transpose=True, embedding_dimension=embedding_dim),  # 64 x 8 x 8
-            ConvBlock(64, 32, self.activation, do_transpose=True, embedding_dimension=embedding_dim),  # 64 x 16 x 16
-            ConvBlock(32, out_channels, self.activation, do_transpose=True, embedding_dimension=embedding_dim),  # in_channels x 32 x 32
+            ConvBlock(256, 128, resample_modus=ResampleModi.up),          # 128 x 4 x 4
+            ConvBlock(128, 64, resample_modus=ResampleModi.up),           # 64 x 8 x 8
+            ConvBlock(64, 32, resample_modus=ResampleModi.up),            # 64 x 16 x 16
+            ConvBlock(32, out_channels, resample_modus=ResampleModi.up),  # in_channels x 32 x 32
         ])
-        self.last_conv = torch.nn.Conv2d(out_channels, out_channels, 5, padding=2, stride=1)  # in_channels x 32 x 32
-        self.last_activation = torch.nn.Tanh()  # in_channels x 32 x 32
+        self.last_conv = torch.nn.Conv2d(out_channels, out_channels, 5, padding=2, stride=1)   # in_channels x 32 x 32
+        self.last_activation = torch.nn.Tanh()                            # in_channels x 32 x 32
 
     def forward(self, x: torch.Tensor, label_embeddings: torch.Tensor) -> torch.Tensor:
         x = self.unflatten(x)
@@ -59,10 +59,11 @@ class Decoder(torch.nn.Module):
 
 
 class AutoEncoder(torch.nn.Module):
-    def __init__(self, in_channels: int, embedding_dim: int, n_labels: int) -> None:
+    def __init__(self, in_channels: int, n_labels: int) -> None:
         super().__init__()
         self.latent_dim = 512
         self.activation = torch.nn.LeakyReLU()
+        embedding_dim = params.EMBEDDING_DIM
         self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
 
         self.encoder = Encoder(in_channels, embedding_dim, n_labels, self.activation)
@@ -72,7 +73,7 @@ class AutoEncoder(torch.nn.Module):
         self.to_log_var = torch.nn.Linear(self.latent_dim, self.latent_dim)
         self.from_latent = torch.nn.Linear(self.latent_dim, flattened_dimension)
 
-        self.decoder = Decoder(in_channels, embedding_dim, (256, 2, 2), self.activation)
+        self.decoder = Decoder(in_channels, (256, 2, 2), self.activation)
 
     def _reparameterize(self, mu, log_var):
         """
@@ -102,7 +103,7 @@ class AutoEncoder(torch.nn.Module):
         x = self.encoder(x, label_emb)
         encoded_shape = x.shape
         z, mu, log_var = self.convert_to_latent(x)
-        x = self.convert_32from_latent(z)
+        x = self.convert_from_latent(z)
         x = torch.reshape(x, shape=encoded_shape)
         x = self.decoder(x, label_emb)
 
@@ -112,11 +113,12 @@ class AutoEncoder(torch.nn.Module):
 class PatchDiscriminator(torch.nn.Module):
     def __init__(self, in_channels: int) -> None:
         super().__init__()
-        self.activation = torch.nn.LeakyReLU()
         self.layers = torch.nn.ModuleList([  # input: 3 x 32 x 32
-            ConvBlock(in_channels, 16, self.activation, n_non_transform_conv_layers=0),  # 16 x 16 x 16
-            ConvBlock(16, 32, self.activation, n_non_transform_conv_layers=0, kernel=7, padding=3),  # 32 x 8 x 8
-            torch.nn.Conv2d(32, 8, kernel_size=5, padding=2),  # 8 x 8 x 8
+            torch.nn.Conv2d(in_channels, 32, kernel_size=4, stride=2, padding=1),
+            torch.nn.LeakyReLU(),
+            torch.nn.Conv2d(32, 16, kernel_size=7, padding=3),
+            torch.nn.LeakyReLU(),
+            torch.nn.Conv2d(16, 8, kernel_size=5, padding=2),  # 8 x 8 x 8
             torch.nn.Sigmoid()
         ])
 
@@ -139,7 +141,7 @@ def train(
         in_channels = 1
     else:
         n_samples, data_loader = load_logos(
-            auto_info.batch_size, dataset_info.shuffle, dataset_info.n_images, cluster=dataset_info.cluster
+            auto_info.batch_size, dataset_info.shuffle, dataset_info.n_images, clusters=dataset_info.clusters
         )
         n_epochs = auto_info.epochs_lld
         model_storage_directory = params.OUTS_BASE_DIR / "train_autoencoder_lld"
@@ -159,7 +161,7 @@ def train(
 
     # prepare autoencoder
     n_labels = 10 if use_mnist else 100
-    autoencoder = AutoEncoder(in_channels, auto_info.embedding_dim, n_labels)
+    autoencoder = AutoEncoder(in_channels, n_labels)
     if model_file is not None:
         autoencoder.load_state_dict(torch.load(model_file))
     autoencoder.to(params.DEVICE)
@@ -211,6 +213,7 @@ def train(
 
             running_loss += generator_loss.item() * batch.shape[0] / n_samples
         if (epoch + 1) in [int(rel_plot_step * n_epochs) for rel_plot_step in [0.1, 0.25, 0.5, 0.75, 1.0]]:
+            print(f"{disc_loss.item()=}, {kl_loss.item()=}, {reconstruction_loss.item()=}, {adversarial_loss.item()=}")
             show_image_grid(reconst_batch, save_as=model_storage_directory / f"reconstruction_epoch_{epoch}.png")
             show_image_grid(batch, save_as=model_storage_directory / f"original_{epoch}.png")
 
