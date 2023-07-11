@@ -75,8 +75,8 @@ stages:
         AutoEncoder:
           adversarial_loss_weight: 1
           batch_size: 512
-          epochs_mnist: 30
-          epochs_lld: 40
+          epochs_mnist: 35
+          epochs_lld: 300
           kl_loss_weight: 1
           learning_rate: 0.0004
         DO_NORM: true
@@ -85,25 +85,18 @@ stages:
           - 0
           - 1
           - 2
-          - 3
-          - 4
-          - 5
-          - 6
-          - 7
-          - 8
-          - 9
           n_images:
           shuffle: true
         EMBEDDING_DIM: 32
     outs:
     - path: outs/train_autoencoder_lld/loss.csv
       hash: md5
-      md5: f2ff92e0ac70550ad0c8904a3deb6469
-      size: 918
+      md5: fd0c0d95b83bd43ddb349fce4b46f9e6
+      size: 7068
     - path: outs/train_autoencoder_lld/model.pt
       hash: md5
-      md5: cb729cf9bdcf098bc41c41ecea7819c5
-      size: 21597325
+      md5: 6b55eb6481cad42129e70894f4a93ce4
+      size: 18648205
   train_autoencoder_mnist:
     cmd: python favicon_gen/autoencoder.py --use_mnist
     deps:

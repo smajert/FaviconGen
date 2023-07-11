@@ -22,8 +22,8 @@ class Encoder(torch.nn.Module):
         self.convs = torch.nn.ModuleList([                                  # input: in_channels x 32 x 32
             ConvBlock(in_channels, 32, resample_modus=ResampleModi.down),   # 32 x 16 x 16
             ConvBlock(32, 64, resample_modus=ResampleModi.down),            # 64 x 8 x 8
-            ConvBlock(64, 128, resample_modus=ResampleModi.down),           # 128 x 4 x 4
-            ConvBlock(128, 256, resample_modus=ResampleModi.down),          # 256 x 2 x 2
+            ConvBlock(64, 128, resample_modus=ResampleModi.down, kernel_size=2, padding=0),           # 128 x 4 x 4
+            ConvBlock(128, 256, resample_modus=ResampleModi.down, kernel_size=2, padding=0),          # 256 x 2 x 2
         ])
         self.flatten = torch.nn.Flatten()                                   # 256*2*2 = 1024
 
@@ -42,8 +42,8 @@ class Decoder(torch.nn.Module):
         self.activation = activation
         self.unflatten = torch.nn.Unflatten(1, batch_shape)               # 256 x 2 x 2
         self.convs = torch.nn.ModuleList([
-            ConvBlock(256, 128, resample_modus=ResampleModi.up),          # 128 x 4 x 4
-            ConvBlock(128, 64, resample_modus=ResampleModi.up),           # 64 x 8 x 8
+            ConvBlock(256, 128, resample_modus=ResampleModi.up, kernel_size=2, padding=0),          # 128 x 4 x 4
+            ConvBlock(128, 64, resample_modus=ResampleModi.up, kernel_size=2, padding=0),           # 64 x 8 x 8
             ConvBlock(64, 32, resample_modus=ResampleModi.up),            # 64 x 16 x 16
             ConvBlock(32, out_channels, resample_modus=ResampleModi.up),  # in_channels x 32 x 32
         ])

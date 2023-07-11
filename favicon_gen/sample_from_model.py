@@ -21,6 +21,7 @@ def sample_from_autoencoder_model(
     in_channels: int,
     n_samples: int,
     device: str,
+    dataset_info: params.Dataset,  #todo adjust so that only valid cluster labels are drawn
     save_as: Path | None = None
 ) -> typing.Generator[torch.Tensor, None, None]:
     autoencoder = AutoEncoder(in_channels, n_labels)
@@ -28,18 +29,19 @@ def sample_from_autoencoder_model(
     autoencoder.eval()
     autoencoder.to(device)
 
+
     rand_generator = torch.Generator(device=device)
 
     while True:
         random_latent = torch.randn((n_samples, autoencoder.latent_dim), device=device, generator=rand_generator)
         random_labels = autoencoder.label_embedding(
-            torch.randint(0, n_labels, size=(n_samples, ), device=device, generator=rand_generator)
+            torch.randint(0, 2, size=(n_samples, ), device=device, generator=rand_generator)
         )
         batch = autoencoder.decoder(autoencoder.convert_from_latent(random_latent), random_labels)
         if save_as is not None:
             show_image_grid(batch)
             plt.savefig(save_as)
-            #plt.show()
+            plt.show()
 
         yield batch
 
@@ -147,18 +149,18 @@ def main():
         save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion_lld.pdf"
 
     in_channels = 1 if args.use_mnist else 3
-    n_labels = 10 if args.use_mnist else 100
+    n_labels = 10 if args.use_mnist else 100  # todo adjust so that only appropriate labels are possible
     auto_gen_batch = next(sample_from_autoencoder_model(
         model_file_auto, n_labels, in_channels, args.n_samples, device, save_as=save_location_auto_samples
     ))
-    diffusion_gen_batch = next(sample_from_diffusion_model(
-        model_file_diffusion,
-        n_labels,
-        in_channels,
-        args.n_samples,
-        device,
-        save_as=save_location_diff_samples
-    ))
+    # diffusion_gen_batch = next(sample_from_diffusion_model(
+    #     model_file_diffusion,
+    #     n_labels,
+    #     in_channels,
+    #     args.n_samples,
+    #     device,
+    #     save_as=save_location_diff_samples
+    # ))
 
     nearest_neighbor_search(
         auto_gen_batch,
@@ -168,13 +170,13 @@ def main():
         save_as=params.OUTS_BASE_DIR / f"auto_nearest_neighbors_mnist_{args.use_mnist}.pdf"
     )
 
-    nearest_neighbor_search(
-        diffusion_gen_batch,
-        params.Dataset.n_images,
-        args.use_mnist,
-        params.Dataset.clusters,
-        save_as=params.OUTS_BASE_DIR / f"diffusion_nearest_neighbors_mnist_{args.use_mnist}.pdf"
-    )
+    # nearest_neighbor_search(
+    #     diffusion_gen_batch,
+    #     params.Dataset.n_images,
+    #     args.use_mnist,
+    #     params.Dataset.clusters,
+    #     save_as=params.OUTS_BASE_DIR / f"diffusion_nearest_neighbors_mnist_{args.use_mnist}.pdf"
+    # )
 
 
 if __name__ == "__main__":
