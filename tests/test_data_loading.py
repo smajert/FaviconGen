@@ -1,3 +1,4 @@
+import numpy as np
 from matplotlib import pyplot as plt
 import pytest
 
@@ -8,6 +9,18 @@ import favicon_gen.params as params
 def test_all_files_found(LogoDatasetLocation):
     file_loader = testee.LargeLogoDataset(LogoDatasetLocation)
     assert len(file_loader) == 486377
+
+
+def test_labels_correct_when_restricting_to_cluster(LogoDatasetLocation):
+    n_images, file_loader = testee.load_logos(200, False, None, [2, 20, 50])
+    labels_concat = []
+    for batch, labels in file_loader:
+        labels_concat.append(labels)
+
+    collected_labels = np.concatenate(labels_concat)
+    assert n_images == 11650
+    assert np.max(collected_labels) == 2
+    assert np.min(collected_labels) == 0
 
 
 def test_image_grid_and_loading(LogoDatasetLocation):

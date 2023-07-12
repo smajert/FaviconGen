@@ -6,26 +6,26 @@ import torch
 from tqdm import tqdm
 
 from favicon_gen.blocks import ConvBlock, ResampleModi
-from favicon_gen.data_loading import load_logos, load_mnist, show_image_grid
+from favicon_gen.data_loading import load_logos, load_mnist, show_image_grid, get_number_of_different_labels
 import favicon_gen.params as params
 
 
 class Encoder(torch.nn.Module):
     def __init__(
-        self, in_channels: int, embedding_dim: int, n_labels: int, activation: torch.nn.modules.activation
+        self, in_channels: int, embedding_dim: int, activation: torch.nn.modules.activation
     ) -> None:
         super().__init__()
         self.in_channels = in_channels
         self.embedding_dim = embedding_dim
         self.activation = activation
-        self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
-        self.convs = torch.nn.ModuleList([                                  # input: in_channels x 32 x 32
-            ConvBlock(in_channels, 32, resample_modus=ResampleModi.down),   # 32 x 16 x 16
-            ConvBlock(32, 64, resample_modus=ResampleModi.down),            # 64 x 8 x 8
-            ConvBlock(64, 128, resample_modus=ResampleModi.down, kernel_size=2, padding=0),           # 128 x 4 x 4
-            ConvBlock(128, 256, resample_modus=ResampleModi.down, kernel_size=2, padding=0),          # 256 x 2 x 2
+        small_kernel = {"kernel_size": 2, "padding": 0}
+        self.convs = torch.nn.ModuleList([                                          # input: in_channels x 32 x 32
+            ConvBlock(in_channels, 32, resample_modus=ResampleModi.down),           # 32 x 16 x 16
+            ConvBlock(32, 64, resample_modus=ResampleModi.down),                    # 64 x 8 x 8
+            ConvBlock(64, 128, resample_modus=ResampleModi.down, **small_kernel),   # 128 x 4 x 4
+            ConvBlock(128, 256, resample_modus=ResampleModi.down, **small_kernel),  # 256 x 2 x 2
         ])
-        self.flatten = torch.nn.Flatten()                                   # 256*2*2 = 1024
+        self.flatten = torch.nn.Flatten()                                           # 256*2*2 = 1024
 
     def forward(self, x: torch.Tensor, label_embedding: torch.Tensor) -> torch.Tensor:
         for layer in self.convs:
@@ -66,7 +66,7 @@ class AutoEncoder(torch.nn.Module):
         embedding_dim = params.EMBEDDING_DIM
         self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
 
-        self.encoder = Encoder(in_channels, embedding_dim, n_labels, self.activation)
+        self.encoder = Encoder(in_channels, embedding_dim, self.activation)
         flattened_dimension = 256 * 2 * 2
         self.to_latent = torch.nn.Linear(flattened_dimension, self.latent_dim)
         self.to_mu = torch.nn.Linear(self.latent_dim, self.latent_dim)
@@ -160,7 +160,7 @@ def train(
         optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=0.1 * auto_info.learning_rate)
 
     # prepare autoencoder
-    n_labels = 10 if use_mnist else 100
+    n_labels = get_number_of_different_labels(use_mnist, dataset_info.clusters)
     autoencoder = AutoEncoder(in_channels, n_labels)
     if model_file is not None:
         autoencoder.load_state_dict(torch.load(model_file))

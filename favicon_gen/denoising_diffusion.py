@@ -9,7 +9,7 @@ import torch
 from tqdm import tqdm
 
 from favicon_gen.blocks import ConvBlock, ResampleModi
-from favicon_gen.data_loading import load_logos, load_mnist, show_image_grid
+from favicon_gen.data_loading import load_logos, load_mnist, show_image_grid, get_number_of_different_labels
 import favicon_gen.params as params
 
 
@@ -140,9 +140,7 @@ class Generator(torch.nn.Module):
         x_down2 = self.layers[1](x_down1, time_emb)
         x_down3 = self.layers[2](x_down2, time_emb)
         x_down4 = self.layers[3](x_down3, time_emb)
-        print(f"{x_down4.shape=}")
         x = self.layers[4](x_down4, time_emb)
-        print(f"{x.shape=}")
         x = torch.concatenate((x, x_down4), dim=1)
         x = self.layers[5](x, time_emb)
         x = torch.concatenate((x, x_down3), dim=1)
@@ -239,7 +237,8 @@ def train(
         n_time_steps=diffusion_info.steps,
         device=params.DEVICE
     )
-    n_labels = 10 if use_mnist else 100
+
+    n_labels = get_number_of_different_labels(use_mnist, dataset_info.clusters)
     model = Generator(in_channels, schedule, n_labels)
     if model_file is not None:
         model.load_state_dict(torch.load(model_file))

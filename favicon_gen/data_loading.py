@@ -63,16 +63,20 @@ class LargeLogoDataset(Dataset):
         with h5py.File(hdf5_file_location) as file:
             stacked_images = file["data"]
             if cluster_type == ClusterMethod.ae_grayscale:
-                self.image_labels = file[f"labels/{cluster_type.name}"][()].astype(int)
+                image_clusters = file[f"labels/{cluster_type.name}"][()].astype(int)
             else:
-                self.image_labels = file[f"labels/resnet/{cluster_type.name}"][()].astype(int)
+                image_clusters = file[f"labels/resnet/{cluster_type.name}"][()].astype(int)
             if self.selected_clusters is not None:
-                stacked_images = stacked_images[:len(self.image_labels)]
-                image_in_clusters = np.isin(self.image_labels, self.selected_clusters)
+                stacked_images = stacked_images[:len(image_clusters)]
+                image_in_clusters = np.isin(image_clusters, self.selected_clusters)
                 stacked_images = stacked_images[image_in_clusters, ...]
-                self.image_labels = self.image_labels[image_in_clusters]
+                image_clusters = image_clusters[image_in_clusters]
+                # change labels so that e.g. if clusters = [2, 20] labels will be [0, 1]
+                cluster_to_label = {cluster: idx for idx, cluster in enumerate(set(image_clusters))}
+                self.image_labels = np.array([cluster_to_label[cluster] for cluster in image_clusters])
             else:
                 stacked_images = stacked_images[()]
+                self.image_labels = image_clusters
             self.images = [
                 np.swapaxes(np.squeeze(arr), 0, -1)
                 for arr in np.split(stacked_images, stacked_images.shape[0], axis=0)
@@ -124,4 +128,13 @@ def load_mnist(batch_size: int, shuffle: bool, n_images: int | None) -> tuple[in
         print(f"Loading {len(mnist)} MNIST images ...")
         loader = DataLoader(mnist, batch_size=batch_size, shuffle=shuffle)
         return len(mnist), loader
+
+
+def get_number_of_different_labels(use_mnist: bool, clusters: list[int] | None) -> int:
+    if use_mnist:
+        return 10
+    elif clusters is not None:
+        return len(clusters)
+    else:
+        return 100
 

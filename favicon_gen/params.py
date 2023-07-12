@@ -17,8 +17,8 @@ DO_NORM: bool = True
 
 
 class Dataset:
-    clusters: list[int] | None = [0, 1, 2]
-    n_images: int | None = None
+    clusters: list[int] | None = None #[0, 1, 2]
+    n_images: int | None = 100
     shuffle = True
 
 
