@@ -246,7 +246,7 @@ def train(
 
     optimizer = torch.optim.Adam(model.parameters(), lr=diffusion_info.learning_rate)
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, factor=0.7, patience=3, verbose=True, min_lr=1e-4
+        optimizer, factor=0.7, patience=10, verbose=True, min_lr=1e-4
     )
     loss_fn = torch.nn.MSELoss()
     running_losses = []

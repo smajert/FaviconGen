@@ -40,15 +40,16 @@ class Decoder(torch.nn.Module):
     ) -> None:
         super().__init__()
         self.activation = activation
-        self.unflatten = torch.nn.Unflatten(1, batch_shape)               # 256 x 2 x 2
+        self.unflatten = torch.nn.Unflatten(1, batch_shape)                          # 256 x 2 x 2
+        small_kernel = {"kernel_size": 2, "padding": 0}
         self.convs = torch.nn.ModuleList([
-            ConvBlock(256, 128, resample_modus=ResampleModi.up, kernel_size=2, padding=0),          # 128 x 4 x 4
-            ConvBlock(128, 64, resample_modus=ResampleModi.up, kernel_size=2, padding=0),           # 64 x 8 x 8
-            ConvBlock(64, 32, resample_modus=ResampleModi.up),            # 64 x 16 x 16
-            ConvBlock(32, out_channels, resample_modus=ResampleModi.up),  # in_channels x 32 x 32
+            ConvBlock(256, 128, resample_modus=ResampleModi.up, **small_kernel),     # 128 x 4 x 4
+            ConvBlock(128, 64, resample_modus=ResampleModi.up, **small_kernel),      # 64 x 8 x 8
+            ConvBlock(64, 32, resample_modus=ResampleModi.up),                       # 32 x 16 x 16
+            ConvBlock(32, out_channels, resample_modus=ResampleModi.up),             # in_channels x 32 x 32
         ])
-        self.last_conv = torch.nn.Conv2d(out_channels, out_channels, 5, padding=2, stride=1)   # in_channels x 32 x 32
-        self.last_activation = torch.nn.Tanh()                            # in_channels x 32 x 32
+        self.last_conv = torch.nn.Conv2d(out_channels, out_channels, 5, padding=2, stride=1)
+        self.last_activation = torch.nn.Tanh()
 
     def forward(self, x: torch.Tensor, label_embeddings: torch.Tensor) -> torch.Tensor:
         x = self.unflatten(x)

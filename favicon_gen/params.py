@@ -17,13 +17,13 @@ DO_NORM: bool = True
 
 
 class Dataset:
-    clusters: list[int] | None = None #[0, 1, 2]
-    n_images: int | None = 100
+    clusters: list[int] | None = [0, 1, 2]
+    n_images: int | None = None
     shuffle = True
 
 
 class AutoEncoder:
-    adversarial_loss_weight: float | None = 1
+    adversarial_loss_weight: float | None = 0.8
     batch_size: int = 512
     epochs_mnist: int = 35
     epochs_lld: int = 300
@@ -34,7 +34,7 @@ class AutoEncoder:
 class Diffusion:
     batch_size: int = 512
     epochs_mnist: int = 35
-    epochs_lld: int = 300
+    epochs_lld: int = 200
     guiding_factor: float = 0.90
     learning_rate: float = 1e-3
     steps: int = 1000

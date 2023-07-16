@@ -33,7 +33,7 @@ def sample_from_autoencoder_model(
     while True:
         random_latent = torch.randn((n_samples, autoencoder.latent_dim), device=device, generator=rand_generator)
         random_labels = autoencoder.label_embedding(
-            torch.randint(0, 2, size=(n_samples, ), device=device, generator=rand_generator)
+            torch.randint(0, n_labels, size=(n_samples, ), device=device, generator=rand_generator)
         )
         batch = autoencoder.decoder(autoencoder.convert_from_latent(random_latent), random_labels)
         if save_as is not None:
@@ -148,6 +148,7 @@ def main():
 
     in_channels = 1 if args.use_mnist else 3
     n_labels = get_number_of_different_labels(args.use_mnist, params.Dataset.clusters)
+
     auto_gen_batch = next(sample_from_autoencoder_model(
         model_file_auto, n_labels, in_channels, args.n_samples, device, save_as=save_location_auto_samples
     ))
