@@ -73,10 +73,10 @@ stages:
     params:
       favicon_gen/params.py:
         AutoEncoder:
-          adversarial_loss_weight: 0.8
+          adversarial_loss_weight: 1.0
           batch_size: 512
           epochs_mnist: 35
-          epochs_lld: 300
+          epochs_lld: 350
           kl_loss_weight: 1
           learning_rate: 0.0004
         DO_NORM: true
@@ -85,18 +85,18 @@ stages:
           - 0
           - 1
           - 2
-          n_images: 100
+          n_images:
           shuffle: true
         EMBEDDING_DIM: 32
     outs:
     - path: outs/train_autoencoder_lld/loss.csv
       hash: md5
-      md5: 948bb776f0201d37163d3c468650d2d5
-      size: 7063
+      md5: 70062140077a9864caa1b5f568889bf9
+      size: 8261
     - path: outs/train_autoencoder_lld/model.pt
       hash: md5
-      md5: 04da16bc2e4eb1084c5d793d2e623df3
-      size: 18622737
+      md5: f428aba5fbb2cf192dea6adb5695cd23
+      size: 18708753
   train_autoencoder_mnist:
     cmd: python favicon_gen/autoencoder.py --use_mnist
     deps:
@@ -107,10 +107,10 @@ stages:
     params:
       favicon_gen/params.py:
         AutoEncoder:
-          adversarial_loss_weight: 0.8
+          adversarial_loss_weight: 1.0
           batch_size: 512
           epochs_mnist: 35
-          epochs_lld: 300
+          epochs_lld: 350
           kl_loss_weight: 1
           learning_rate: 0.0004
         DO_NORM: true
@@ -119,40 +119,40 @@ stages:
           - 0
           - 1
           - 2
-          n_images: 100
+          n_images:
           shuffle: true
         EMBEDDING_DIM: 32
     outs:
     - path: outs/train_autoencoder_mnist/loss.csv
       hash: md5
-      md5: 007d48b47662c5f6eb8cc7cd6c0da072
-      size: 801
+      md5: 2c2c80e8eccc356a5ea72aac78d26889
+      size: 803
     - path: outs/train_autoencoder_mnist/model.pt
       hash: md5
-      md5: deec9907bd5b67b6cbfd2a9f630f3bc0
-      size: 18615633
+      md5: 5c5fd4a03384e6fedaae6879650ccd1c
+      size: 18705937
   draw_samples_mnist:
     cmd: python favicon_gen/sample_from_model.py --use_mnist --use_gpu --n_samples
       64
     deps:
     - path: outs/train_autoencoder_mnist/model.pt
       hash: md5
-      md5: deec9907bd5b67b6cbfd2a9f630f3bc0
-      size: 18615633
+      md5: 5c5fd4a03384e6fedaae6879650ccd1c
+      size: 18705937
     - path: outs/train_diffusion_model_mnist/model.pt
       hash: md5
-      md5: 336e1bb9f0ec272ffb38c8ea40fe5889
+      md5: d3b3aabb5a995eadf26fc9ad1eb8e35a
       size: 58599465
   draw_samples_lld:
     cmd: python favicon_gen/sample_from_model.py --use_gpu --n_samples 64
     deps:
     - path: outs/train_autoencoder_lld/model.pt
       hash: md5
-      md5: 04da16bc2e4eb1084c5d793d2e623df3
-      size: 18622737
+      md5: f428aba5fbb2cf192dea6adb5695cd23
+      size: 18708753
     - path: outs/train_diffusion_model_lld/model.pt
       hash: md5
-      md5: 5483713a75b308ede5bd3ff4cf0a07e2
+      md5: fec87293bcd66f68b382af870422e56c
       size: 58607529
   train_diffusion_model_mnist:
     cmd: python favicon_gen/denoising_diffusion.py --use_mnist
@@ -205,7 +205,7 @@ stages:
           - 0
           - 1
           - 2
-          n_images: 100
+          n_images:
           shuffle: true
         Diffusion:
           batch_size: 512
@@ -220,9 +220,9 @@ stages:
     outs:
     - path: outs/train_diffusion_model_lld/loss.csv
       hash: md5
-      md5: 39eb08d5e823445b01a5e3c9251188aa
-      size: 4821
+      md5: 2d833e83d0e369bac0f45daacf3cbebf
+      size: 4930
     - path: outs/train_diffusion_model_lld/model.pt
       hash: md5
-      md5: 5483713a75b308ede5bd3ff4cf0a07e2
+      md5: fec87293bcd66f68b382af870422e56c
       size: 58607529

@@ -23,10 +23,10 @@ class Dataset:
 
 
 class AutoEncoder:
-    adversarial_loss_weight: float | None = 0.8
+    adversarial_loss_weight: float | None = 1.0
     batch_size: int = 512
     epochs_mnist: int = 35
-    epochs_lld: int = 300
+    epochs_lld: int = 350
     kl_loss_weight: float = 1
     learning_rate: float = 4e-4
 
