@@ -56,7 +56,8 @@ def get_noisy_batch_at_step_t(
     """
     if original_batch.shape[0] != time_step.shape[0]:
         raise ValueError(
-            f"Batch size {original_batch.shape[0]} does not match number of requested diffusion steps {time_step.shape[0]}."
+            f"Batch size {original_batch.shape[0]} does not match number of"
+            f" requested diffusion steps {time_step.shape[0]}."
         )
 
     noise = torch.randn(size=original_batch.shape, device=original_batch.device)

@@ -130,7 +130,7 @@ def main():
         model_file_diffusion = params.OUTS_BASE_DIR / "train_diffusion_model_mnist/model.pt"
         save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion_mnist.pdf"
     else:
-        model_file_auto = params.OUTS_BASE_DIR / f"train_autoencoder_lld/model.pt"
+        model_file_auto = params.OUTS_BASE_DIR / "train_autoencoder_lld/model.pt"
         save_location_auto_samples = params.OUTS_BASE_DIR / "samples_autoencoder_lld.pdf"
         model_file_diffusion = params.OUTS_BASE_DIR / "train_diffusion_model_lld/model.pt"
         save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion_lld.pdf"

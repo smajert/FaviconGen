@@ -1,15 +1,10 @@
-import random
 from pathlib import Path
 
-import torch
 
 REPO_ROOT = Path(__file__).parents[1]
 DATA_BASE_DIR = REPO_ROOT / "data"
 OUTS_BASE_DIR = REPO_ROOT / "outs"
 
-# RANDOM_SEED = None
-# torch.random.manual_seed(RANDOM_SEED)
-# random.seed(RANDOM_SEED)
 DEVICE: str = "cuda"
 
 EMBEDDING_DIM: int = 32
