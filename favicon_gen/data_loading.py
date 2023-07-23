@@ -1,6 +1,5 @@
 from enum import Enum
 from pathlib import Path
-import pickle
 import tempfile
 from typing import Any
 import warnings

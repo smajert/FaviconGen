@@ -216,7 +216,6 @@ def train(
 
             running_loss += generator_loss.item() * batch.shape[0] / n_samples
         if (epoch + 1) in [int(rel_plot_step * n_epochs) for rel_plot_step in [0.1, 0.25, 0.5, 0.75, 1.0]]:
-            print(f"{disc_loss.item()=}, {kl_loss.item()=}, {reconstruction_loss.item()=}, {adversarial_loss.item()=}")
             show_image_grid(reconst_batch, save_as=model_storage_directory / f"reconstruction_epoch_{epoch}.png")
             show_image_grid(batch, save_as=model_storage_directory / f"original_{epoch}.png")
 
