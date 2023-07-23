@@ -32,5 +32,3 @@ def test_image_grid_and_loading(LogoDatasetLocation):
     show_plot = False
     if show_plot:
         plt.show()
-
-

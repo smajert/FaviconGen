@@ -15,15 +15,13 @@ import favicon_gen.params as params
 
 pytorch_transforms = Any
 
-FORWARD_TRANSFORMS = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Lambda(lambda t: (t * 2) - 1)  # Scale between [-1, 1]
-])
+FORWARD_TRANSFORMS = transforms.Compose(
+    [transforms.ToTensor(), transforms.Lambda(lambda t: (t * 2) - 1)]  # Scale between [-1, 1]
+)
 
-BACKWARD_TRANSFORMS = transforms.Compose([
-    transforms.Lambda(lambda t: (t + 1) / 2),  # Undo scaling between [-1, 1]
-    transforms.ToPILImage()
-])
+BACKWARD_TRANSFORMS = transforms.Compose(
+    [transforms.Lambda(lambda t: (t + 1) / 2), transforms.ToPILImage()]  # Undo scaling between [-1, 1]
+)
 # For explanation of clustering methods and process see:
 # [2] A. Sage, E. Agustsson, R. Timofte, and L. Van Gool,
 #    “Logo Synthesis and Manipulation with Clustered Generative Adversarial Networks,”
@@ -52,7 +50,7 @@ class LargeLogoDataset(Dataset):
         hdf5_file_location: Path,
         n_images: int | None = None,
         clusters: list[int] | None = None,
-        cluster_type: ClusterMethod = ClusterMethod.ae_grayscale
+        cluster_type: ClusterMethod = ClusterMethod.ae_grayscale,
     ) -> None:
         self.transform = FORWARD_TRANSFORMS
         self.images = None
@@ -66,7 +64,7 @@ class LargeLogoDataset(Dataset):
             else:
                 image_clusters = file[f"labels/resnet/{cluster_type.name}"][()].astype(int)
             if self.selected_clusters is not None:
-                stacked_images = stacked_images[:len(image_clusters)]
+                stacked_images = stacked_images[: len(image_clusters)]
                 image_in_clusters = np.isin(image_clusters, self.selected_clusters)
                 stacked_images = stacked_images[image_in_clusters, ...]
                 image_clusters = image_clusters[image_in_clusters]
@@ -77,8 +75,7 @@ class LargeLogoDataset(Dataset):
                 stacked_images = stacked_images[()]
                 self.image_labels = image_clusters
             self.images = [
-                np.swapaxes(np.squeeze(arr), 0, -1)
-                for arr in np.split(stacked_images, stacked_images.shape[0], axis=0)
+                np.swapaxes(np.squeeze(arr), 0, -1) for arr in np.split(stacked_images, stacked_images.shape[0], axis=0)
             ]
 
         if n_images is not None:
@@ -108,7 +105,7 @@ def load_mnist(batch_size: int, shuffle: bool, n_images: int | None) -> tuple[in
     data_transforms = [
         transforms.Resize((32, 32)),
         transforms.ToTensor(),  # Scales data into [0,1]
-        transforms.Lambda(lambda t: (t * 2) - 1)  # Scale between [-1, 1]
+        transforms.Lambda(lambda t: (t * 2) - 1),  # Scale between [-1, 1]
     ]
     data_transform = transforms.Compose(data_transforms)
 
@@ -136,4 +133,3 @@ def get_number_of_different_labels(use_mnist: bool, clusters: list[int] | None) 
         return len(clusters)
     else:
         return 100
-

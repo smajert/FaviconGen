@@ -15,12 +15,7 @@ import favicon_gen.params as params
 
 @dataclass
 class VarianceSchedule:
-    def __init__(
-        self,
-        beta_start_end: tuple[float, float],
-        n_time_steps: int,
-        device: str = "cpu"
-    ) -> None:
+    def __init__(self, beta_start_end: tuple[float, float], n_time_steps: int, device: str = "cpu") -> None:
         """
         Linear variance schedule for the Denoising Diffusion Probabilistic Model (DDPM).
         The naming scheme is the same as in [1]. In particular, `beta_t` is the
@@ -45,7 +40,9 @@ class VarianceSchedule:
 
 
 def get_noisy_batch_at_step_t(
-    original_batch: torch.Tensor, time_step: torch.Tensor, schedule: VarianceSchedule,
+    original_batch: torch.Tensor,
+    time_step: torch.Tensor,
+    schedule: VarianceSchedule,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Take in an image batch and add noise according to diffusion step `t` of schedule `noise_schedule`.
@@ -64,12 +61,8 @@ def get_noisy_batch_at_step_t(
 
     noise = torch.randn(size=original_batch.shape, device=original_batch.device)
     noisy_batch = (
-        original_batch * torch.sqrt(schedule.alpha_bar_t[time_step])[
-            :, np.newaxis, np.newaxis, np.newaxis
-        ]
-        + noise * torch.sqrt(1 - schedule.alpha_bar_t[time_step])[
-            :, np.newaxis, np.newaxis, np.newaxis
-        ]
+        original_batch * torch.sqrt(schedule.alpha_bar_t[time_step])[:, np.newaxis, np.newaxis, np.newaxis]
+        + noise * torch.sqrt(1 - schedule.alpha_bar_t[time_step])[:, np.newaxis, np.newaxis, np.newaxis]
     )
 
     return noisy_batch, noise
@@ -80,6 +73,7 @@ class SinusoidalPositionEmbeddings(torch.nn.Module):
 
     [1]: https://machinelearningmastery.com/a-gentle-introduction-to-positional-encoding-in-transformer-models-part-1/
     """
+
     def __init__(self, embedding_dimension: int) -> None:
         super().__init__()
         self.embedding_dimension = embedding_dimension
@@ -102,9 +96,7 @@ class SinusoidalPositionEmbeddings(torch.nn.Module):
 
 
 class Generator(torch.nn.Module):
-    def __init__(
-        self, in_channels: int, variance_schedule: VarianceSchedule, n_labels: int
-    ) -> None:
+    def __init__(self, in_channels: int, variance_schedule: VarianceSchedule, n_labels: int) -> None:
         super().__init__()
         self.variance_schedule = variance_schedule
         self.n_labels = n_labels
@@ -113,11 +105,12 @@ class Generator(torch.nn.Module):
         self.time_mlp = torch.nn.Sequential(
             SinusoidalPositionEmbeddings(embedding_dim),
             torch.nn.Linear(embedding_dim, embedding_dim),
-            torch.nn.LeakyReLU()
+            torch.nn.LeakyReLU(),
         )
 
         self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
         small = {"kernel_size": 2, "padding": 0}
+        # fmt: off
         self.layers = torch.nn.ModuleList([                                         # input: in_channels x 32 x 32
             ConvBlock(in_channels, 32, resample_modus=ResampleModi.no),             # 0: 32 x 32 x 32
             ConvBlock(32, 64, resample_modus=ResampleModi.down),                    # 1: 64 x 16 x 16
@@ -130,6 +123,7 @@ class Generator(torch.nn.Module):
             ConvBlock(64, 32, resample_modus=ResampleModi.no),                      # 8: 32 x 32 x 32
             torch.nn.Conv2d(32, in_channels, 5, padding=2)                          # 9: in_channels x 32 x 32
         ])
+        # fmt: on
 
     def forward(self, x: torch.Tensor, time_step: torch.Tensor, labels: torch.Tensor | None) -> torch.Tensor:
         time_emb = self.time_mlp(time_step)
@@ -160,7 +154,7 @@ def draw_sample_from_generator(
     guiding_factor: float,
     seed: int | None = None,
     label: int | None = None,
-    save_sample_as: Path | None = None
+    save_sample_as: Path | None = None,
 ) -> torch.Tensor:
     device = model.layers[0].non_transform_layers[0].weight.device
     rand_generator = torch.Generator(device=device)
@@ -179,7 +173,11 @@ def draw_sample_from_generator(
             int(0.9 * variance_schedule.n_steps),
             int(0.6 * variance_schedule.n_steps),
             int(0.3 * variance_schedule.n_steps),
-            0, 1, 5, 20, 40,
+            0,
+            1,
+            5,
+            20,
+            40,
         ]
 
     model.eval()
@@ -210,10 +208,7 @@ def draw_sample_from_generator(
 
 
 def train(
-    dataset_info: params.Dataset,
-    diffusion_info: params.Diffusion,
-    use_mnist: bool,
-    model_file: Path | None = None
+    dataset_info: params.Dataset, diffusion_info: params.Diffusion, use_mnist: bool, model_file: Path | None = None
 ) -> None:
     if use_mnist:
         n_samples, data_loader = load_mnist(diffusion_info.batch_size, dataset_info.shuffle, dataset_info.n_images)
@@ -232,11 +227,7 @@ def train(
     model_storage_directory.mkdir(exist_ok=True)
 
     beta_start_end = (diffusion_info.var_schedule_start, diffusion_info.var_schedule_end)
-    schedule = VarianceSchedule(
-        beta_start_end=beta_start_end,
-        n_time_steps=diffusion_info.steps,
-        device=params.DEVICE
-    )
+    schedule = VarianceSchedule(beta_start_end=beta_start_end, n_time_steps=diffusion_info.steps, device=params.DEVICE)
 
     n_labels = get_number_of_different_labels(use_mnist, dataset_info.clusters)
     model = Generator(in_channels, schedule, n_labels)
@@ -279,7 +270,7 @@ def train(
                 model,
                 sample_shape,
                 diffusion_info.guiding_factor,
-                save_sample_as=model_storage_directory / f"epoch_{epoch + 1}.png"
+                save_sample_as=model_storage_directory / f"epoch_{epoch + 1}.png",
             )
 
         pbar.set_description(f"Current avg. loss: {running_loss:.3f}, Epochs")
@@ -301,10 +292,4 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    train(
-        dataset_info=params.Dataset(),
-        diffusion_info=params.Diffusion(),
-        use_mnist=args.use_mnist
-    )
-
-
+    train(dataset_info=params.Dataset(), diffusion_info=params.Diffusion(), use_mnist=args.use_mnist)

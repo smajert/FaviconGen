@@ -20,6 +20,7 @@ class ConvBlock(torch.nn.Module):
     on whether `do_transpose` is set or not.
 
     """
+
     def __init__(
         self,
         channels_in: int,
@@ -27,7 +28,7 @@ class ConvBlock(torch.nn.Module):
         activation: torch.nn.modules.activation = torch.nn.LeakyReLU(),
         resample_modus: ResampleModi = ResampleModi.no,
         kernel_size: int = 4,
-        padding: int = 1
+        padding: int = 1,
     ) -> None:
         super().__init__()
         self.activation = activation
@@ -58,11 +59,9 @@ class ConvBlock(torch.nn.Module):
 
         self.non_transform_layers = torch.nn.ModuleList()
         for chs in channels_non_transform_conv:
-            self.non_transform_layers.extend([
-                torch.nn.Conv2d(chs[0], chs[1], kernel_size=3, padding=1),
-                norm_fn(),
-                self.activation
-            ])
+            self.non_transform_layers.extend(
+                [torch.nn.Conv2d(chs[0], chs[1], kernel_size=3, padding=1), norm_fn(), self.activation]
+            )
 
     def forward(self, x: torch.Tensor, time_step_emb: torch.Tensor | None = None) -> torch.Tensor:
         if self.resample_modus in (ResampleModi.down, ResampleModi.down_and_up):
@@ -79,5 +78,3 @@ class ConvBlock(torch.nn.Module):
             x = self.activation(self.conv_out(x))
 
         return x
-
-

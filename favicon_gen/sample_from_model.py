@@ -14,12 +14,7 @@ import favicon_gen.params as params
 
 @torch.no_grad()
 def sample_from_autoencoder_model(
-    model_file: Path,
-    n_labels: int,
-    in_channels: int,
-    n_samples: int,
-    device: str,
-    save_as: Path | None = None
+    model_file: Path, n_labels: int, in_channels: int, n_samples: int, device: str, save_as: Path | None = None
 ) -> typing.Generator[torch.Tensor, None, None]:
     autoencoder = AutoEncoder(in_channels, n_labels)
     autoencoder.load_state_dict(torch.load(model_file))
@@ -31,7 +26,7 @@ def sample_from_autoencoder_model(
     while True:
         random_latent = torch.randn((n_samples, autoencoder.latent_dim), device=device, generator=rand_generator)
         random_labels = autoencoder.label_embedding(
-            torch.randint(0, n_labels, size=(n_samples, ), device=device, generator=rand_generator)
+            torch.randint(0, n_labels, size=(n_samples,), device=device, generator=rand_generator)
         )
         batch = autoencoder.decoder(autoencoder.convert_from_latent(random_latent), random_labels)
         if save_as is not None:
@@ -50,7 +45,7 @@ def sample_from_diffusion_model(
     n_samples: int,
     device: str,
     diffusion_info: params.Diffusion = params.Diffusion(),
-    save_as: Path | None = None
+    save_as: Path | None = None,
 ) -> typing.Generator[torch.Tensor, None, None]:
     """
     Sample images from a chosen model.
@@ -74,7 +69,7 @@ def sample_from_diffusion_model(
         if save_as is not None:
             show_image_grid(batch)
             plt.savefig(save_as)
-            #plt.show()
+            # plt.show()
         yield batch
         # draw batch without setting seed again
         batch = draw_sample_from_generator(generator, (n_samples, in_channels, 32, 32), diffusion_info.guiding_factor)
@@ -86,7 +81,7 @@ def nearest_neighbor_search(
     n_images: int,
     use_mnist: bool,
     clusters: list[int] | None,
-    save_as: Path | None = None
+    save_as: Path | None = None,
 ) -> torch.Tensor:
     if use_mnist:
         _, data_loader = load_mnist(1, False, n_images)
@@ -110,7 +105,7 @@ def nearest_neighbor_search(
     if save_as is not None:
         show_image_grid(nearest_neighbors)
         plt.savefig(save_as)
-        #plt.show()
+        # plt.show()
 
     return nearest_neighbors
 
@@ -118,11 +113,7 @@ def nearest_neighbor_search(
 def main():
     parser = argparse.ArgumentParser(description="Get sample images from models")
     parser.add_argument("--n_samples", type=int, default=64, help="Number of samples to get from model.")
-    parser.add_argument(
-        "--use_gpu",
-        help="Try to calculate on GPU.",
-        action="store_true"
-    )
+    parser.add_argument("--use_gpu", help="Try to calculate on GPU.", action="store_true")
     parser.add_argument(
         "--use_mnist", action="store_true", help="Whether to train on MNIST instead of the Large Logo Dataset."
     )
@@ -147,24 +138,23 @@ def main():
     in_channels = 1 if args.use_mnist else 3
     n_labels = get_number_of_different_labels(args.use_mnist, params.Dataset.clusters)
 
-    auto_gen_batch = next(sample_from_autoencoder_model(
-        model_file_auto, n_labels, in_channels, args.n_samples, device, save_as=save_location_auto_samples
-    ))
-    diffusion_gen_batch = next(sample_from_diffusion_model(
-        model_file_diffusion,
-        n_labels,
-        in_channels,
-        args.n_samples,
-        device,
-        save_as=save_location_diff_samples
-    ))
+    auto_gen_batch = next(
+        sample_from_autoencoder_model(
+            model_file_auto, n_labels, in_channels, args.n_samples, device, save_as=save_location_auto_samples
+        )
+    )
+    diffusion_gen_batch = next(
+        sample_from_diffusion_model(
+            model_file_diffusion, n_labels, in_channels, args.n_samples, device, save_as=save_location_diff_samples
+        )
+    )
 
     nearest_neighbor_search(
         auto_gen_batch,
         params.Dataset.n_images,
         args.use_mnist,
         params.Dataset.clusters,
-        save_as=params.OUTS_BASE_DIR / f"auto_nearest_neighbors_mnist_{args.use_mnist}.pdf"
+        save_as=params.OUTS_BASE_DIR / f"auto_nearest_neighbors_mnist_{args.use_mnist}.pdf",
     )
 
     nearest_neighbor_search(
@@ -172,7 +162,7 @@ def main():
         params.Dataset.n_images,
         args.use_mnist,
         params.Dataset.clusters,
-        save_as=params.OUTS_BASE_DIR / f"diffusion_nearest_neighbors_mnist_{args.use_mnist}.pdf"
+        save_as=params.OUTS_BASE_DIR / f"diffusion_nearest_neighbors_mnist_{args.use_mnist}.pdf",
     )
 
 

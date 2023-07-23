@@ -10,9 +10,7 @@ import favicon_gen.denoising_diffusion as ddi
 
 @pytest.fixture()
 def LogoDataset(LogoDatasetLocation):
-    return LargeLogoDataset(
-        LogoDatasetLocation, clusters=[25]
-    )
+    return LargeLogoDataset(LogoDatasetLocation, clusters=[25])
 
 
 @pytest.fixture()
@@ -31,18 +29,12 @@ def test_noise_schedule_is_correct():
     np.testing.assert_allclose(
         beta, np.array([1.0000e-04, 5.0750e-03, 1.0050e-02, 1.5025e-02, 2.0000e-02]), rtol=0, atol=1e-5
     )
+    np.testing.assert_allclose(prod_1, np.array([0.9999, 0.9974, 0.9924, 0.9849, 0.9750]), rtol=0, atol=1e-4)
+    np.testing.assert_allclose(prod_2, np.array([0.0100, 0.0719, 0.1232, 0.1731, 0.2222]), rtol=0, atol=1e-4)
     np.testing.assert_allclose(
-        prod_1, np.array([0.9999, 0.9974, 0.9924, 0.9849, 0.9750]), rtol=0, atol=1e-4
+        post, np.array([0.0000e00, 9.8094e-05, 3.4275e-03, 7.6066e-03, 1.2141e-02]), rtol=0, atol=1e-5
     )
-    np.testing.assert_allclose(
-        prod_2, np.array([0.0100, 0.0719, 0.1232, 0.1731, 0.2222]), rtol=0, atol=1e-4
-    )
-    np.testing.assert_allclose(
-        post, np.array([0.0000e+00, 9.8094e-05, 3.4275e-03, 7.6066e-03, 1.2141e-02]), rtol=0, atol=1e-5
-    )
-    np.testing.assert_allclose(
-        sqrt_recip, np.array([1.0000, 1.0025, 1.0051, 1.0076, 1.0102]), rtol=0, atol=1e-4
-    )
+    np.testing.assert_allclose(sqrt_recip, np.array([1.0000, 1.0025, 1.0051, 1.0076, 1.0102]), rtol=0, atol=1e-4)
 
 
 def test_make_batch_noisy(LogoDataset):
@@ -53,14 +45,9 @@ def test_make_batch_noisy(LogoDataset):
     image_batch = next(iter(loader))[0]
 
     n_time_steps = 100
-    noise_schedule = ddi.VarianceSchedule(
-        beta_start_end=(0.0001, 0.02),
-        n_time_steps=n_time_steps
-    )
+    noise_schedule = ddi.VarianceSchedule(beta_start_end=(0.0001, 0.02), n_time_steps=n_time_steps)
     time_steps = torch.round(torch.linspace(0, 0.99, steps=steps_to_show) * n_time_steps).to(torch.long)
-    noisy_tensor, noise = ddi.get_noisy_batch_at_step_t(
-        image_batch, time_steps, schedule=noise_schedule
-    )
+    noisy_tensor, noise = ddi.get_noisy_batch_at_step_t(image_batch, time_steps, schedule=noise_schedule)
     mean_of_image = torch.mean(noisy_tensor[4, ...])
     mean_of_noise = torch.mean(noise[4, ...])
     torch.testing.assert_allclose(mean_of_image, 0.3498, rtol=0, atol=1e-4)
@@ -79,13 +66,11 @@ def test_values_in_noise_and_image_seem_sensible(LogoDataset):
     beta_start_end = (0.0001, 0.02)
     variance_schedule = ddi.VarianceSchedule(n_time_steps=n_time_steps, beta_start_end=beta_start_end)
     for t in range(0, n_time_steps, 30):
-        time_step = torch.full((image_batch.shape[0], ), fill_value=t)
-        noisy_tensor, noise = ddi.get_noisy_batch_at_step_t(
-            image_batch, time_step, schedule=variance_schedule
-        )
+        time_step = torch.full((image_batch.shape[0],), fill_value=t)
+        noisy_tensor, noise = ddi.get_noisy_batch_at_step_t(image_batch, time_step, schedule=variance_schedule)
         if t == 0:
             torch.testing.assert_allclose(torch.min(noisy_tensor), -1, atol=0.2, rtol=0)
-            torch.testing.assert_allclose(torch.max(noisy_tensor),  1, atol=0.2, rtol=0)
+            torch.testing.assert_allclose(torch.max(noisy_tensor), 1, atol=0.2, rtol=0)
         elif t > n_time_steps / 2:
             assert torch.min(noisy_tensor) < -2
             assert torch.max(noisy_tensor) > 2
@@ -119,9 +104,5 @@ def test_diffusion_model_runs(device: str = "cpu"):
     pseudo_batch = torch.rand((32, 3, 32, 32), device=device)
     pseudo_time_steps = torch.randint(0, 10, size=(32,), device=device)
     pseudo_labels = torch.randint(0, 9, size=(32,), device=device)
-    model = ddi.Generator(
-        3, ddi.VarianceSchedule(n_time_steps=1000, beta_start_end=(0.0001, 0.02)), 10
-    ).to(device)
+    model = ddi.Generator(3, ddi.VarianceSchedule(n_time_steps=1000, beta_start_end=(0.0001, 0.02)), 10).to(device)
     _ = model(pseudo_batch, pseudo_time_steps, pseudo_labels)
-
-

@@ -40,4 +40,3 @@ class Diffusion:
     steps: int = 1000
     var_schedule_start: float = 0.0001
     var_schedule_end: float = 0.02
-

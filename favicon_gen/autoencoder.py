@@ -11,14 +11,13 @@ import favicon_gen.params as params
 
 
 class Encoder(torch.nn.Module):
-    def __init__(
-        self, in_channels: int, embedding_dim: int, activation: torch.nn.modules.activation
-    ) -> None:
+    def __init__(self, in_channels: int, embedding_dim: int, activation: torch.nn.modules.activation) -> None:
         super().__init__()
         self.in_channels = in_channels
         self.embedding_dim = embedding_dim
         self.activation = activation
         small_kernel = {"kernel_size": 2, "padding": 0}
+        # fmt: off
         self.convs = torch.nn.ModuleList([                                          # input: in_channels x 32 x 32
             ConvBlock(in_channels, 16, resample_modus=ResampleModi.no),             # 16 x 32 x 32
             ConvBlock(16, 32, resample_modus=ResampleModi.down),                    # 32 x 16 x 16
@@ -27,6 +26,7 @@ class Encoder(torch.nn.Module):
             ConvBlock(128, 256, resample_modus=ResampleModi.down, **small_kernel),  # 256 x 2 x 2
         ])
         self.flatten = torch.nn.Flatten()                                           # 256*2*2 = 1024
+        # fmt: on
 
     def forward(self, x: torch.Tensor, label_embedding: torch.Tensor) -> torch.Tensor:
         for layer in self.convs:
@@ -41,6 +41,7 @@ class Decoder(torch.nn.Module):
     ) -> None:
         super().__init__()
         self.activation = activation
+        # fmt: off
         self.unflatten = torch.nn.Unflatten(1, batch_shape)                          # 256 x 2 x 2
         small_kernel = {"kernel_size": 2, "padding": 0}
         self.convs = torch.nn.ModuleList([
@@ -50,6 +51,7 @@ class Decoder(torch.nn.Module):
             ConvBlock(32, 16, resample_modus=ResampleModi.up),                       # 16 x 32 x 32
             ConvBlock(16, out_channels, resample_modus=ResampleModi.no),             # out_channels x 32 x 32
         ])
+        # fmt: on
         self.last_conv = torch.nn.Conv2d(out_channels, out_channels, 5, padding=2, stride=1)
         self.last_activation = torch.nn.Tanh()
 
@@ -116,14 +118,16 @@ class AutoEncoder(torch.nn.Module):
 class PatchDiscriminator(torch.nn.Module):
     def __init__(self, in_channels: int) -> None:
         super().__init__()
-        self.layers = torch.nn.ModuleList([  # input: 3 x 32 x 32
-            torch.nn.Conv2d(in_channels, 32, kernel_size=4, stride=2, padding=1),
+        # fmt: off
+        self.layers = torch.nn.ModuleList([                                             # input: 3 x 32 x 32
+            torch.nn.Conv2d(in_channels, 32, kernel_size=4, stride=2, padding=1),       # 32 x 16 x 16
             torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(32, 16, kernel_size=7, padding=3),
+            torch.nn.Conv2d(32, 16, kernel_size=7, padding=3),                          # 16 x 16 x 16
             torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(16, 8, kernel_size=5, padding=2),  # 8 x 8 x 8
+            torch.nn.Conv2d(16, 8, kernel_size=5, padding=2),                           # 8 x 16 x 16
             torch.nn.Sigmoid()
         ])
+        # fmt: on
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         for layer in self.layers:
@@ -180,7 +184,6 @@ def train(
             labels = labels.to(params.DEVICE)
             batch = batch.to(params.DEVICE)  # batch does not track gradients -> does not need to be detached ever
 
-
             optimizer_generator.zero_grad()
             reconst_batch, mu, log_var = autoencoder(batch, labels)
             kl_loss = -0.5 * torch.mean(1 + log_var - mu.pow(2) - log_var.exp())  # Kullblack Leibler loss
@@ -195,9 +198,7 @@ def train(
                 adversarial_loss = 0
                 adversarial_loss_weight = 0
             generator_loss = (
-                reconstruction_loss
-                + auto_info.kl_loss_weight * kl_loss
-                + adversarial_loss_weight * adversarial_loss
+                reconstruction_loss + auto_info.kl_loss_weight * kl_loss + adversarial_loss_weight * adversarial_loss
             )
             generator_loss.backward()
             optimizer_generator.step()
@@ -207,9 +208,8 @@ def train(
                 disc_pred_original = patch_disc(batch)
                 reconst_batch, _, _ = autoencoder(batch, labels)
                 disc_pred_reconstructed = patch_disc(reconst_batch.detach())
-                disc_loss = (
-                    torch.nn.L1Loss()(disc_pred_original, is_original)
-                    + torch.nn.L1Loss()(disc_pred_reconstructed, is_reconstructed)
+                disc_loss = torch.nn.L1Loss()(disc_pred_original, is_original) + torch.nn.L1Loss()(
+                    disc_pred_reconstructed, is_reconstructed
                 )
                 disc_loss.backward()
                 optimizer_discriminator.step()
@@ -239,8 +239,4 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    train(
-        dataset_info=params.Dataset(),
-        auto_info=params.AutoEncoder(),
-        use_mnist=args.use_mnist
-    )
+    train(dataset_info=params.Dataset(), auto_info=params.AutoEncoder(), use_mnist=args.use_mnist)

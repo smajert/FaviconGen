@@ -23,5 +23,3 @@ def test_patch_discriminator_model_run(device: str = "cpu"):
     pseudo_batch = torch.rand((32, 3, 32, 32), device=device)
     model = ate.PatchDiscriminator(3).to(device)
     _ = model(pseudo_batch)
-
-
