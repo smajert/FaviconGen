@@ -5,7 +5,6 @@ import random
 import torch
 
 from favicon_gen.data_loading import LargeLogoDataset, show_image_grid
-import favicon_gen.params as params
 import favicon_gen.denoising_diffusion as ddi
 
 

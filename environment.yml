@@ -1,0 +1,22 @@
+name: favicon_gen
+
+channels:
+  - pytorch
+  - nvidia
+  - defaults
+
+dependencies:
+  - black=23
+  - flake8=6
+  - h5py
+  - matplotlib
+  - numpy
+  - pip
+  - pylint
+  - pytest
+  - python>=3.10
+  - pytorch-cuda=11.7
+  - tqdm
+  - pytorch
+  - torchaudio
+  - torchvision

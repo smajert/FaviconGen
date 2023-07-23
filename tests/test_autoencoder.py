@@ -5,6 +5,10 @@ import torch
 import favicon_gen.autoencoder as ate
 
 
+def test_gpu_available():
+    assert torch.cuda.is_available()
+
+
 def test_autoencoder_model_runs(device: str = "cpu"):
     torch.random.manual_seed(0)
     random.seed(0)

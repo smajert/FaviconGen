@@ -73,7 +73,7 @@ stages:
     params:
       favicon_gen/params.py:
         AutoEncoder:
-          adversarial_loss_weight: 1.0
+          adversarial_loss_weight:
           batch_size: 512
           epochs_mnist: 35
           epochs_lld: 350
@@ -91,11 +91,11 @@ stages:
     outs:
     - path: outs/train_autoencoder_lld/loss.csv
       hash: md5
-      md5: 70062140077a9864caa1b5f568889bf9
-      size: 8261
+      md5: bbf9c041da0835f72e4e614961854229
+      size: 8452
     - path: outs/train_autoencoder_lld/model.pt
       hash: md5
-      md5: f428aba5fbb2cf192dea6adb5695cd23
+      md5: 8925d37d6952691ad2c82e0985cf2197
       size: 18708753
   train_autoencoder_mnist:
     cmd: python favicon_gen/autoencoder.py --use_mnist
@@ -107,7 +107,7 @@ stages:
     params:
       favicon_gen/params.py:
         AutoEncoder:
-          adversarial_loss_weight: 1.0
+          adversarial_loss_weight:
           batch_size: 512
           epochs_mnist: 35
           epochs_lld: 350
@@ -125,11 +125,11 @@ stages:
     outs:
     - path: outs/train_autoencoder_mnist/loss.csv
       hash: md5
-      md5: 2c2c80e8eccc356a5ea72aac78d26889
-      size: 803
+      md5: 179a7db6aac9516c55c995db042d7539
+      size: 833
     - path: outs/train_autoencoder_mnist/model.pt
       hash: md5
-      md5: 5c5fd4a03384e6fedaae6879650ccd1c
+      md5: 47b371e84606e9e1b6768b678be58c96
       size: 18705937
   draw_samples_mnist:
     cmd: python favicon_gen/sample_from_model.py --use_mnist --use_gpu --n_samples
@@ -137,7 +137,7 @@ stages:
     deps:
     - path: outs/train_autoencoder_mnist/model.pt
       hash: md5
-      md5: 5c5fd4a03384e6fedaae6879650ccd1c
+      md5: 47b371e84606e9e1b6768b678be58c96
       size: 18705937
     - path: outs/train_diffusion_model_mnist/model.pt
       hash: md5
@@ -148,7 +148,7 @@ stages:
     deps:
     - path: outs/train_autoencoder_lld/model.pt
       hash: md5
-      md5: f428aba5fbb2cf192dea6adb5695cd23
+      md5: 8925d37d6952691ad2c82e0985cf2197
       size: 18708753
     - path: outs/train_diffusion_model_lld/model.pt
       hash: md5
