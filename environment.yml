@@ -10,6 +10,7 @@ dependencies:
   - flake8=6
   - h5py
   - matplotlib
+  - mypy
   - numpy
   - pip
   - pylint

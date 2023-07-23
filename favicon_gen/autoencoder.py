@@ -1,6 +1,11 @@
+"""
+Variational Autoencoder (VAE) with optional patch GAN
+"""
+
 import argparse
 from pathlib import Path
 import shutil
+from typing import Any  # noqa: F401
 
 import torch
 from tqdm import tqdm
@@ -11,12 +16,12 @@ import favicon_gen.params as params
 
 
 class Encoder(torch.nn.Module):
-    def __init__(self, in_channels: int, embedding_dim: int, activation: torch.nn.modules.activation) -> None:
+    def __init__(self, in_channels: int, embedding_dim: int, activation: torch.nn.modules.module.Module) -> None:
         super().__init__()
         self.in_channels = in_channels
         self.embedding_dim = embedding_dim
         self.activation = activation
-        small_kernel = {"kernel_size": 2, "padding": 0}
+        small_kernel = {"kernel_size": 2, "padding": 0}  # type: Any
         # fmt: off
         self.convs = torch.nn.ModuleList([                                          # input: in_channels x 32 x 32
             ConvBlock(in_channels, 16, resample_modus=ResampleModi.no),             # 16 x 32 x 32
@@ -37,13 +42,13 @@ class Encoder(torch.nn.Module):
 
 class Decoder(torch.nn.Module):
     def __init__(
-        self, out_channels: int, batch_shape: tuple[int, ...], activation: torch.nn.modules.activation
+        self, out_channels: int, batch_shape: tuple[int, ...], activation: torch.nn.modules.module.Module
     ) -> None:
         super().__init__()
         self.activation = activation
         # fmt: off
         self.unflatten = torch.nn.Unflatten(1, batch_shape)                          # 256 x 2 x 2
-        small_kernel = {"kernel_size": 2, "padding": 0}
+        small_kernel = {"kernel_size": 2, "padding": 0}  # type: Any
         self.convs = torch.nn.ModuleList([
             ConvBlock(256, 128, resample_modus=ResampleModi.up, **small_kernel),     # 128 x 4 x 4
             ConvBlock(128, 64, resample_modus=ResampleModi.up, **small_kernel),      # 64 x 8 x 8

@@ -96,7 +96,7 @@ def nearest_neighbor_search(
     for single_image, _ in tqdm(data_loader, desc="Searching dataset for nearest neighbors..."):
         single_image = single_image.to(generated_batch.device)
         # single_image is broadcast along batch dimension
-        distances = torch.sum(torch.abs(single_image - generated_batch), axis=(1, 2, 3))
+        distances = torch.sum(torch.abs(single_image - generated_batch), dim=(1, 2, 3))
         diffs = distances - current_nearest_neighbor_distances
         closer_neighbor_idxs = diffs < 0  # idx where the current image is a closer neighbor than the current one
         current_nearest_neighbor_distances[closer_neighbor_idxs] = distances[closer_neighbor_idxs]

@@ -1,4 +1,5 @@
 from enum import Enum, auto
+from typing import Any  # noqa: F401
 
 import numpy as np
 import torch
@@ -25,7 +26,7 @@ class ConvBlock(torch.nn.Module):
         self,
         channels_in: int,
         channels_out: int,
-        activation: torch.nn.modules.activation = torch.nn.LeakyReLU(),
+        activation: torch.nn.modules.module.Module = torch.nn.LeakyReLU(),
         resample_modus: ResampleModi = ResampleModi.no,
         kernel_size: int = 4,
         padding: int = 1,
@@ -36,7 +37,9 @@ class ConvBlock(torch.nn.Module):
         embedding_dimension = params.EMBEDDING_DIM
         norm_fn = torch.nn.LazyBatchNorm2d if params.DO_NORM else torch.nn.Identity
 
-        conv_conf = {"kernel_size": kernel_size, "padding": padding, "stride": 2}
+        self.conv_in: torch.nn.Conv2d | torch.nn.Identity
+        self.conv_out: torch.nn.ConvTranspose2d | torch.nn.Identity
+        conv_conf = {"kernel_size": kernel_size, "padding": padding, "stride": 2}  # type: Any
         match resample_modus:
             case ResampleModi.up:
                 self.conv_in = torch.nn.Identity()

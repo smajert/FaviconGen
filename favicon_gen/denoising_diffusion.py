@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import math
 from pathlib import Path
 import shutil
+from typing import Any  # noqa: F401
 
 import numpy as np
 import torch
@@ -110,7 +111,7 @@ class Generator(torch.nn.Module):
         )
 
         self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
-        small = {"kernel_size": 2, "padding": 0}
+        small = {"kernel_size": 2, "padding": 0}  # type: Any
         # fmt: off
         self.layers = torch.nn.ModuleList([                                         # input: in_channels x 32 x 32
             ConvBlock(in_channels, 32, resample_modus=ResampleModi.no),             # 0: 32 x 32 x 32

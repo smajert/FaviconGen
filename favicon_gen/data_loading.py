@@ -8,7 +8,8 @@ import h5py
 from matplotlib import pyplot as plt
 import numpy as np
 from torch import Tensor
-from torch.utils.data import ConcatDataset, Dataset, DataLoader, Subset
+from torch.utils.data import Dataset, DataLoader, Subset
+from torch.utils.data.dataset import ConcatDataset  # noqa: F401
 from torchvision import datasets, transforms, utils
 
 import favicon_gen.params as params
@@ -53,8 +54,6 @@ class LargeLogoDataset(Dataset):
         cluster_type: ClusterMethod = ClusterMethod.ae_grayscale,
     ) -> None:
         self.transform = FORWARD_TRANSFORMS
-        self.images = None
-        self.image_labels = None
         self.selected_clusters = clusters
 
         with h5py.File(hdf5_file_location) as file:
@@ -74,7 +73,7 @@ class LargeLogoDataset(Dataset):
             else:
                 stacked_images = stacked_images[()]
                 self.image_labels = image_clusters
-            self.images = [
+            self.images = [  # pytorch needs channel dimension first
                 np.swapaxes(np.squeeze(arr), 0, -1) for arr in np.split(stacked_images, stacked_images.shape[0], axis=0)
             ]
 
@@ -113,7 +112,7 @@ def load_mnist(batch_size: int, shuffle: bool, n_images: int | None) -> tuple[in
     mnist_test = datasets.MNIST(
         tempfile.gettempdir() / Path("MNIST"), train=False, transform=data_transform, download=True
     )
-    mnist = ConcatDataset([mnist_train, mnist_test])
+    mnist = ConcatDataset([mnist_train, mnist_test])  # type: ConcatDataset
 
     if n_images is not None:
         if n_images > len(mnist):
