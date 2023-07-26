@@ -8,10 +8,10 @@ import favicon_gen.params as params
 
 
 class ResampleModi(Enum):
-    up = auto()
-    down = auto()
-    down_and_up = auto()
-    no = auto()
+    UP = auto()
+    DOWN = auto()
+    DOWN_AND_UP = auto()
+    NO = auto()
 
 
 class ConvBlock(torch.nn.Module):
@@ -27,7 +27,7 @@ class ConvBlock(torch.nn.Module):
         channels_in: int,
         channels_out: int,
         activation: torch.nn.modules.module.Module = torch.nn.LeakyReLU(),
-        resample_modus: ResampleModi = ResampleModi.no,
+        resample_modus: ResampleModi = ResampleModi.NO,
         kernel_size: int = 4,
         padding: int = 1,
     ) -> None:
@@ -41,19 +41,19 @@ class ConvBlock(torch.nn.Module):
         self.conv_out: torch.nn.ConvTranspose2d | torch.nn.Identity
         conv_conf = {"kernel_size": kernel_size, "padding": padding, "stride": 2}  # type: Any
         match resample_modus:
-            case ResampleModi.up:
+            case ResampleModi.UP:
                 self.conv_in = torch.nn.Identity()
                 self.conv_out = torch.nn.ConvTranspose2d(channels_in, channels_out, **conv_conf)
                 channels_non_transform_conv = ((channels_in, channels_in), (channels_in, channels_in))
-            case ResampleModi.down:
+            case ResampleModi.DOWN:
                 self.conv_in = torch.nn.Conv2d(channels_in, channels_in, **conv_conf)
                 self.conv_out = torch.nn.Identity()
                 channels_non_transform_conv = ((channels_in, channels_out), (channels_out, channels_out))
-            case ResampleModi.down_and_up:
+            case ResampleModi.DOWN_AND_UP:
                 self.conv_in = torch.nn.Conv2d(channels_in, channels_in, **conv_conf)
                 self.conv_out = torch.nn.ConvTranspose2d(2 * channels_in, channels_out, **conv_conf)
                 channels_non_transform_conv = ((channels_in, 2 * channels_in), (2 * channels_in, 2 * channels_in))
-            case ResampleModi.no:
+            case ResampleModi.NO:
                 self.conv_in = torch.nn.Identity()
                 self.conv_out = torch.nn.Identity()
                 channels_non_transform_conv = ((channels_in, channels_out), (channels_out, channels_out))
@@ -67,7 +67,7 @@ class ConvBlock(torch.nn.Module):
             )
 
     def forward(self, x: torch.Tensor, time_step_emb: torch.Tensor | None = None) -> torch.Tensor:
-        if self.resample_modus in (ResampleModi.down, ResampleModi.down_and_up):
+        if self.resample_modus in (ResampleModi.DOWN, ResampleModi.DOWN_AND_UP):
             x = self.activation(self.conv_in(x))
 
         if time_step_emb is not None:
@@ -77,7 +77,7 @@ class ConvBlock(torch.nn.Module):
         for layer in self.non_transform_layers:
             x = layer(x)
 
-        if self.resample_modus in (ResampleModi.up, ResampleModi.down_and_up):
+        if self.resample_modus in (ResampleModi.UP, ResampleModi.DOWN_AND_UP):
             x = self.activation(self.conv_out(x))
 
         return x

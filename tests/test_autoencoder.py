@@ -14,7 +14,7 @@ def test_autoencoder_model_runs(device: str = "cpu"):
     random.seed(0)
     pseudo_batch = torch.rand((32, 3, 32, 32), device=device)
     pseudo_labels = torch.randint(0, 9, size=(32,), device=device)
-    model = ate.AutoEncoder(3, 32).to(device)
+    model = ate.VariationalAutoEncoder(3, 32).to(device)
     _ = model(pseudo_batch, pseudo_labels)[0]
 
 

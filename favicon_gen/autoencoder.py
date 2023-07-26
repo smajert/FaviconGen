@@ -12,23 +12,28 @@ from tqdm import tqdm
 
 from favicon_gen.blocks import ConvBlock, ResampleModi
 from favicon_gen.data_loading import load_logos, load_mnist, show_image_grid, get_number_of_different_labels
-import favicon_gen.params as params
+from favicon_gen import params
 
 
 class Encoder(torch.nn.Module):
-    def __init__(self, in_channels: int, embedding_dim: int, activation: torch.nn.modules.module.Module) -> None:
+    """
+    Encoder part of the VAE. Brings images into the latent dimension.
+
+    :param in_channels: Amount of input channels (1 for grayscale MNIST, 3 for color LLD)
+    :param activation: Activation function to use e.g. torch.nn.ReLU()
+    """
+    def __init__(self, in_channels: int, activation: torch.nn.modules.module.Module) -> None:
         super().__init__()
         self.in_channels = in_channels
-        self.embedding_dim = embedding_dim
         self.activation = activation
         small_kernel = {"kernel_size": 2, "padding": 0}  # type: Any
         # fmt: off
         self.convs = torch.nn.ModuleList([                                          # input: in_channels x 32 x 32
-            ConvBlock(in_channels, 16, resample_modus=ResampleModi.no),             # 16 x 32 x 32
-            ConvBlock(16, 32, resample_modus=ResampleModi.down),                    # 32 x 16 x 16
-            ConvBlock(32, 64, resample_modus=ResampleModi.down),                    # 64 x 8 x 8
-            ConvBlock(64, 128, resample_modus=ResampleModi.down, **small_kernel),   # 128 x 4 x 4
-            ConvBlock(128, 256, resample_modus=ResampleModi.down, **small_kernel),  # 256 x 2 x 2
+            ConvBlock(in_channels, 16, resample_modus=ResampleModi.NO),             # 16 x 32 x 32
+            ConvBlock(16, 32, resample_modus=ResampleModi.DOWN),                    # 32 x 16 x 16
+            ConvBlock(32, 64, resample_modus=ResampleModi.DOWN),                    # 64 x 8 x 8
+            ConvBlock(64, 128, resample_modus=ResampleModi.DOWN, **small_kernel),   # 128 x 4 x 4
+            ConvBlock(128, 256, resample_modus=ResampleModi.DOWN, **small_kernel),  # 256 x 2 x 2
         ])
         self.flatten = torch.nn.Flatten()                                           # 256*2*2 = 1024
         # fmt: on
@@ -41,20 +46,27 @@ class Encoder(torch.nn.Module):
 
 
 class Decoder(torch.nn.Module):
+    """
+    Decoder part of the VAE. Generates images from a latent
+
+    :param out_channels: Amount of channels in output (1 for grayscale MNIST, 3 for color LLD)
+    :param encoder_out_shape: Original shape of encoder output
+    :param activation: Activation function to use e.g. torch.nn.ReLU()
+    """
     def __init__(
-        self, out_channels: int, batch_shape: tuple[int, ...], activation: torch.nn.modules.module.Module
+        self, out_channels: int, encoder_out_shape: tuple[int, ...], activation: torch.nn.modules.module.Module
     ) -> None:
         super().__init__()
         self.activation = activation
         # fmt: off
-        self.unflatten = torch.nn.Unflatten(1, batch_shape)                          # 256 x 2 x 2
+        self.unflatten = torch.nn.Unflatten(1, encoder_out_shape)                    # 256 x 2 x 2
         small_kernel = {"kernel_size": 2, "padding": 0}  # type: Any
         self.convs = torch.nn.ModuleList([
-            ConvBlock(256, 128, resample_modus=ResampleModi.up, **small_kernel),     # 128 x 4 x 4
-            ConvBlock(128, 64, resample_modus=ResampleModi.up, **small_kernel),      # 64 x 8 x 8
-            ConvBlock(64, 32, resample_modus=ResampleModi.up),                       # 32 x 16 x 16
-            ConvBlock(32, 16, resample_modus=ResampleModi.up),                       # 16 x 32 x 32
-            ConvBlock(16, out_channels, resample_modus=ResampleModi.no),             # out_channels x 32 x 32
+            ConvBlock(256, 128, resample_modus=ResampleModi.UP, **small_kernel),     # 128 x 4 x 4
+            ConvBlock(128, 64, resample_modus=ResampleModi.UP, **small_kernel),      # 64 x 8 x 8
+            ConvBlock(64, 32, resample_modus=ResampleModi.UP),                       # 32 x 16 x 16
+            ConvBlock(32, 16, resample_modus=ResampleModi.UP),                       # 16 x 32 x 32
+            ConvBlock(16, out_channels, resample_modus=ResampleModi.NO),             # out_channels x 32 x 32
         ])
         # fmt: on
         self.last_conv = torch.nn.Conv2d(out_channels, out_channels, 5, padding=2, stride=1)
@@ -68,7 +80,13 @@ class Decoder(torch.nn.Module):
         return self.last_activation(x)
 
 
-class AutoEncoder(torch.nn.Module):
+class VariationalAutoEncoder(torch.nn.Module):
+    """
+    Variational Autoencoder (VAE) for MNIST or LLD.
+
+    :param in_channels: Amount of channels in input (1 for grayscale MNIST, 3 for color LLD)
+    :param n_labels: Amount of different labels in the data (e.g. 10 for the 10 different digits in MNIST)
+    """
     def __init__(self, in_channels: int, n_labels: int) -> None:
         super().__init__()
         self.latent_dim = 512
@@ -76,35 +94,39 @@ class AutoEncoder(torch.nn.Module):
         embedding_dim = params.EMBEDDING_DIM
         self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
 
-        self.encoder = Encoder(in_channels, embedding_dim, self.activation)
-        flattened_dimension = 256 * 2 * 2
+        self.encoder = Encoder(in_channels, self.activation)
+        encoder_output_shape = (256, 2, 2)
+        flattened_dimension = encoder_output_shape[0] * encoder_output_shape[1] * encoder_output_shape[2]
         self.to_latent = torch.nn.Linear(flattened_dimension, self.latent_dim)
         self.to_mu = torch.nn.Linear(self.latent_dim, self.latent_dim)
         self.to_log_var = torch.nn.Linear(self.latent_dim, self.latent_dim)
         self.from_latent = torch.nn.Linear(self.latent_dim, flattened_dimension)
 
-        self.decoder = Decoder(in_channels, (256, 2, 2), self.activation)
+        self.decoder = Decoder(in_channels, encoder_output_shape, self.activation)
 
     def _reparameterize(self, mu, log_var):
         """
-        :param mu: mean from the encoder's latent space
-        :param log_var: log variance from the encoder's latent space
+        Apply reparameterization trick to latent.
+
+        :param mu: Latent variables representing mean of the distribution
+        :param log_var: Latent variables representing the nat. logarithm of the distribution's variance
         """
-        std = torch.exp(0.5 * log_var)  # standard deviation
-        eps = torch.randn_like(std)  # `randn_like` as we need the same size
-        sample = mu + (eps * std)  # sampling
+        std = torch.exp(0.5 * log_var)
+        eps = torch.randn_like(std)
+        sample = mu + (eps * std)
         return sample
 
     def convert_to_latent(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Bring output from encoder into requested latent dimension"""
         z = self.activation(self.to_latent(x))
 
-        # get `mu` and `log_var`
         mu = self.to_mu(z)
         log_var = self.to_log_var(z)
         z = self._reparameterize(mu, log_var)
         return z, mu, log_var
 
     def convert_from_latent(self, z: torch.Tensor) -> torch.Tensor:
+        """Enlarge tensor from the latent dimension to the size expected by the decoder"""
         x = self.activation(self.from_latent(z))
         return x
 
@@ -121,6 +143,13 @@ class AutoEncoder(torch.nn.Module):
 
 
 class PatchDiscriminator(torch.nn.Module):
+    """
+    Small discriminator that can be used as an adversary to the VAE.
+    The low amount of parameters seems to improve image output when used
+    with the VAE.
+
+    :param in_channels: Amount of channels in input (1 for grayscale MNIST, 3 for color LLD)
+    """
     def __init__(self, in_channels: int) -> None:
         super().__init__()
         # fmt: off
@@ -146,6 +175,14 @@ def train(
     use_mnist: bool,
     model_file: Path | None = None,
 ) -> None:
+    """
+    Training loop for VAE or VAE + adversarial patch discriminator.
+
+    :param dataset_info: Dataset parameters
+    :param auto_info: Model parameters
+    :param use_mnist: Whether to use MNIST (`True`) or LLD (`False`) as training data
+    :param model_file: If given, will start from the model saved there
+    """
     if use_mnist:
         n_samples, data_loader = load_mnist(auto_info.batch_size, dataset_info.shuffle, dataset_info.n_images)
         n_epochs = auto_info.epochs_mnist
@@ -169,11 +206,12 @@ def train(
     if use_patch_discriminator:
         patch_disc = PatchDiscriminator(in_channels)
         patch_disc.to(params.DEVICE)
-        optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=0.1 * auto_info.learning_rate)
+        lower_disc_learning_rate = 0.1 * auto_info.learning_rate  # lower rate helps in GAN training
+        optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=lower_disc_learning_rate)
 
     # prepare autoencoder
     n_labels = get_number_of_different_labels(use_mnist, dataset_info.clusters)
-    autoencoder = AutoEncoder(in_channels, n_labels)
+    autoencoder = VariationalAutoEncoder(in_channels, n_labels)
     if model_file is not None:
         autoencoder.load_state_dict(torch.load(model_file))
     autoencoder.to(params.DEVICE)
@@ -185,13 +223,14 @@ def train(
     value_for_original = torch.tensor([1], device=params.DEVICE, dtype=torch.float)
     value_for_reconstructed = torch.tensor([0], device=params.DEVICE, dtype=torch.float)
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
-        for batch_idx, (batch, labels) in enumerate(data_loader):
+        batch: torch.Tensor
+        for batch, labels in data_loader:
             labels = labels.to(params.DEVICE)
             batch = batch.to(params.DEVICE)  # batch does not track gradients -> does not need to be detached ever
 
             optimizer_generator.zero_grad()
             reconst_batch, mu, log_var = autoencoder(batch, labels)
-            kl_loss = -0.5 * torch.mean(1 + log_var - mu.pow(2) - log_var.exp())  # Kullblack Leibler loss
+            kl_loss = -0.5 * torch.mean(1 + log_var - mu.pow(2) - log_var.exp())  # Kullback Leibler loss
             reconstruction_loss = loss_fn(reconst_batch, batch)
             if use_patch_discriminator:
                 disc_pred_reconstructed = patch_disc(reconst_batch)
@@ -231,7 +270,7 @@ def train(
     print(f"Saving model in directory {model_storage_directory} ...")
     torch.save(autoencoder.state_dict(), model_storage_directory / "model.pt")
 
-    with open(model_storage_directory / "loss.csv", "w") as file:
+    with open(model_storage_directory / "loss.csv", "w", encoding="utf-8") as file:
         file.write("Epoch,Loss\n")
         for epoch, loss in enumerate(running_losses):
             file.write(f"{epoch},{loss}\n")

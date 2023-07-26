@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 import torch
 from tqdm import tqdm
 
-from favicon_gen.autoencoder import AutoEncoder
+from favicon_gen.autoencoder import VariationalAutoEncoder
 from favicon_gen.data_loading import show_image_grid, load_logos, load_mnist, get_number_of_different_labels
 from favicon_gen.denoising_diffusion import Generator, draw_sample_from_generator, VarianceSchedule
 import favicon_gen.params as params
@@ -16,7 +16,7 @@ import favicon_gen.params as params
 def sample_from_autoencoder_model(
     model_file: Path, n_labels: int, in_channels: int, n_samples: int, device: str, save_as: Path | None = None
 ) -> typing.Generator[torch.Tensor, None, None]:
-    autoencoder = AutoEncoder(in_channels, n_labels)
+    autoencoder = VariationalAutoEncoder(in_channels, n_labels)
     autoencoder.load_state_dict(torch.load(model_file))
     autoencoder.eval()
     autoencoder.to(device)
