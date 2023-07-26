@@ -1,13 +1,19 @@
+"""
+Some basic building blocks used for both the variational
+autoencoder and the diffusion model.
+"""
+
 from enum import Enum, auto
 from typing import Any  # noqa: F401
 
 import numpy as np
 import torch
 
-import favicon_gen.params as params
+from favicon_gen import params
 
 
 class ResampleModi(Enum):
+    """Possible resampling modi for convolutional block"""
     UP = auto()
     DOWN = auto()
     DOWN_AND_UP = auto()
@@ -16,10 +22,16 @@ class ResampleModi(Enum):
 
 class ConvBlock(torch.nn.Module):
     """
-    Simple convolutional block, adding `n_non_transform_conv_layers` before
-    a conv layer that reduces/increases width and height by a factor of two, depending
-    on whether `do_transpose` is set or not.
+    Simple convolutional block. Depending on `resample_modus`, will downsample the tensor,
+    upsample the tensor, both (first downsampling then upsampling) or neither.
 
+    :param channels_in: Amount of channels before the convolution block
+    :param channels_out: Amount of channels after the convolution block
+    :param activation: Activation function to use (e.g. torch.nn.ReLU())
+    :param resample_modus: Add or remove strided convolutions based on whether
+        up- or downsampling is desired
+    :param kernel_size: Kernel size of strided convolutions; ignored when not resampling
+    :param padding: Padding of the strided convlutions; ignored when not resampling
     """
 
     def __init__(

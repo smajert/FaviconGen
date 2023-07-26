@@ -50,8 +50,8 @@ def test_make_batch_noisy(LogoDataset):
     noisy_tensor, noise = ddi.get_noisy_batch_at_step_t(image_batch, time_steps, schedule=noise_schedule)
     mean_of_image = torch.mean(noisy_tensor[4, ...])
     mean_of_noise = torch.mean(noise[4, ...])
-    torch.testing.assert_allclose(mean_of_image, 0.3498, rtol=0, atol=1e-4)
-    torch.testing.assert_allclose(mean_of_noise, 0.0187, rtol=0, atol=1e-4)
+    torch.testing.assert_close(mean_of_image, torch.tensor(0.3498), rtol=0, atol=1e-4)
+    torch.testing.assert_close(mean_of_noise, torch.tensor(0.0187), rtol=0, atol=1e-4)
 
     do_plot = False
     if do_plot:
@@ -69,8 +69,8 @@ def test_values_in_noise_and_image_seem_sensible(LogoDataset):
         time_step = torch.full((image_batch.shape[0],), fill_value=t)
         noisy_tensor, noise = ddi.get_noisy_batch_at_step_t(image_batch, time_step, schedule=variance_schedule)
         if t == 0:
-            torch.testing.assert_allclose(torch.min(noisy_tensor), -1, atol=0.2, rtol=0)
-            torch.testing.assert_allclose(torch.max(noisy_tensor), 1, atol=0.2, rtol=0)
+            torch.testing.assert_close(torch.min(noisy_tensor), torch.tensor(-1.), atol=0.2, rtol=0)
+            torch.testing.assert_close(torch.max(noisy_tensor), torch.tensor(1.), atol=0.2, rtol=0)
         elif t > n_time_steps / 2:
             assert torch.min(noisy_tensor) < -2
             assert torch.max(noisy_tensor) > 2
@@ -80,7 +80,7 @@ def test_position_embeddings():
     time = torch.arange(0, 100, device="cpu")
     embedder = ddi.SinusoidalPositionEmbeddings(512)
     embeddings = embedder(time)
-    torch.testing.assert_allclose(torch.mean(embeddings), 0.3579, rtol=0, atol=1e-4)
+    torch.testing.assert_close(torch.mean(embeddings), torch.tensor(0.3579), rtol=0, atol=1e-4)
 
     do_plot = False
     if do_plot:
