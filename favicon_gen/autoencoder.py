@@ -190,7 +190,7 @@ def train(
         in_channels = 1
     else:
         n_samples, data_loader = load_logos(
-            auto_info.batch_size, dataset_info.shuffle, dataset_info.n_images, clusters=dataset_info.clusters
+            auto_info.batch_size, dataset_info.shuffle, dataset_info.n_images, clusters=dataset_info.specific_clusters
         )
         n_epochs = auto_info.epochs_lld
         model_storage_directory = params.OUTS_BASE_DIR / "train_autoencoder_lld"
@@ -210,7 +210,7 @@ def train(
         optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=lower_disc_learning_rate)
 
     # prepare autoencoder
-    n_labels = get_number_of_different_labels(use_mnist, dataset_info.clusters)
+    n_labels = get_number_of_different_labels(use_mnist, dataset_info.specific_clusters)
     autoencoder = VariationalAutoEncoder(in_channels, n_labels)
     if model_file is not None:
         autoencoder.load_state_dict(torch.load(model_file))

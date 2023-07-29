@@ -136,7 +136,7 @@ def main():
         save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion_lld.pdf"
 
     in_channels = 1 if args.use_mnist else 3
-    n_labels = get_number_of_different_labels(args.use_mnist, params.Dataset.clusters)
+    n_labels = get_number_of_different_labels(args.use_mnist, params.Dataset.specific_clusters)
 
     auto_gen_batch = next(
         sample_from_autoencoder_model(
@@ -153,7 +153,7 @@ def main():
         auto_gen_batch,
         params.Dataset.n_images,
         args.use_mnist,
-        params.Dataset.clusters,
+        params.Dataset.specific_clusters,
         save_as=params.OUTS_BASE_DIR / f"auto_nearest_neighbors_mnist_{args.use_mnist}.pdf",
     )
 
@@ -161,7 +161,7 @@ def main():
         diffusion_gen_batch,
         params.Dataset.n_images,
         args.use_mnist,
-        params.Dataset.clusters,
+        params.Dataset.specific_clusters,
         save_as=params.OUTS_BASE_DIR / f"diffusion_nearest_neighbors_mnist_{args.use_mnist}.pdf",
     )
 

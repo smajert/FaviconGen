@@ -1,7 +1,11 @@
+"""
+Loading MNIST or Large Logo Dataset (LLD);
+see [2] for more details on LLD.
+"""
+
 from enum import Enum
 from pathlib import Path
 import tempfile
-from typing import Any
 import warnings
 
 import h5py
@@ -12,9 +16,8 @@ from torch.utils.data import Dataset, DataLoader, Subset
 from torch.utils.data.dataset import ConcatDataset  # noqa: F401
 from torchvision import datasets, transforms, utils
 
-import favicon_gen.params as params
+from favicon_gen import params
 
-pytorch_transforms = Any
 
 FORWARD_TRANSFORMS = transforms.Compose(
     [transforms.ToTensor(), transforms.Lambda(lambda t: (t * 2) - 1)]  # Scale between [-1, 1]
@@ -23,15 +26,17 @@ FORWARD_TRANSFORMS = transforms.Compose(
 BACKWARD_TRANSFORMS = transforms.Compose(
     [transforms.Lambda(lambda t: (t + 1) / 2), transforms.ToPILImage()]  # Undo scaling between [-1, 1]
 )
-# For explanation of clustering methods and process see:
-# [2] A. Sage, E. Agustsson, R. Timofte, and L. Van Gool,
-#    “Logo Synthesis and Manipulation with Clustered Generative Adversarial Networks,”
-#     in 2018 IEEE/CVF Conference on Computer Vision and Pattern Recognition, Jun. 2018,
-#     pp. 5879–5888. doi: 10.1109/CVPR.2018.00616.
+# For explanation of clustering methods and process see [2]
 ClusterMethod = Enum("ClusterMethod", ["ae_grayscale", "rc_32", "rc_64", "rc_128"])
 
 
 def show_image_grid(tensor: Tensor, save_as: Path | None = None) -> None:
+    """
+    Visualize a batch as a grid of single images.
+
+    :param tensor: [n_images, n_channels, height, width] - batch to visualize
+    :param save_as: If given, plot will be saved here.
+    """
     img_grid = utils.make_grid(tensor)
     img_grid = BACKWARD_TRANSFORMS(img_grid.detach())
 
@@ -46,6 +51,17 @@ def show_image_grid(tensor: Tensor, save_as: Path | None = None) -> None:
 
 
 class LargeLogoDataset(Dataset):
+    """
+    Load the Large Logo Dataset described in [2].
+    You can download the LLD-icon.hdf5 file from
+    here: https://data.vision.ee.ethz.ch/sagea/lld/
+
+    :param hdf5_file_location: Location of the LLD-icon.hdf5 file
+    :param n_images: Amount of images to load, default loads all available
+    :param clusters: Only load images of the given clusters (see [2] for details on cluster).
+        By default, all images are loaded.
+    :param cluster_type: Which cluster method to use. See [2] for details.
+    """
     def __init__(
         self,
         hdf5_file_location: Path,
@@ -92,6 +108,17 @@ class LargeLogoDataset(Dataset):
 def load_logos(
     batch_size: int, shuffle: bool, n_images: int | None, clusters: list[int] | None = None
 ) -> tuple[int, DataLoader]:
+    """
+    Convenience function for loading LLD logos.
+
+    :param batch_size: How many images the returned `DataLoader` should provide in at once (i.e.
+        as one batch)
+    :param shuffle: Whether the returned `DataLoader` shuffles the data
+    :param n_images: Amount of images to load, default loads all available
+    :param clusters: Only load images of the given clusters (see [2] for details on cluster).
+        By default, all images are loaded.
+    :return: Amount of images loaded (useful when loading all images) and DataLoader for LLD
+    """
     dataset_location = params.DATA_BASE_DIR / "LLD-icon.hdf5"
     logos = LargeLogoDataset(dataset_location, clusters=clusters, n_images=n_images)
     loader = DataLoader(logos, batch_size=batch_size, shuffle=shuffle)
@@ -101,6 +128,15 @@ def load_logos(
 
 
 def load_mnist(batch_size: int, shuffle: bool, n_images: int | None) -> tuple[int, DataLoader]:
+    """
+    Convenience function for loading MNIST digits
+
+    :param batch_size: How many images the returned `DataLoader` should provide at once (i.e.
+        as one batch)
+    :param shuffle: Whether the returned `DataLoader` shuffles the data
+    :param n_images: Amount of images to load, default loads all available
+    :return: Amount of images loaded (useful when loading all images) and DataLoader for MNIST
+    """
     data_transforms = [
         transforms.Resize((32, 32)),
         transforms.ToTensor(),  # Scales data into [0,1]
@@ -108,9 +144,9 @@ def load_mnist(batch_size: int, shuffle: bool, n_images: int | None) -> tuple[in
     ]
     data_transform = transforms.Compose(data_transforms)
 
-    mnist_train = datasets.MNIST(tempfile.gettempdir() / Path("MNIST"), transform=data_transform, download=True)
+    mnist_train = datasets.MNIST(str(tempfile.gettempdir() / Path("MNIST")), transform=data_transform, download=True)
     mnist_test = datasets.MNIST(
-        tempfile.gettempdir() / Path("MNIST"), train=False, transform=data_transform, download=True
+        str(tempfile.gettempdir() / Path("MNIST")), train=False, transform=data_transform, download=True
     )
     mnist = ConcatDataset([mnist_train, mnist_test])  # type: ConcatDataset
 
@@ -119,16 +155,24 @@ def load_mnist(batch_size: int, shuffle: bool, n_images: int | None) -> tuple[in
             warnings.warn(f"Requested {n_images} images, but MNIST is only {len(mnist)} images long.")
         loader = DataLoader(Subset(mnist, list(range(len(mnist)))[:n_images]), batch_size=batch_size, shuffle=shuffle)
         return n_images, loader
-    else:
-        print(f"Loading {len(mnist)} MNIST images ...")
-        loader = DataLoader(mnist, batch_size=batch_size, shuffle=shuffle)
-        return len(mnist), loader
+
+    print(f"Loading {len(mnist)} MNIST images ...")
+    loader = DataLoader(mnist, batch_size=batch_size, shuffle=shuffle)
+    return len(mnist), loader
 
 
 def get_number_of_different_labels(use_mnist: bool, clusters: list[int] | None) -> int:
+    """
+    Get amount of different labels (e.g. 10 for the ten digits in MNIST).
+
+    :param use_mnist: Whether MNIST is used
+    :param clusters: Amount of clusters loaded from LLD
+    :return: Amount of different labels
+    """
+
     if use_mnist:
         return 10
-    elif clusters is not None:
+    if clusters is not None:
         return len(clusters)
-    else:
-        return 100
+
+    return 100
