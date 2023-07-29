@@ -14,6 +14,7 @@ from favicon_gen import params
 
 class ResampleModi(Enum):
     """Possible resampling modi for convolutional block"""
+
     UP = auto()
     DOWN = auto()
     DOWN_AND_UP = auto()

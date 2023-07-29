@@ -1,3 +1,7 @@
+"""
+Draw samples from both the diffusion model and the VAE
+"""
+
 import argparse
 from pathlib import Path
 import typing
@@ -8,14 +12,25 @@ from tqdm import tqdm
 
 from favicon_gen.autoencoder import VariationalAutoEncoder
 from favicon_gen.data_loading import show_image_grid, load_logos, load_mnist, get_number_of_different_labels
-from favicon_gen.denoising_diffusion import Generator, draw_sample_from_generator, VarianceSchedule
-import favicon_gen.params as params
+from favicon_gen.denoising_diffusion import DiffusionModel, diffusion_backward_process, VarianceSchedule
+from favicon_gen import params
 
 
 @torch.no_grad()
-def sample_from_autoencoder_model(
+def sample_from_vae(
     model_file: Path, n_labels: int, in_channels: int, n_samples: int, device: str, save_as: Path | None = None
 ) -> typing.Generator[torch.Tensor, None, None]:
+    """
+    Draw samples from the Variational AutoEncoder (VAE).
+
+    :param model_file: File where the VAE is saved
+    :param n_labels: Amount of different labels in the data (e.g. 10 for the 10 different digits in MNIST)
+    :param in_channels: Amount of channels in input (1 for grayscale MNIST, 3 for color LLD)
+    :param n_samples: Amount of images to generate from the model
+    :param device: 'cpu' for CPU or 'cuda' for GPU
+    :param save_as: If given, plot will be saved here
+    :return: Batch of generated images; call again to get more images
+    """
     autoencoder = VariationalAutoEncoder(in_channels, n_labels)
     autoencoder.load_state_dict(torch.load(model_file))
     autoencoder.eval()
@@ -32,7 +47,6 @@ def sample_from_autoencoder_model(
         if save_as is not None:
             show_image_grid(batch)
             plt.savefig(save_as)
-            # plt.show()
 
         yield batch
 
@@ -48,23 +62,27 @@ def sample_from_diffusion_model(
     save_as: Path | None = None,
 ) -> typing.Generator[torch.Tensor, None, None]:
     """
-    Sample images from a chosen model.
+    Sample images from the denoising diffusion model.
 
-    :param seed: Random seed to start the generation process.
-    :param n_samples: Amount of images to draw from the model.
-    :param device: Device to use to run the model. Either 'cuda' or 'cpu'.
+    :param model_file: File where the diffusion model is saved
+    :param n_labels: Amount of different labels in the data (e.g. 10 for the 10 different digits in MNIST)
+    :param in_channels: Amount of channels in input (1 for grayscale MNIST, 3 for color LLD)
+    :param n_samples: Amount of images to generate from the model
+    :param device: 'cpu' for CPU or 'cuda' for GPU
+    :param diffusion_info: Parameters of the diffusion model
+    :param save_as: If given, plot will be saved here
     """
 
     variance_schedule = VarianceSchedule(
         (diffusion_info.var_schedule_start, diffusion_info.var_schedule_end), diffusion_info.steps
     )
-    generator = Generator(in_channels, variance_schedule, n_labels)
+    generator = DiffusionModel(in_channels, variance_schedule, n_labels)
     generator.load_state_dict(torch.load(model_file))
     generator = generator.to(device)
     generator.eval()
 
     # draw single batch first to set seed
-    batch = draw_sample_from_generator(generator, (n_samples, in_channels, 32, 32), diffusion_info.guiding_factor)
+    batch = diffusion_backward_process(generator, (n_samples, in_channels, 32, 32), diffusion_info.guiding_factor)
     while True:
         if save_as is not None:
             show_image_grid(batch)
@@ -72,21 +90,29 @@ def sample_from_diffusion_model(
             # plt.show()
         yield batch
         # draw batch without setting seed again
-        batch = draw_sample_from_generator(generator, (n_samples, in_channels, 32, 32), diffusion_info.guiding_factor)
+        batch = diffusion_backward_process(generator, (n_samples, in_channels, 32, 32), diffusion_info.guiding_factor)
 
 
 @torch.no_grad()
 def nearest_neighbor_search(
     generated_batch: torch.Tensor,
-    n_images: int,
+    dataset_info: params.Dataset,
     use_mnist: bool,
-    clusters: list[int] | None,
     save_as: Path | None = None,
 ) -> torch.Tensor:
+    """
+    Search datasets for nearest neighbors of a batch of images (via summed absolute distance).
+
+    :param generated_batch: Images for which to find the nearest neighbors
+    :param dataset_info: General information about the dataset
+    :param use_mnist: Whether to use MNIST or LLD
+    :param save_as: Save image of the batch of nearest neighbors here
+    :return: batch of nearest neighbors
+    """
     if use_mnist:
-        _, data_loader = load_mnist(1, False, n_images)
+        _, data_loader = load_mnist(1, False, dataset_info.n_images)
     else:
-        _, data_loader = load_logos(1, False, n_images, clusters)
+        _, data_loader = load_logos(1, False, dataset_info.n_images, dataset_info.specific_clusters)
 
     nearest_neighbors = torch.zeros(generated_batch.shape, device=generated_batch.device)
     current_nearest_neighbor_distances = torch.full(
@@ -105,7 +131,6 @@ def nearest_neighbor_search(
     if save_as is not None:
         show_image_grid(nearest_neighbors)
         plt.savefig(save_as)
-        # plt.show()
 
     return nearest_neighbors
 
@@ -139,7 +164,7 @@ def main():
     n_labels = get_number_of_different_labels(args.use_mnist, params.Dataset.specific_clusters)
 
     auto_gen_batch = next(
-        sample_from_autoencoder_model(
+        sample_from_vae(
             model_file_auto, n_labels, in_channels, args.n_samples, device, save_as=save_location_auto_samples
         )
     )
@@ -151,17 +176,15 @@ def main():
 
     nearest_neighbor_search(
         auto_gen_batch,
-        params.Dataset.n_images,
+        params.Dataset(),
         args.use_mnist,
-        params.Dataset.specific_clusters,
         save_as=params.OUTS_BASE_DIR / f"auto_nearest_neighbors_mnist_{args.use_mnist}.pdf",
     )
 
     nearest_neighbor_search(
         diffusion_gen_batch,
-        params.Dataset.n_images,
+        params.Dataset(),
         args.use_mnist,
-        params.Dataset.specific_clusters,
         save_as=params.OUTS_BASE_DIR / f"diffusion_nearest_neighbors_mnist_{args.use_mnist}.pdf",
     )
 

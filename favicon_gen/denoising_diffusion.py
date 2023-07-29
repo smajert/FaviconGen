@@ -1,3 +1,7 @@
+"""
+Denoising diffusion model similar to [1].
+"""
+
 import argparse
 from dataclasses import dataclass
 import math
@@ -11,24 +15,23 @@ from tqdm import tqdm
 
 from favicon_gen.blocks import ConvBlock, ResampleModi
 from favicon_gen.data_loading import load_logos, load_mnist, show_image_grid, get_number_of_different_labels
-import favicon_gen.params as params
+from favicon_gen import params
 
 
 @dataclass
 class VarianceSchedule:
+    """
+    Linear variance schedule for the Denoising Diffusion Probabilistic Model (DDPM).
+    The naming scheme is the same as in [1]. In particular, `beta_t` is the
+    variance of the Gaussian noise added at time step t.
+
+    :param beta_start_end: Start and end values of the variance during the noising process.
+        Defaults to values used in [1]
+    :param n_time_steps: Amount of noising steps in the model.
+    :param device: 'cpu' for CPU or 'cuda' for GPU
+    """
+
     def __init__(self, beta_start_end: tuple[float, float], n_time_steps: int, device: str = "cpu") -> None:
-        """
-        Linear variance schedule for the Denoising Diffusion Probabilistic Model (DDPM).
-        The naming scheme is the same as in [1]. In particular, `beta_t` is the
-        variance of the Gaussian noise added at time step t.
-
-        [1] J. Ho, A. Jain, and P. Abbeel, “Denoising Diffusion Probabilistic Models.” arXiv, Dec. 16, 2020.
-            Accessed: Mar. 20, 2023. [Online]. Available: http://arxiv.org/abs/2006.11239
-
-        :param beta_start_end: Start and end values of the variance during the noising process.
-            Defaults to values used in [1]
-        :param n_time_steps: Amount of noising steps in the model.
-        """
         super().__init__()
         self.n_steps = n_time_steps
         beta_start = beta_start_end[0]
@@ -40,7 +43,7 @@ class VarianceSchedule:
         self.beta_tilde_t = (1 - alpha_bar_t_minus_1) / (1 - self.alpha_bar_t) * self.beta_t
 
 
-def get_noisy_batch_at_step_t(
+def diffusion_forward_process(
     original_batch: torch.Tensor,
     time_step: torch.Tensor,
     schedule: VarianceSchedule,
@@ -50,7 +53,6 @@ def get_noisy_batch_at_step_t(
 
     :param original_batch: [n_img_batch, color, height, width] Batch of images to add noise to
     :param time_step: [n_img_batch] Diffusion step `t` to be applied to each image
-    :param device: Device to use for calculation.
     :param schedule: Variance schedule according to which to add noise to the images.
     :return: [n_img_batch, color, height, width] Noise used,
         [n_img_batch, color, height, width] Noised batch of images
@@ -72,8 +74,10 @@ def get_noisy_batch_at_step_t(
 
 class SinusoidalPositionEmbeddings(torch.nn.Module):
     """
+    Positional embedding for the time step via sinus/cosinus.
+    See [3] for more information.
 
-    [1]: https://machinelearningmastery.com/a-gentle-introduction-to-positional-encoding-in-transformer-models-part-1/
+    :param embedding_dimension: Amount of values in the positional encoding matrix
     """
 
     def __init__(self, embedding_dimension: int) -> None:
@@ -82,7 +86,7 @@ class SinusoidalPositionEmbeddings(torch.nn.Module):
 
     def forward(self, time_step: torch.Tensor) -> torch.Tensor:
         """in: [n_time_steps] out: [n_time_steps, embedding_dimension]"""
-        # see [1] for variable names
+        # see [3] for variable names
         half_d = self.embedding_dimension // 2  # d/2
         i_times_two_times_d = torch.arange(half_d, device=time_step.device) / (half_d - 1)  # i / (d/2) = 2*i/d
         n = 10000  # n
@@ -90,14 +94,21 @@ class SinusoidalPositionEmbeddings(torch.nn.Module):
         sin_cos_arg = time_step[:, np.newaxis] / denominator[np.newaxis, :]  # k / n ** (2 * i / d)
         sin_embedding = sin_cos_arg.sin()
         cos_embedding = sin_cos_arg.cos()
-        # note ordering sin/cos in colab notebook not as in [1] -> use ordering from [1] here
         sin_cos_alternating = torch.zeros((sin_cos_arg.shape[0], sin_cos_arg.shape[1] * 2), device=time_step.device)
         sin_cos_alternating[:, 0::2] = sin_embedding
         sin_cos_alternating[:, 1::2] = cos_embedding
         return sin_cos_alternating
 
 
-class Generator(torch.nn.Module):
+class DiffusionModel(torch.nn.Module):
+    """
+    Diffusion model following the concept described in [1].
+
+    :param in_channels: Amount of input channels (1 for grayscale MNIST, 3 for color LLD)
+    :param variance_schedule: Schedule to control the fashion in which noise is added to the images.
+    :param n_labels: Amount of different labels in the data (e.g. 10 for the 10 different digits in MNIST)
+    """
+
     def __init__(self, in_channels: int, variance_schedule: VarianceSchedule, n_labels: int) -> None:
         super().__init__()
         self.variance_schedule = variance_schedule
@@ -150,14 +161,28 @@ class Generator(torch.nn.Module):
 
 
 @torch.no_grad()
-def draw_sample_from_generator(
-    model: Generator,
+def diffusion_backward_process(
+    model: DiffusionModel,
     batch_shape: tuple[int, ...],
     guiding_factor: float,
     seed: int | None = None,
     label: int | None = None,
     save_sample_as: Path | None = None,
 ) -> torch.Tensor:
+    """
+    Reverse the noising process to generate an image starting from
+    Gaussian noise
+
+    :param model: Diffusion model to predict the noise at each time step
+    :param batch_shape: Shape of the batch to generate; In particular, first dimension determines
+        the amount of images generated.
+    :param guiding_factor: Factor between 0 and 1 of generation with label to generation without label in
+        classifier-free guidance. See [4] for more details.
+    :param seed: Seed for random number generator to make
+    :param label: If given, will generate image of a specific class/cluster (e.g. generate a 5 from MNIST)
+    :param save_sample_as: Save the generated images as a pdf
+    :return: [*batch_shape] - batch of generated images
+    """
     device = model.layers[0].non_transform_layers[0].weight.device
     rand_generator = torch.Generator(device=device)
     if seed is not None:
@@ -168,19 +193,6 @@ def draw_sample_from_generator(
         labels = torch.full((batch_shape[0],), fill_value=label, device=device)
     batch = torch.randn(size=batch_shape, generator=rand_generator, device=device)
     variance_schedule = model.variance_schedule
-
-    if save_sample_as is not None:
-        plot_batches = []
-        plot_time_steps = [
-            int(0.9 * variance_schedule.n_steps),
-            int(0.6 * variance_schedule.n_steps),
-            int(0.3 * variance_schedule.n_steps),
-            0,
-            1,
-            5,
-            20,
-            40,
-        ]
 
     model.eval()
     for time_step in list(range(0, variance_schedule.n_steps))[::-1]:
@@ -199,6 +211,17 @@ def draw_sample_from_generator(
             batch = torch.clamp(batch, -1, 1)
 
         if save_sample_as is not None:
+            plot_batches = []
+            plot_time_steps = [
+                int(0.9 * variance_schedule.n_steps),
+                int(0.6 * variance_schedule.n_steps),
+                int(0.3 * variance_schedule.n_steps),
+                0,
+                1,
+                5,
+                20,
+                40,
+            ]
             if time_step in plot_time_steps:
                 plot_batches.append(batch.detach().cpu())
 
@@ -212,13 +235,25 @@ def draw_sample_from_generator(
 def train(
     dataset_info: params.Dataset, diffusion_info: params.Diffusion, use_mnist: bool, model_file: Path | None = None
 ) -> None:
+    """
+    Training loop for diffusion model.
+
+    :param dataset_info: Dataset parameters
+    :param diffusion_info: Model parameters
+    :param use_mnist: Whether to use MNIST (`True`) or LLD (`False`) as training data
+    :param model_file: If given, will start from the model saved there
+    """
+
     if use_mnist:
         n_samples, data_loader = load_mnist(diffusion_info.batch_size, dataset_info.shuffle, dataset_info.n_images)
         model_storage_directory = params.OUTS_BASE_DIR / "train_diffusion_model_mnist"
         in_channels = 1
     else:
         n_samples, data_loader = load_logos(
-            diffusion_info.batch_size, dataset_info.shuffle, dataset_info.n_images, clusters=dataset_info.specific_clusters
+            diffusion_info.batch_size,
+            dataset_info.shuffle,
+            dataset_info.n_images,
+            clusters=dataset_info.specific_clusters,
         )
         model_storage_directory = params.OUTS_BASE_DIR / "train_diffusion_model_lld"
         in_channels = 3
@@ -232,7 +267,7 @@ def train(
     schedule = VarianceSchedule(beta_start_end=beta_start_end, n_time_steps=diffusion_info.steps, device=params.DEVICE)
 
     n_labels = get_number_of_different_labels(use_mnist, dataset_info.specific_clusters)
-    model = Generator(in_channels, schedule, n_labels)
+    model = DiffusionModel(in_channels, schedule, n_labels)
     if model_file is not None:
         model.load_state_dict(torch.load(model_file))
     model.to(params.DEVICE)
@@ -246,7 +281,7 @@ def train(
     running_loss = 0
     n_epochs = diffusion_info.epochs_mnist if use_mnist else diffusion_info.epochs_lld
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
-        for batch_idx, (batch, labels) in enumerate(data_loader):
+        for batch, labels in data_loader:
             labels = labels.to(params.DEVICE)
             if np.random.random() < 0.1:
                 labels = None
@@ -256,7 +291,7 @@ def train(
             # pytorch expects tuple for size here:
             actual_batch_size = batch.shape[0]
             t = torch.randint(low=0, high=diffusion_info.steps, size=(actual_batch_size,))
-            noisy_batch, noise = get_noisy_batch_at_step_t(batch, t, schedule)
+            noisy_batch, noise = diffusion_forward_process(batch, t, schedule)
 
             noise_pred = model(noisy_batch, t.to(params.DEVICE), labels)
             loss = loss_fn(noise_pred, noise)
@@ -268,7 +303,7 @@ def train(
         lr_scheduler.step(loss)
         if (epoch + 1) in [int(rel_plot_step * n_epochs) for rel_plot_step in [0.1, 0.25, 0.5, 0.75, 1.0]]:
             sample_shape = torch.Size((1, *batch.shape[1:]))
-            _ = draw_sample_from_generator(
+            _ = diffusion_backward_process(
                 model,
                 sample_shape,
                 diffusion_info.guiding_factor,
@@ -281,7 +316,7 @@ def train(
 
     torch.save(model.state_dict(), model_storage_directory / "model.pt")
 
-    with open(model_storage_directory / "loss.csv", "w") as file:
+    with open(model_storage_directory / "loss.csv", "w", encoding="utf-8") as file:
         file.write("Epoch,Loss\n")
         for epoch, loss in enumerate(running_losses):
             file.write(f"{epoch},{loss}\n")

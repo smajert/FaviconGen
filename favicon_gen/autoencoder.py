@@ -22,6 +22,7 @@ class Encoder(torch.nn.Module):
     :param in_channels: Amount of input channels (1 for grayscale MNIST, 3 for color LLD)
     :param activation: Activation function to use e.g. torch.nn.ReLU()
     """
+
     def __init__(self, in_channels: int, activation: torch.nn.modules.module.Module) -> None:
         super().__init__()
         self.in_channels = in_channels
@@ -53,6 +54,7 @@ class Decoder(torch.nn.Module):
     :param encoder_out_shape: Original shape of encoder output
     :param activation: Activation function to use e.g. torch.nn.ReLU()
     """
+
     def __init__(
         self, out_channels: int, encoder_out_shape: tuple[int, ...], activation: torch.nn.modules.module.Module
     ) -> None:
@@ -87,6 +89,7 @@ class VariationalAutoEncoder(torch.nn.Module):
     :param in_channels: Amount of channels in input (1 for grayscale MNIST, 3 for color LLD)
     :param n_labels: Amount of different labels in the data (e.g. 10 for the 10 different digits in MNIST)
     """
+
     def __init__(self, in_channels: int, n_labels: int) -> None:
         super().__init__()
         self.latent_dim = 512
@@ -150,6 +153,7 @@ class PatchDiscriminator(torch.nn.Module):
 
     :param in_channels: Amount of channels in input (1 for grayscale MNIST, 3 for color LLD)
     """
+
     def __init__(self, in_channels: int) -> None:
         super().__init__()
         # fmt: off

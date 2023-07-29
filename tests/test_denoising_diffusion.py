@@ -47,7 +47,7 @@ def test_make_batch_noisy(LogoDataset):
     n_time_steps = 100
     noise_schedule = ddi.VarianceSchedule(beta_start_end=(0.0001, 0.02), n_time_steps=n_time_steps)
     time_steps = torch.round(torch.linspace(0, 0.99, steps=steps_to_show) * n_time_steps).to(torch.long)
-    noisy_tensor, noise = ddi.get_noisy_batch_at_step_t(image_batch, time_steps, schedule=noise_schedule)
+    noisy_tensor, noise = ddi.diffusion_forward_process(image_batch, time_steps, schedule=noise_schedule)
     mean_of_image = torch.mean(noisy_tensor[4, ...])
     mean_of_noise = torch.mean(noise[4, ...])
     torch.testing.assert_close(mean_of_image, torch.tensor(0.3498), rtol=0, atol=1e-4)
@@ -67,10 +67,10 @@ def test_values_in_noise_and_image_seem_sensible(LogoDataset):
     variance_schedule = ddi.VarianceSchedule(n_time_steps=n_time_steps, beta_start_end=beta_start_end)
     for t in range(0, n_time_steps, 30):
         time_step = torch.full((image_batch.shape[0],), fill_value=t)
-        noisy_tensor, noise = ddi.get_noisy_batch_at_step_t(image_batch, time_step, schedule=variance_schedule)
+        noisy_tensor, noise = ddi.diffusion_forward_process(image_batch, time_step, schedule=variance_schedule)
         if t == 0:
-            torch.testing.assert_close(torch.min(noisy_tensor), torch.tensor(-1.), atol=0.2, rtol=0)
-            torch.testing.assert_close(torch.max(noisy_tensor), torch.tensor(1.), atol=0.2, rtol=0)
+            torch.testing.assert_close(torch.min(noisy_tensor), torch.tensor(-1.0), atol=0.2, rtol=0)
+            torch.testing.assert_close(torch.max(noisy_tensor), torch.tensor(1.0), atol=0.2, rtol=0)
         elif t > n_time_steps / 2:
             assert torch.min(noisy_tensor) < -2
             assert torch.max(noisy_tensor) > 2
@@ -94,8 +94,8 @@ def test_drawing_sample_from_module_runs():
     random.seed(0)
     n_time_steps = 20
     variance_schedule = ddi.VarianceSchedule(n_time_steps=n_time_steps, beta_start_end=(0.0001, 0.02))
-    model = ddi.Generator(3, variance_schedule, 10)
-    _ = ddi.draw_sample_from_generator(model, (4, 3, 32, 32), 0.9, seed=0)
+    model = ddi.DiffusionModel(3, variance_schedule, 10)
+    _ = ddi.diffusion_backward_process(model, (4, 3, 32, 32), 0.9, seed=0)
 
 
 def test_diffusion_model_runs(device: str = "cpu"):
@@ -104,5 +104,5 @@ def test_diffusion_model_runs(device: str = "cpu"):
     pseudo_batch = torch.rand((32, 3, 32, 32), device=device)
     pseudo_time_steps = torch.randint(0, 10, size=(32,), device=device)
     pseudo_labels = torch.randint(0, 9, size=(32,), device=device)
-    model = ddi.Generator(3, ddi.VarianceSchedule(n_time_steps=1000, beta_start_end=(0.0001, 0.02)), 10).to(device)
+    model = ddi.DiffusionModel(3, ddi.VarianceSchedule(n_time_steps=1000, beta_start_end=(0.0001, 0.02)), 10).to(device)
     _ = model(pseudo_batch, pseudo_time_steps, pseudo_labels)

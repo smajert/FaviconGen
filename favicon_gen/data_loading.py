@@ -62,6 +62,7 @@ class LargeLogoDataset(Dataset):
         By default, all images are loaded.
     :param cluster_type: Which cluster method to use. See [2] for details.
     """
+
     def __init__(
         self,
         hdf5_file_location: Path,
