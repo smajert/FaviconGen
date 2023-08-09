@@ -117,4 +117,4 @@ towards data science, 2019, [URL](https://towardsdatascience.com/understanding-v
 
 <a id="8">[8]</a>
 L. Deng, "The MNIST database of handwritten digit images for machine learning research [best of the web]"
-IEEE Signal processing magazine 29 (6), 2012, pp. 141-142. DOI: 10.1109/MSP.2012.2211477 
+IEEE Signal processing magazine 29 (6), 2012, pp. 141-142. DOI: 10.1109/MSP.2012.2211477

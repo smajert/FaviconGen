@@ -33,8 +33,8 @@ class AutoEncoder:  # everything related to VAE training
 class Diffusion:  # everything related to diffusion model training
     batch_size: int = 512
     epochs_mnist: int = 35  # epochs to train on MNIST
-    epochs_lld: int = 200  # epochs to train on LLD
-    guiding_factor: float = 0.90  # Guided (with label) vs. unguided (without labels) in classifier free guidance XXcite
+    epochs_lld: int = 250  # epochs to train on LLD
+    guiding_factor: float = 0.90  # Guided (with label) vs. unguided (without labels) in classifier free guidance [4]
     learning_rate: float = 1e-3
     steps: int = 1000  # amount of time steps the diffusion model uses
     var_schedule_start: float = 0.0001  # starting value of the variance schedule beta
