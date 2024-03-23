@@ -18,7 +18,6 @@ from torchvision import datasets, transforms, utils
 
 from favicon_gen import params
 
-
 FORWARD_TRANSFORMS = transforms.Compose(
     [transforms.ToTensor(), transforms.Lambda(lambda t: (t * 2) - 1)]  # Scale between [-1, 1]
 )
