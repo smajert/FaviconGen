@@ -11,9 +11,11 @@ dependencies:
   - dvc>=3
   - flake8=6
   - h5py>=3.7
+  - hydra
   - matplotlib>=3.7
   - mypy>=0.9
   - numpy>=1.25
+  - omegaconf
   - pip
   - pylint>=2.16
   - pytest>=7.3

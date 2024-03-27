@@ -10,9 +10,9 @@ from typing import Any  # noqa: F401
 import torch
 from tqdm import tqdm
 
+from favicon_gen import params
 from favicon_gen.blocks import ConvBlock, ResampleModi
 from favicon_gen.data_loading import load_logos, load_mnist, show_image_grid, get_number_of_different_labels
-from favicon_gen import params
 
 
 class Encoder(torch.nn.Module):
@@ -90,11 +90,10 @@ class VariationalAutoEncoder(torch.nn.Module):
     :param n_labels: Amount of different labels in the data (e.g. 10 for the 10 different digits in MNIST)
     """
 
-    def __init__(self, in_channels: int, n_labels: int) -> None:
+    def __init__(self, in_channels: int, n_labels: int, embedding_dim: int) -> None:
         super().__init__()
         self.latent_dim = 512
         self.activation = torch.nn.LeakyReLU()
-        embedding_dim = params.EMBEDDING_DIM
         self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
 
         self.encoder = Encoder(in_channels, self.activation)
@@ -174,29 +173,33 @@ class PatchDiscriminator(torch.nn.Module):
 
 
 def train(
-    dataset_info: params.Dataset,
-    auto_info: params.AutoEncoder,
+    dataset_params: params.Dataset,
+    auto_params: params.AutoEncoder,
+    general_params: params.General,
     use_mnist: bool,
     model_file: Path | None = None,
 ) -> None:
     """
     Training loop for VAE or VAE + adversarial patch discriminator.
 
-    :param dataset_info: Dataset parameters
-    :param auto_info: Model parameters
+    :param dataset_params: Dataset parameters
+    :param auto_params: Model parameters
     :param use_mnist: Whether to use MNIST (`True`) or LLD (`False`) as training data
     :param model_file: If given, will start from the model saved there
     """
     if use_mnist:
-        n_samples, data_loader = load_mnist(auto_info.batch_size, dataset_info.shuffle, dataset_info.n_images)
-        n_epochs = auto_info.epochs_mnist
+        n_samples, data_loader = load_mnist(auto_params.batch_size, dataset_params.shuffle, dataset_params.n_images)
+        n_epochs = auto_params.epochs_mnist
         model_storage_directory = params.OUTS_BASE_DIR / "train_autoencoder_mnist"
         in_channels = 1
     else:
         n_samples, data_loader = load_logos(
-            auto_info.batch_size, dataset_info.shuffle, dataset_info.n_images, clusters=dataset_info.specific_clusters
+            auto_params.batch_size,
+            dataset_params.shuffle,
+            dataset_params.n_images,
+            clusters=dataset_params.specific_clusters,
         )
-        n_epochs = auto_info.epochs_lld
+        n_epochs = auto_params.epochs_lld
         model_storage_directory = params.OUTS_BASE_DIR / "train_autoencoder_lld"
         in_channels = 3
 
@@ -206,31 +209,33 @@ def train(
     model_storage_directory.mkdir(exist_ok=True)
 
     # prepare discriminator
-    use_patch_discriminator = auto_info.adversarial_loss_weight is not None
+    use_patch_discriminator = auto_params.adversarial_loss_weight is not None
     if use_patch_discriminator:
         patch_disc = PatchDiscriminator(in_channels)
-        patch_disc.to(params.DEVICE)
-        lower_disc_learning_rate = 0.1 * auto_info.learning_rate  # lower rate helps in GAN training
+        patch_disc.to(general_params.device)
+        lower_disc_learning_rate = 0.1 * auto_params.learning_rate  # lower rate helps in GAN training
         optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=lower_disc_learning_rate)
 
     # prepare autoencoder
-    n_labels = get_number_of_different_labels(use_mnist, dataset_info.specific_clusters)
-    autoencoder = VariationalAutoEncoder(in_channels, n_labels)
+    n_labels = get_number_of_different_labels(use_mnist, dataset_params.specific_clusters)
+    autoencoder = VariationalAutoEncoder(in_channels, n_labels, general_params.embedding_dim)
     if model_file is not None:
         autoencoder.load_state_dict(torch.load(model_file))
-    autoencoder.to(params.DEVICE)
-    optimizer_generator = torch.optim.Adam(autoencoder.parameters(), lr=auto_info.learning_rate)
+    autoencoder.to(general_params.device)
+    optimizer_generator = torch.optim.Adam(autoencoder.parameters(), lr=auto_params.learning_rate)
     loss_fn = torch.nn.MSELoss()
 
     running_losses = []
     running_loss = 0
-    value_for_original = torch.tensor([1], device=params.DEVICE, dtype=torch.float)
-    value_for_reconstructed = torch.tensor([0], device=params.DEVICE, dtype=torch.float)
+    value_for_original = torch.tensor([1], device=general_params.device, dtype=torch.float)
+    value_for_reconstructed = torch.tensor([0], device=general_params.device, dtype=torch.float)
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
         batch: torch.Tensor
         for batch, labels in data_loader:
-            labels = labels.to(params.DEVICE)
-            batch = batch.to(params.DEVICE)  # batch does not track gradients -> does not need to be detached ever
+            labels = labels.to(general_params.device)
+            batch = batch.to(
+                general_params.device
+            )  # batch does not track gradients -> does not need to be detached ever
 
             optimizer_generator.zero_grad()
             reconst_batch, mu, log_var = autoencoder(batch, labels)
@@ -241,12 +246,12 @@ def train(
                 is_original = torch.broadcast_to(value_for_original, disc_pred_reconstructed.shape)
                 is_reconstructed = torch.broadcast_to(value_for_reconstructed, disc_pred_reconstructed.shape)
                 adversarial_loss = torch.nn.L1Loss()(disc_pred_reconstructed, is_original)
-                adversarial_loss_weight = auto_info.adversarial_loss_weight
+                adversarial_loss_weight = auto_params.adversarial_loss_weight
             else:
                 adversarial_loss = 0
                 adversarial_loss_weight = 0
             generator_loss = (
-                reconstruction_loss + auto_info.kl_loss_weight * kl_loss + adversarial_loss_weight * adversarial_loss
+                reconstruction_loss + auto_params.kl_loss_weight * kl_loss + adversarial_loss_weight * adversarial_loss
             )
             generator_loss.backward()
             optimizer_generator.step()
@@ -287,4 +292,5 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    train(dataset_info=params.Dataset(), auto_info=params.AutoEncoder(), use_mnist=args.use_mnist)
+    config = params.load_config()
+    train(config.dataset, config.autoencoder, config.general, args.use_mnist)

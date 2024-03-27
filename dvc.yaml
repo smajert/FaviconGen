@@ -6,11 +6,9 @@ stages:
     outs:
       - outs/train_autoencoder_mnist/model.pt
     params:
-      - favicon_gen/params.py:
-        - DO_NORM
-        - EMBEDDING_DIM
-        - AutoEncoder
-        - Dataset
+      - general
+      - autoencoder
+      - dataset
     plots:
       - outs/train_autoencoder_mnist/loss.csv:
           x: Epoch
@@ -23,11 +21,9 @@ stages:
     outs:
       - outs/train_autoencoder_lld/model.pt
     params:
-      - favicon_gen/params.py:
-          - DO_NORM
-          - EMBEDDING_DIM
-          - AutoEncoder
-          - Dataset
+      - general
+      - autoencoder
+      - dataset
     plots:
       - outs/train_autoencoder_lld/loss.csv:
           x: Epoch
@@ -40,11 +36,9 @@ stages:
     outs:
       - outs/train_diffusion_model_mnist/model.pt
     params:
-      - favicon_gen/params.py:
-        - DO_NORM
-        - EMBEDDING_DIM
-        - Dataset
-        - Diffusion
+      - general
+      - dataset
+      - diffusion
     plots:
       - outs/train_diffusion_model_mnist/loss.csv:
           x: Epoch
@@ -57,11 +51,9 @@ stages:
     outs:
       - outs/train_diffusion_model_lld/model.pt
     params:
-      - favicon_gen/params.py:
-          - DO_NORM
-          - EMBEDDING_DIM
-          - Dataset
-          - Diffusion
+      - general
+      - dataset
+      - diffusion
     plots:
       - outs/train_diffusion_model_lld/loss.csv:
           x: Epoch

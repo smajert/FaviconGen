@@ -1,0 +1,25 @@
+general:
+  device: cuda
+  embedding_dim: 32
+  do_norm: true
+dataset:
+  specific_clusters:
+  - 0
+  n_images: 128
+  shuffle: true
+autoencoder:
+  adversarial_loss_weight: 1.0
+  batch_size: 512
+  epochs_mnist: 20
+  epochs_lld: 200
+  kl_loss_weight: 1.0
+  learning_rate: 0.0004
+diffusion:
+  batch_size: 32
+  epochs_mnist: 20
+  epochs_lld: 201
+  guiding_factor: 0.9
+  learning_rate: 0.01
+  steps: 1000
+  var_schedule_start: 0.0001
+  var_schedule_end: 0.02

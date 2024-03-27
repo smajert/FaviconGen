@@ -18,7 +18,13 @@ from favicon_gen import params
 
 @torch.no_grad()
 def sample_from_vae(
-    model_file: Path, n_labels: int, in_channels: int, n_samples: int, device: str, save_as: Path | None = None
+    model_file: Path,
+    n_labels: int,
+    in_channels: int,
+    n_samples: int,
+    device: str,
+    embedding_dim: int,
+    save_as: Path | None = None,
 ) -> typing.Generator[torch.Tensor, None, None]:
     """
     Draw samples from the Variational AutoEncoder (VAE).
@@ -31,7 +37,7 @@ def sample_from_vae(
     :param save_as: If given, plot will be saved here
     :return: Batch of generated images; call again to get more images
     """
-    autoencoder = VariationalAutoEncoder(in_channels, n_labels)
+    autoencoder = VariationalAutoEncoder(in_channels, n_labels, embedding_dim)
     autoencoder.load_state_dict(torch.load(model_file))
     autoencoder.eval()
     autoencoder.to(device)
@@ -58,7 +64,8 @@ def sample_from_diffusion_model(
     in_channels: int,
     n_samples: int,
     device: str,
-    diffusion_info: params.Diffusion = params.Diffusion(),
+    diffusion_info: params.Diffusion,
+    embedding_dim: int,
     save_as: Path | None = None,
 ) -> typing.Generator[torch.Tensor, None, None]:
     """
@@ -76,7 +83,7 @@ def sample_from_diffusion_model(
     variance_schedule = VarianceSchedule(
         (diffusion_info.var_schedule_start, diffusion_info.var_schedule_end), diffusion_info.steps
     )
-    generator = DiffusionModel(in_channels, variance_schedule, n_labels)
+    generator = DiffusionModel(in_channels, variance_schedule, n_labels, embedding_dim)
     generator.load_state_dict(torch.load(model_file))
     generator = generator.to(device)
     generator.eval()
@@ -160,30 +167,46 @@ def main():
         model_file_diffusion = params.OUTS_BASE_DIR / "train_diffusion_model_lld/model.pt"
         save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion_lld.pdf"
 
+    config = params.load_config()
+
     in_channels = 1 if args.use_mnist else 3
-    n_labels = get_number_of_different_labels(args.use_mnist, params.Dataset.specific_clusters)
+    n_labels = get_number_of_different_labels(args.use_mnist, config.dataset.specific_clusters)
+
 
     auto_gen_batch = next(
         sample_from_vae(
-            model_file_auto, n_labels, in_channels, args.n_samples, device, save_as=save_location_auto_samples
+            model_file_auto,
+            n_labels,
+            in_channels,
+            args.n_samples,
+            device,
+            config.general.embedding_dim,
+            save_as=save_location_auto_samples,
         )
     )
     diffusion_gen_batch = next(
         sample_from_diffusion_model(
-            model_file_diffusion, n_labels, in_channels, args.n_samples, device, save_as=save_location_diff_samples
+            model_file_diffusion,
+            n_labels,
+            in_channels,
+            args.n_samples,
+            device,
+            config.diffusion,
+            config.general.embedding_dim,
+            save_as=save_location_diff_samples,
         )
     )
 
     nearest_neighbor_search(
         auto_gen_batch,
-        params.Dataset(),
+        config.dataset,
         args.use_mnist,
         save_as=params.OUTS_BASE_DIR / f"auto_nearest_neighbors_mnist_{args.use_mnist}.pdf",
     )
 
     nearest_neighbor_search(
         diffusion_gen_batch,
-        params.Dataset(),
+        config.dataset,
         args.use_mnist,
         save_as=params.OUTS_BASE_DIR / f"diffusion_nearest_neighbors_mnist_{args.use_mnist}.pdf",
     )

@@ -13,9 +13,9 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
+from favicon_gen import params
 from favicon_gen.blocks import ConvBlock, ResampleModi
 from favicon_gen.data_loading import load_logos, load_mnist, show_image_grid, get_number_of_different_labels
-from favicon_gen import params
 
 
 @dataclass
@@ -109,11 +109,12 @@ class DiffusionModel(torch.nn.Module):
     :param n_labels: Amount of different labels in the data (e.g. 10 for the 10 different digits in MNIST)
     """
 
-    def __init__(self, in_channels: int, variance_schedule: VarianceSchedule, n_labels: int) -> None:
+    def __init__(
+        self, in_channels: int, variance_schedule: VarianceSchedule, n_labels: int, embedding_dim: int
+    ) -> None:
         super().__init__()
         self.variance_schedule = variance_schedule
         self.n_labels = n_labels
-        embedding_dim = params.EMBEDDING_DIM
 
         self.time_mlp = torch.nn.Sequential(
             SinusoidalPositionEmbeddings(embedding_dim),
@@ -233,7 +234,11 @@ def diffusion_backward_process(
 
 
 def train(
-    dataset_info: params.Dataset, diffusion_info: params.Diffusion, use_mnist: bool, model_file: Path | None = None
+    dataset_info: params.Dataset,
+    diffusion_info: params.Diffusion,
+    general_params: params.General,
+    use_mnist: bool,
+    model_file: Path | None = None,
 ) -> None:
     """
     Training loop for diffusion model.
@@ -264,13 +269,15 @@ def train(
     model_storage_directory.mkdir(exist_ok=True)
 
     beta_start_end = (diffusion_info.var_schedule_start, diffusion_info.var_schedule_end)
-    schedule = VarianceSchedule(beta_start_end=beta_start_end, n_time_steps=diffusion_info.steps, device=params.DEVICE)
+    schedule = VarianceSchedule(
+        beta_start_end=beta_start_end, n_time_steps=diffusion_info.steps, device=general_params.device
+    )
 
     n_labels = get_number_of_different_labels(use_mnist, dataset_info.specific_clusters)
-    model = DiffusionModel(in_channels, schedule, n_labels)
+    model = DiffusionModel(in_channels, schedule, n_labels, general_params.embedding_dim)
     if model_file is not None:
         model.load_state_dict(torch.load(model_file))
-    model.to(params.DEVICE)
+    model.to(general_params.device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=diffusion_info.learning_rate)
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -282,10 +289,10 @@ def train(
     n_epochs = diffusion_info.epochs_mnist if use_mnist else diffusion_info.epochs_lld
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
         for batch, labels in data_loader:
-            labels = labels.to(params.DEVICE)
+            labels = labels.to(general_params.device)
             if np.random.random() < 0.1:
                 labels = None
-            batch = batch.to(params.DEVICE)
+            batch = batch.to(general_params.device)
 
             optimizer.zero_grad()
             # pytorch expects tuple for size here:
@@ -293,7 +300,7 @@ def train(
             t = torch.randint(low=0, high=diffusion_info.steps, size=(actual_batch_size,))
             noisy_batch, noise = diffusion_forward_process(batch, t, schedule)
 
-            noise_pred = model(noisy_batch, t.to(params.DEVICE), labels)
+            noise_pred = model(noisy_batch, t.to(general_params.device), labels)
             loss = loss_fn(noise_pred, noise)
 
             loss.backward()
@@ -329,4 +336,6 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    train(dataset_info=params.Dataset(), diffusion_info=params.Diffusion(), use_mnist=args.use_mnist)
+    config = params.load_config()
+
+    train(config.dataset, config.diffusion, config.general, use_mnist=args.use_mnist)
