@@ -3,6 +3,7 @@ Draw samples from both the diffusion model and the VAE
 """
 
 import argparse
+import copy
 from pathlib import Path
 import typing
 
@@ -11,7 +12,7 @@ import torch
 from tqdm import tqdm
 
 from favicon_gen.autoencoder import VariationalAutoEncoder
-from favicon_gen.data_loading import show_image_grid, load_logos, load_mnist, get_number_of_different_labels
+from favicon_gen.data_loading import show_image_grid, load_data, get_number_of_different_labels
 from favicon_gen.denoising_diffusion import DiffusionModel, diffusion_backward_process, VarianceSchedule
 from favicon_gen import params
 
@@ -104,7 +105,6 @@ def sample_from_diffusion_model(
 def nearest_neighbor_search(
     generated_batch: torch.Tensor,
     dataset_info: params.Dataset,
-    use_mnist: bool,
     save_as: Path | None = None,
 ) -> torch.Tensor:
     """
@@ -116,10 +116,9 @@ def nearest_neighbor_search(
     :param save_as: Save image of the batch of nearest neighbors here
     :return: batch of nearest neighbors
     """
-    if use_mnist:
-        _, data_loader = load_mnist(1, False, dataset_info.n_images)
-    else:
-        _, data_loader = load_logos(1, False, dataset_info.n_images, dataset_info.specific_clusters)
+    modified_dataset_info = copy.deepcopy(dataset_info)
+    modified_dataset_info.shuffle = False
+    _, data_loader = load_data(1, modified_dataset_info)
 
     nearest_neighbors = torch.zeros(generated_batch.shape, device=generated_batch.device)
     current_nearest_neighbor_distances = torch.full(
@@ -146,9 +145,6 @@ def main():
     parser = argparse.ArgumentParser(description="Get sample images from models")
     parser.add_argument("--n_samples", type=int, default=64, help="Number of samples to get from model.")
     parser.add_argument("--use_gpu", help="Try to calculate on GPU.", action="store_true")
-    parser.add_argument(
-        "--use_mnist", action="store_true", help="Whether to train on MNIST instead of the Large Logo Dataset."
-    )
 
     args = parser.parse_args()
     if args.use_gpu:
@@ -156,22 +152,26 @@ def main():
     else:
         device = "cpu"
 
-    if args.use_mnist:
-        model_file_auto = params.OUTS_BASE_DIR / "train_autoencoder_mnist/model.pt"
+    config = params.load_config()
+    match config.dataset.name:
+        case params.AvailableDatasets.MNIST:
+            in_channels = 1
+            use_mnist = True
+        case params.AvailableDatasets.LLD:
+            in_channels = 3
+            use_mnist = False
+
+
+    model_file_auto = params.OUTS_BASE_DIR / "train_autoencoder/model.pt"
+    model_file_diffusion = params.OUTS_BASE_DIR / "train_diffusion_model/model.pt"
+    if use_mnist:
         save_location_auto_samples = params.OUTS_BASE_DIR / "samples_autoencoder_mnist.pdf"
-        model_file_diffusion = params.OUTS_BASE_DIR / "train_diffusion_model_mnist/model.pt"
         save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion_mnist.pdf"
     else:
-        model_file_auto = params.OUTS_BASE_DIR / "train_autoencoder_lld/model.pt"
         save_location_auto_samples = params.OUTS_BASE_DIR / "samples_autoencoder_lld.pdf"
-        model_file_diffusion = params.OUTS_BASE_DIR / "train_diffusion_model_lld/model.pt"
         save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion_lld.pdf"
 
-    config = params.load_config()
-
-    in_channels = 1 if args.use_mnist else 3
-    n_labels = get_number_of_different_labels(args.use_mnist, config.dataset.specific_clusters)
-
+    n_labels = get_number_of_different_labels(use_mnist, config.dataset.specific_clusters)
 
     auto_gen_batch = next(
         sample_from_vae(
@@ -200,15 +200,13 @@ def main():
     nearest_neighbor_search(
         auto_gen_batch,
         config.dataset,
-        args.use_mnist,
-        save_as=params.OUTS_BASE_DIR / f"auto_nearest_neighbors_mnist_{args.use_mnist}.pdf",
+        save_as=params.OUTS_BASE_DIR / f"auto_nearest_neighbors_mnist_{use_mnist}.pdf",
     )
 
     nearest_neighbor_search(
         diffusion_gen_batch,
         config.dataset,
-        args.use_mnist,
-        save_as=params.OUTS_BASE_DIR / f"diffusion_nearest_neighbors_mnist_{args.use_mnist}.pdf",
+        save_as=params.OUTS_BASE_DIR / f"diffusion_nearest_neighbors_mnist_{use_mnist}.pdf",
     )
 
 

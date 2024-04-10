@@ -1,74 +1,40 @@
 stages:
-  train_autoencoder_mnist:
-    cmd: python favicon_gen/autoencoder.py --use_mnist
-    deps:
-      - data/LLD-icon.hdf5
-    outs:
-      - outs/train_autoencoder_mnist/model.pt
-    params:
-      - general
-      - autoencoder
-      - dataset
-    plots:
-      - outs/train_autoencoder_mnist/loss.csv:
-          x: Epoch
-          y: Loss
-
-  train_autoencoder_lld:
+  train_autoencoder:
     cmd: python favicon_gen/autoencoder.py
     deps:
       - data/LLD-icon.hdf5
     outs:
-      - outs/train_autoencoder_lld/model.pt
+      - outs/train_autoencoder/model.pt
     params:
       - general
       - autoencoder
       - dataset
     plots:
-      - outs/train_autoencoder_lld/loss.csv:
+      - outs/train_autoencoder/loss.csv:
           x: Epoch
           y: Loss
 
-  train_diffusion_model_mnist:
-    cmd: python favicon_gen/denoising_diffusion.py --use_mnist
-    deps:
-      - data/LLD-icon.hdf5
-    outs:
-      - outs/train_diffusion_model_mnist/model.pt
-    params:
-      - general
-      - dataset
-      - diffusion
-    plots:
-      - outs/train_diffusion_model_mnist/loss.csv:
-          x: Epoch
-          y: Loss
 
-  train_diffusion_model_lld:
+  train_diffusion_model:
     cmd: python favicon_gen/denoising_diffusion.py
     deps:
       - data/LLD-icon.hdf5
     outs:
-      - outs/train_diffusion_model_lld/model.pt
+      - outs/train_diffusion_model/model.pt
     params:
       - general
       - dataset
       - diffusion
     plots:
-      - outs/train_diffusion_model_lld/loss.csv:
+      - outs/train_diffusion_model/loss.csv:
           x: Epoch
           y: Loss
 
-
-  draw_samples_mnist:
-    cmd: python favicon_gen/sample_from_model.py --use_mnist --use_gpu --n_samples 64
-    deps:
-      - outs/train_autoencoder_mnist/model.pt
-      - outs/train_diffusion_model_mnist/model.pt
-
-  draw_samples_lld:
+  draw_samples:
     cmd: python favicon_gen/sample_from_model.py --use_gpu --n_samples 64
     deps:
-      - outs/train_autoencoder_lld/model.pt
-      - outs/train_diffusion_model_lld/model.pt
+      - outs/train_autoencoder/model.pt
+      - outs/train_diffusion_model/model.pt
+    params:
+    - dataset
 

@@ -1,13 +1,11 @@
+defaults:
+  - dataset: mnist
+  - _self_
+
 general:
   device: "cuda"
   embedding_dim: 32
   do_norm: True 
-
-dataset:
-  specific_clusters:
-    - 0
-  n_images: 128
-  shuffle: True
 
 autoencoder:
   adversarial_loss_weight: 1.0

@@ -2,7 +2,6 @@
 Denoising diffusion model similar to [1].
 """
 
-import argparse
 from dataclasses import dataclass
 import math
 from pathlib import Path
@@ -15,7 +14,7 @@ from tqdm import tqdm
 
 from favicon_gen import params
 from favicon_gen.blocks import ConvBlock, ResampleModi
-from favicon_gen.data_loading import load_logos, load_mnist, show_image_grid, get_number_of_different_labels
+from favicon_gen.data_loading import load_data, show_image_grid, get_number_of_different_labels
 
 
 @dataclass
@@ -237,7 +236,6 @@ def train(
     dataset_info: params.Dataset,
     diffusion_info: params.Diffusion,
     general_params: params.General,
-    use_mnist: bool,
     model_file: Path | None = None,
 ) -> None:
     """
@@ -245,23 +243,18 @@ def train(
 
     :param dataset_info: Dataset parameters
     :param diffusion_info: Model parameters
-    :param use_mnist: Whether to use MNIST (`True`) or LLD (`False`) as training data
     :param model_file: If given, will start from the model saved there
     """
 
-    if use_mnist:
-        n_samples, data_loader = load_mnist(diffusion_info.batch_size, dataset_info.shuffle, dataset_info.n_images)
-        model_storage_directory = params.OUTS_BASE_DIR / "train_diffusion_model_mnist"
-        in_channels = 1
-    else:
-        n_samples, data_loader = load_logos(
-            diffusion_info.batch_size,
-            dataset_info.shuffle,
-            dataset_info.n_images,
-            clusters=dataset_info.specific_clusters,
-        )
-        model_storage_directory = params.OUTS_BASE_DIR / "train_diffusion_model_lld"
-        in_channels = 3
+    n_samples, data_loader = load_data(diffusion_info.batch_size, dataset_info)
+    model_storage_directory = params.OUTS_BASE_DIR / "train_diffusion_model"
+    match dataset_info.name:
+        case params.AvailableDatasets.MNIST:
+            in_channels = 1
+            use_mnist = True
+        case params.AvailableDatasets.LLD:
+            in_channels = 3
+            use_mnist = False
 
     print(f"Cleaning output directory {model_storage_directory} ...")
     if model_storage_directory.exists():
@@ -330,12 +323,5 @@ def train(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train the diffusion model")
-    parser.add_argument(
-        "--use_mnist", action="store_true", help="Whether to train on MNIST instead of the Large Logo Dataset."
-    )
-    args = parser.parse_args()
-
     config = params.load_config()
-
-    train(config.dataset, config.diffusion, config.general, use_mnist=args.use_mnist)
+    train(config.dataset, config.diffusion, config.general)

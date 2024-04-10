@@ -161,6 +161,16 @@ def load_mnist(batch_size: int, shuffle: bool, n_images: int | None) -> tuple[in
     return len(mnist), loader
 
 
+def load_data(batch_size: int, dataset_params: params.Dataset):
+    match dataset_params.name:
+        case params.AvailableDatasets.MNIST:
+            return load_mnist(batch_size, dataset_params.shuffle, dataset_params.n_images)
+        case params.AvailableDatasets.LLD:
+            return load_logos(
+                batch_size, dataset_params.shuffle, dataset_params.n_images, dataset_params.specific_clusters
+            )
+
+
 def get_number_of_different_labels(use_mnist: bool, clusters: list[int] | None) -> int:
     """
     Get amount of different labels (e.g. 10 for the ten digits in MNIST).

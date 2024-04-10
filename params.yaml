@@ -1,12 +1,11 @@
+dataset:
+  name: MNIST
+  n_images: 128
+  shuffle: true
 general:
   device: cuda
   embedding_dim: 32
   do_norm: true
-dataset:
-  specific_clusters:
-  - 0
-  n_images: 128
-  shuffle: true
 autoencoder:
   adversarial_loss_weight: 1.0
   batch_size: 512

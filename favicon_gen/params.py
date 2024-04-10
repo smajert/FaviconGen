@@ -2,6 +2,7 @@
 Parameters used throughout the project
 """
 from dataclasses import dataclass
+from enum import auto, Enum
 from typing import Optional
 from pathlib import Path
 
@@ -20,11 +21,17 @@ class General:
     do_norm: bool # whether to perform batch norm
 
 
+class AvailableDatasets(Enum):
+    LLD = auto()
+    MNIST = auto()
+
+
 @dataclass
 class Dataset:  # everything related to MNIST/LLD
-    specific_clusters: Optional[list[int]] # which LLD clusters to use; ignored for MNIST
+    name: AvailableDatasets
     n_images: Optional[int]  # total amount of images to load, None means all of them
     shuffle: bool  # whether to shuffle the data
+    specific_clusters: Optional[list[int]] = None  # which LLD clusters to use
 
 
 @dataclass

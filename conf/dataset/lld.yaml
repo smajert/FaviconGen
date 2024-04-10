@@ -1,0 +1,5 @@
+name: "LLD"
+specific_clusters:
+  - 0
+n_images: 128
+shuffle: True

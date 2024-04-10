@@ -2,7 +2,6 @@
 Variational Autoencoder (VAE) with optional patch GAN
 """
 
-import argparse
 from pathlib import Path
 import shutil
 from typing import Any  # noqa: F401
@@ -12,7 +11,7 @@ from tqdm import tqdm
 
 from favicon_gen import params
 from favicon_gen.blocks import ConvBlock, ResampleModi
-from favicon_gen.data_loading import load_logos, load_mnist, show_image_grid, get_number_of_different_labels
+from favicon_gen.data_loading import load_data, show_image_grid, get_number_of_different_labels
 
 
 class Encoder(torch.nn.Module):
@@ -176,7 +175,6 @@ def train(
     dataset_params: params.Dataset,
     auto_params: params.AutoEncoder,
     general_params: params.General,
-    use_mnist: bool,
     model_file: Path | None = None,
 ) -> None:
     """
@@ -184,24 +182,19 @@ def train(
 
     :param dataset_params: Dataset parameters
     :param auto_params: Model parameters
-    :param use_mnist: Whether to use MNIST (`True`) or LLD (`False`) as training data
     :param model_file: If given, will start from the model saved there
     """
-    if use_mnist:
-        n_samples, data_loader = load_mnist(auto_params.batch_size, dataset_params.shuffle, dataset_params.n_images)
-        n_epochs = auto_params.epochs_mnist
-        model_storage_directory = params.OUTS_BASE_DIR / "train_autoencoder_mnist"
-        in_channels = 1
-    else:
-        n_samples, data_loader = load_logos(
-            auto_params.batch_size,
-            dataset_params.shuffle,
-            dataset_params.n_images,
-            clusters=dataset_params.specific_clusters,
-        )
-        n_epochs = auto_params.epochs_lld
-        model_storage_directory = params.OUTS_BASE_DIR / "train_autoencoder_lld"
-        in_channels = 3
+    n_samples, data_loader = load_data(auto_params.batch_size, dataset_params)
+    model_storage_directory = params.OUTS_BASE_DIR / "train_autoencoder"
+    match dataset_params.name:
+        case params.AvailableDatasets.MNIST:
+            n_epochs = auto_params.epochs_mnist
+            in_channels = 1
+            use_mnist = True
+        case params.AvailableDatasets.LLD:
+            n_epochs = auto_params.epochs_lld
+            in_channels = 3
+            use_mnist = False
 
     print(f"Cleaning output directory {model_storage_directory} ...")
     if model_storage_directory.exists():
@@ -286,11 +279,5 @@ def train(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train the autoencoder model.")
-    parser.add_argument(
-        "--use_mnist", action="store_true", help="Whether to train on MNIST instead of the Large Logo Dataset."
-    )
-    args = parser.parse_args()
-
     config = params.load_config()
-    train(config.dataset, config.autoencoder, config.general, args.use_mnist)
+    train(config.dataset, config.autoencoder, config.general)

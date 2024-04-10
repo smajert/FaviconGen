@@ -1,0 +1,3 @@
+name: "MNIST"
+n_images: 128
+shuffle: True
