@@ -12,12 +12,16 @@ stages:
           adversarial_loss_weight: 1.0
           batch_size: 512
           epochs_mnist: 20
-          epochs_lld: 200
+          epochs_lld: 100
           kl_loss_weight: 1.0
           learning_rate: 0.0004
         dataset:
-          name: MNIST
-          n_images: 128
+          name: LLD
+          specific_clusters:
+          - 0
+          - 1
+          - 2
+          n_images:
           shuffle: true
         general:
           device: cuda
@@ -26,12 +30,12 @@ stages:
     outs:
     - path: outs/train_autoencoder/loss.csv
       hash: md5
-      md5: 36a45f9cdde04875f0f292a1e136d408
-      size: 458
+      md5: 2afcf15ace22f56b30beb565aed3feec
+      size: 2293
     - path: outs/train_autoencoder/model.pt
       hash: md5
-      md5: 7b9709dcb5c1affd0bb29c83fe120225
-      size: 18705937
+      md5: 8ecd7ba7a09263204f00470d8ce2fb19
+      size: 18708753
   train_diffusion_model:
     cmd: python favicon_gen/denoising_diffusion.py
     deps:
@@ -41,13 +45,17 @@ stages:
     params:
       params.yaml:
         dataset:
-          name: MNIST
-          n_images: 128
+          name: LLD
+          specific_clusters:
+          - 0
+          - 1
+          - 2
+          n_images:
           shuffle: true
         diffusion:
           batch_size: 32
           epochs_mnist: 20
-          epochs_lld: 201
+          epochs_lld: 100
           guiding_factor: 0.9
           learning_rate: 0.01
           steps: 1000
@@ -60,28 +68,32 @@ stages:
     outs:
     - path: outs/train_diffusion_model/loss.csv
       hash: md5
-      md5: 343c82982cb714c9ee71917ed2710075
-      size: 473
+      md5: ba04ec94ec32396e558222f2190de612
+      size: 2414
     - path: outs/train_diffusion_model/model.pt
       hash: md5
-      md5: 566687a92263dc46f86f80036b43a106
-      size: 58599465
+      md5: 956651012fd4d4018424a453a2d34710
+      size: 58607529
   draw_samples:
     cmd: python favicon_gen/sample_from_model.py --use_gpu --n_samples 64
     deps:
     - path: outs/train_autoencoder/model.pt
       hash: md5
-      md5: 7b9709dcb5c1affd0bb29c83fe120225
-      size: 18705937
+      md5: 8ecd7ba7a09263204f00470d8ce2fb19
+      size: 18708753
     - path: outs/train_diffusion_model/model.pt
       hash: md5
-      md5: 566687a92263dc46f86f80036b43a106
-      size: 58599465
+      md5: 956651012fd4d4018424a453a2d34710
+      size: 58607529
     params:
       params.yaml:
         dataset:
-          name: MNIST
-          n_images: 128
+          name: LLD
+          specific_clusters:
+          - 0
+          - 1
+          - 2
+          n_images:
           shuffle: true
   train_autoencoder_lld:
     cmd: python favicon_gen/autoencoder.py

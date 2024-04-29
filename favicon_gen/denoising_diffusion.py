@@ -250,10 +250,8 @@ def train(
     model_storage_directory = params.OUTS_BASE_DIR / "train_diffusion_model"
     match dataset_info.name:
         case params.AvailableDatasets.MNIST:
-            in_channels = 1
             use_mnist = True
         case params.AvailableDatasets.LLD:
-            in_channels = 3
             use_mnist = False
 
     print(f"Cleaning output directory {model_storage_directory} ...")
@@ -267,7 +265,7 @@ def train(
     )
 
     n_labels = get_number_of_different_labels(use_mnist, dataset_info.specific_clusters)
-    model = DiffusionModel(in_channels, schedule, n_labels, general_params.embedding_dim)
+    model = DiffusionModel(dataset_info.in_channels, schedule, n_labels, general_params.embedding_dim)
     if model_file is not None:
         model.load_state_dict(torch.load(model_file))
     model.to(general_params.device)

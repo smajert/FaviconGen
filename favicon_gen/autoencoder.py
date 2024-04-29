@@ -189,29 +189,27 @@ def train(
     match dataset_params.name:
         case params.AvailableDatasets.MNIST:
             n_epochs = auto_params.epochs_mnist
-            in_channels = 1
             use_mnist = True
         case params.AvailableDatasets.LLD:
             n_epochs = auto_params.epochs_lld
-            in_channels = 3
             use_mnist = False
 
     print(f"Cleaning output directory {model_storage_directory} ...")
     if model_storage_directory.exists():
         shutil.rmtree(model_storage_directory)
-    model_storage_directory.mkdir(exist_ok=True)
+    model_storage_directory.mkdir(exist_ok=True, parents=True)
 
     # prepare discriminator
     use_patch_discriminator = auto_params.adversarial_loss_weight is not None
     if use_patch_discriminator:
-        patch_disc = PatchDiscriminator(in_channels)
+        patch_disc = PatchDiscriminator(dataset_params.in_channels)
         patch_disc.to(general_params.device)
         lower_disc_learning_rate = 0.1 * auto_params.learning_rate  # lower rate helps in GAN training
         optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=lower_disc_learning_rate)
 
     # prepare autoencoder
     n_labels = get_number_of_different_labels(use_mnist, dataset_params.specific_clusters)
-    autoencoder = VariationalAutoEncoder(in_channels, n_labels, general_params.embedding_dim)
+    autoencoder = VariationalAutoEncoder(dataset_params.in_channels, n_labels, general_params.embedding_dim)
     if model_file is not None:
         autoencoder.load_state_dict(torch.load(model_file))
     autoencoder.to(general_params.device)

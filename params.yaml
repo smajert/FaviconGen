@@ -1,6 +1,10 @@
 dataset:
-  name: MNIST
-  n_images: 128
+  name: LLD
+  specific_clusters:
+  - 0
+  - 1
+  - 2
+  n_images: null
   shuffle: true
 general:
   device: cuda
@@ -10,13 +14,13 @@ autoencoder:
   adversarial_loss_weight: 1.0
   batch_size: 512
   epochs_mnist: 20
-  epochs_lld: 200
+  epochs_lld: 100
   kl_loss_weight: 1.0
   learning_rate: 0.0004
 diffusion:
   batch_size: 32
   epochs_mnist: 20
-  epochs_lld: 201
+  epochs_lld: 100
   guiding_factor: 0.9
   learning_rate: 0.01
   steps: 1000

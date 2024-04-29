@@ -6,6 +6,7 @@ from enum import auto, Enum
 from typing import Optional
 from pathlib import Path
 
+from dacite import from_dict
 from omegaconf import OmegaConf
 
 
@@ -22,8 +23,8 @@ class General:
 
 
 class AvailableDatasets(Enum):
-    LLD = auto()
-    MNIST = auto()
+    LLD = auto()  # Large Logo Dataset
+    MNIST = auto()  # Modified National Institute of Standards and Technology database
 
 
 @dataclass
@@ -32,6 +33,14 @@ class Dataset:  # everything related to MNIST/LLD
     n_images: Optional[int]  # total amount of images to load, None means all of them
     shuffle: bool  # whether to shuffle the data
     specific_clusters: Optional[list[int]] = None  # which LLD clusters to use
+
+    @property
+    def in_channels(self):
+        match self.name:
+            case AvailableDatasets.LLD:
+                return 3
+            case AvailableDatasets.MNIST:
+                return 1
 
 
 @dataclass
@@ -67,4 +76,5 @@ class ProjectConfig:
 def load_config() -> ProjectConfig:
     schema = OmegaConf.structured(ProjectConfig)
     cfg = OmegaConf.merge(schema, OmegaConf.load("params.yaml"))
-    return cfg
+    cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+    return from_dict(data_class=ProjectConfig, data=cfg_dict)
