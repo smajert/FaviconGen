@@ -3,10 +3,10 @@ Parameters used throughout the project
 """
 from dataclasses import dataclass
 from enum import auto, Enum
-from typing import Optional
+from typing import Any, Optional
 from pathlib import Path
 
-from dacite import from_dict
+from dacite import Config, from_dict
 from omegaconf import OmegaConf
 
 
@@ -17,9 +17,9 @@ OUTS_BASE_DIR = REPO_ROOT / "outs"
 
 @dataclass
 class General:
-    device: str # whether to run on GPU ("cuda") or CPU ("cpu")
+    device: str  # whether to run on GPU ("cuda") or CPU ("cpu")
     embedding_dim: int  # dimension class labels and/or time step are transformed to
-    do_norm: bool # whether to perform batch norm
+    do_norm: bool  # whether to perform batch norm
 
 
 class AvailableDatasets(Enum):
@@ -49,7 +49,6 @@ class AutoEncoder:  # everything related to VAE training
     batch_size: int
     epochs_mnist: int  # epochs to train on MNIST
     epochs_lld: int  # epochs to train on LLD
-    kl_loss_weight: float  # weight of Kullback Leibler vs. reconstruction loss for VAE
     learning_rate: float  # learning rate for VAE
 
 
@@ -60,8 +59,8 @@ class Diffusion:  # everything related to diffusion model training
     epochs_lld: int  # epochs to train on LLD
     guiding_factor: float  # Guided (with label) vs. unguided (without labels) in classifier free guidance [4]
     learning_rate: float
-    steps: int # amount of time steps the diffusion model uses
-    var_schedule_start: float # starting value of the variance schedule beta
+    steps: int  # amount of time steps the diffusion model uses
+    var_schedule_start: float  # starting value of the variance schedule beta
     var_schedule_end: float  # final value (after `Diffusion.steps` time steps) of the variance schedule beta
 
 
@@ -69,12 +68,17 @@ class Diffusion:  # everything related to diffusion model training
 class ProjectConfig:
     general: General
     dataset: Dataset
-    autoencoder: AutoEncoder
-    diffusion: Diffusion
+    model: AutoEncoder | Diffusion
 
 
 def load_config() -> ProjectConfig:
-    schema = OmegaConf.structured(ProjectConfig)
+    @dataclass
+    class DummyProjectConfig:
+        general: General
+        dataset: Dataset
+        model: Any # currently, Omegaconf cannot deal with the union container here -> dummy class
+    schema = OmegaConf.structured(DummyProjectConfig)
+
     cfg = OmegaConf.merge(schema, OmegaConf.load("params.yaml"))
     cfg_dict = OmegaConf.to_container(cfg, resolve=True)
-    return from_dict(data_class=ProjectConfig, data=cfg_dict)
+    return from_dict(data_class=ProjectConfig, data=cfg_dict, config=Config(strict=True))

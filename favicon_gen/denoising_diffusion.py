@@ -247,7 +247,7 @@ def train(
     """
 
     n_samples, data_loader = load_data(diffusion_info.batch_size, dataset_info)
-    model_storage_directory = params.OUTS_BASE_DIR / "train_diffusion_model"
+    model_storage_directory = params.OUTS_BASE_DIR
     match dataset_info.name:
         case params.AvailableDatasets.MNIST:
             use_mnist = True
@@ -318,8 +318,3 @@ def train(
         file.write("Epoch,Loss\n")
         for epoch, loss in enumerate(running_losses):
             file.write(f"{epoch},{loss}\n")
-
-
-if __name__ == "__main__":
-    config = params.load_config()
-    train(config.dataset, config.diffusion, config.general)

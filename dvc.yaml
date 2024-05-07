@@ -1,40 +1,22 @@
 stages:
-  train_autoencoder:
-    cmd: python favicon_gen/autoencoder.py
+  train_model:
+    cmd: python favicon_gen/call_training.py
     deps:
       - data/LLD-icon.hdf5
     outs:
-      - outs/train_autoencoder/model.pt
+      - outs/model.pt
     params:
       - general
-      - autoencoder
+      - model
       - dataset
     plots:
-      - outs/train_autoencoder/loss.csv:
-          x: Epoch
-          y: Loss
-
-
-  train_diffusion_model:
-    cmd: python favicon_gen/denoising_diffusion.py
-    deps:
-      - data/LLD-icon.hdf5
-    outs:
-      - outs/train_diffusion_model/model.pt
-    params:
-      - general
-      - dataset
-      - diffusion
-    plots:
-      - outs/train_diffusion_model/loss.csv:
+      - outs/loss.csv:
           x: Epoch
           y: Loss
 
   draw_samples:
     cmd: python favicon_gen/sample_from_model.py --use_gpu --n_samples 64
     deps:
-      - outs/train_autoencoder/model.pt
-      - outs/train_diffusion_model/model.pt
+      - outs/model.pt
     params:
     - dataset
-

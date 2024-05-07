@@ -185,7 +185,7 @@ def train(
     :param model_file: If given, will start from the model saved there
     """
     n_samples, data_loader = load_data(auto_params.batch_size, dataset_params)
-    model_storage_directory = params.OUTS_BASE_DIR / "train_autoencoder"
+    model_storage_directory = params.OUTS_BASE_DIR
     match dataset_params.name:
         case params.AvailableDatasets.MNIST:
             n_epochs = auto_params.epochs_mnist
@@ -274,8 +274,3 @@ def train(
         file.write("Epoch,Loss\n")
         for epoch, loss in enumerate(running_losses):
             file.write(f"{epoch},{loss}\n")
-
-
-if __name__ == "__main__":
-    config = params.load_config()
-    train(config.dataset, config.autoencoder, config.general)

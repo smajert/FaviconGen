@@ -77,13 +77,9 @@ stages:
   draw_samples:
     cmd: python favicon_gen/sample_from_model.py --use_gpu --n_samples 64
     deps:
-    - path: outs/train_autoencoder/model.pt
+    - path: outs/model.pt
       hash: md5
-      md5: 8ecd7ba7a09263204f00470d8ce2fb19
-      size: 18708753
-    - path: outs/train_diffusion_model/model.pt
-      hash: md5
-      md5: 956651012fd4d4018424a453a2d34710
+      md5: 558d9c023962b62993dbd8b369acb6d8
       size: 58607529
     params:
       params.yaml:
@@ -258,3 +254,42 @@ stages:
       hash: md5
       md5: 7785b32060090ef63ded457db404bdb3
       size: 58607273
+  train_model:
+    cmd: python favicon_gen/call_training.py
+    deps:
+    - path: data/LLD-icon.hdf5
+      hash: md5
+      md5: 91f56af2235117e44629fa608fed59ef
+      size: 798927457
+    params:
+      params.yaml:
+        dataset:
+          name: LLD
+          specific_clusters:
+          - 0
+          - 1
+          - 2
+          n_images:
+          shuffle: true
+        general:
+          device: cuda
+          embedding_dim: 32
+          do_norm: true
+        model:
+          batch_size: 32
+          epochs_mnist: 20
+          epochs_lld: 10
+          guiding_factor: 0.9
+          learning_rate: 0.01
+          steps: 1000
+          var_schedule_start: 0.0001
+          var_schedule_end: 0.02
+    outs:
+    - path: outs/loss.csv
+      hash: md5
+      md5: c4a2d70179ef5d8ea5b1656423d9f074
+      size: 237
+    - path: outs/model.pt
+      hash: md5
+      md5: 558d9c023962b62993dbd8b369acb6d8
+      size: 58607529

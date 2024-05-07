@@ -157,56 +157,47 @@ def main():
         case params.AvailableDatasets.MNIST:
             in_channels = 1
             use_mnist = True
+            n_labels = 10
         case params.AvailableDatasets.LLD:
             in_channels = 3
             use_mnist = False
+            spec_clusters = config.dataset.specific_clusters
+            n_labels = 100 if spec_clusters is None else len(spec_clusters)
 
+    model_file = params.OUTS_BASE_DIR / "model.pt"
+    samples_out_file = params.OUTS_BASE_DIR / "samples.pdf"
 
-    model_file_auto = params.OUTS_BASE_DIR / "train_autoencoder/model.pt"
-    model_file_diffusion = params.OUTS_BASE_DIR / "train_diffusion_model/model.pt"
-    if use_mnist:
-        save_location_auto_samples = params.OUTS_BASE_DIR / "samples_autoencoder_mnist.pdf"
-        save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion_mnist.pdf"
-    else:
-        save_location_auto_samples = params.OUTS_BASE_DIR / "samples_autoencoder_lld.pdf"
-        save_location_diff_samples = params.OUTS_BASE_DIR / "samples_diffusion_lld.pdf"
-
-    n_labels = get_number_of_different_labels(use_mnist, config.dataset.specific_clusters)
-
-    auto_gen_batch = next(
-        sample_from_vae(
-            model_file_auto,
-            n_labels,
-            in_channels,
-            args.n_samples,
-            device,
-            config.general.embedding_dim,
-            save_as=save_location_auto_samples,
-        )
-    )
-    diffusion_gen_batch = next(
-        sample_from_diffusion_model(
-            model_file_diffusion,
-            n_labels,
-            in_channels,
-            args.n_samples,
-            device,
-            config.diffusion,
-            config.general.embedding_dim,
-            save_as=save_location_diff_samples,
-        )
-    )
+    match config.model:
+        case params.AutoEncoder():
+            sample_batch = next(
+                sample_from_vae(
+                    model_file,
+                    n_labels,
+                    in_channels,
+                    args.n_samples,
+                    device,
+                    config.general.embedding_dim,
+                    save_as=samples_out_file,
+                )
+            )
+        case params.Diffusion():
+            sample_batch = next(
+                sample_from_diffusion_model(
+                    model_file,
+                    n_labels,
+                    in_channels,
+                    args.n_samples,
+                    device,
+                    config.model,
+                    config.general.embedding_dim,
+                    save_as=samples_out_file,
+                )
+            )
 
     nearest_neighbor_search(
-        auto_gen_batch,
+        sample_batch,
         config.dataset,
-        save_as=params.OUTS_BASE_DIR / f"auto_nearest_neighbors_mnist_{use_mnist}.pdf",
-    )
-
-    nearest_neighbor_search(
-        diffusion_gen_batch,
-        config.dataset,
-        save_as=params.OUTS_BASE_DIR / f"diffusion_nearest_neighbors_mnist_{use_mnist}.pdf",
+        save_as=params.OUTS_BASE_DIR / "nearest_neighbors.pdf",
     )
 
 
