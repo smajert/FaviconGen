@@ -20,3 +20,6 @@ stages:
       - outs/model.pt
     params:
     - dataset
+
+metrics:
+  - outs/metrics.json

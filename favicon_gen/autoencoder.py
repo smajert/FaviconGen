@@ -183,6 +183,7 @@ def train(
     :param dataset_params: Dataset parameters
     :param auto_params: Model parameters
     :param model_file: If given, will start from the model saved there
+    :return: Loss for each epoch
     """
     n_samples, data_loader = load_data(auto_params.batch_size, dataset_params)
     model_storage_directory = params.OUTS_BASE_DIR
@@ -270,7 +271,4 @@ def train(
     print(f"Saving model in directory {model_storage_directory} ...")
     torch.save(autoencoder.state_dict(), model_storage_directory / "model.pt")
 
-    with open(model_storage_directory / "loss.csv", "w", encoding="utf-8") as file:
-        file.write("Epoch,Loss\n")
-        for epoch, loss in enumerate(running_losses):
-            file.write(f"{epoch},{loss}\n")
+    return running_losses

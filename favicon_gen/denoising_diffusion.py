@@ -237,13 +237,14 @@ def train(
     diffusion_info: params.Diffusion,
     general_params: params.General,
     model_file: Path | None = None,
-) -> None:
+) -> np.ndarray:
     """
     Training loop for diffusion model.
 
     :param dataset_info: Dataset parameters
     :param diffusion_info: Model parameters
     :param model_file: If given, will start from the model saved there
+    :return: Loss for each epoch
     """
 
     n_samples, data_loader = load_data(diffusion_info.batch_size, dataset_info)
@@ -314,7 +315,4 @@ def train(
 
     torch.save(model.state_dict(), model_storage_directory / "model.pt")
 
-    with open(model_storage_directory / "loss.csv", "w", encoding="utf-8") as file:
-        file.write("Epoch,Loss\n")
-        for epoch, loss in enumerate(running_losses):
-            file.write(f"{epoch},{loss}\n")
+    return running_losses
