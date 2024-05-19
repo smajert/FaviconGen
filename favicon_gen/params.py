@@ -49,6 +49,7 @@ class AutoEncoder:  # everything related to VAE training
     batch_size: int
     epochs_mnist: int  # epochs to train on MNIST
     epochs_lld: int  # epochs to train on LLD
+    kl_loss_weight: float # how strongly to force latent space to gaussian distribution
     learning_rate: float  # learning rate for VAE
 
 

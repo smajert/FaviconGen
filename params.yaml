@@ -4,12 +4,12 @@ dataset:
   - 0
   - 1
   - 2
-  n_images: null
+  n_images: 1
   shuffle: true
 model:
   batch_size: 32
   epochs_mnist: 20
-  epochs_lld: 10
+  epochs_lld: 50
   guiding_factor: 0.9
   learning_rate: 0.01
   steps: 1000

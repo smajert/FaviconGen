@@ -1,6 +1,8 @@
-import numpy as np
 from matplotlib import pyplot as plt
+import numpy as np
+import pytest
 
+from favicon_gen import params
 import favicon_gen.data_loading as dlo
 
 
@@ -9,26 +11,35 @@ def test_all_files_found(LogoDatasetLocation):
     assert len(file_loader) == 486377
 
 
-def test_labels_correct_when_restricting_to_cluster(LogoDatasetLocation):
-    n_images, file_loader = dlo.load_logos(200, False, None, [2, 20, 50])
-    labels_concat = []
-    for batch, labels in file_loader:
-        labels_concat.append(labels)
+def test_labels_correct_when_restricting_to_cluster():
+    lld = dlo.load_logos([2, 20, 50])
+    labels = lld.image_labels
 
-    collected_labels = np.concatenate(labels_concat)
-    assert n_images == 11650
-    assert np.max(collected_labels) == 2
-    assert np.min(collected_labels) == 0
+    assert len(lld) == 11650
+    assert np.max(labels) == 2
+    assert np.min(labels) == 0
 
 
-def test_image_grid_and_loading(LogoDatasetLocation):
-    lld = dlo.load_logos(64, shuffle=True, n_images=None, clusters=[2])[1]
-    batch = next(iter(lld))[0]
+def test_image_grid_and_loading():
+    _, lld_loader = dlo.load_data(
+        64,
+        params.Dataset(params.AvailableDatasets.LLD, n_images=None, shuffle=True, specific_clusters=[2]),
+    )
 
-    # mnist = testee.load_mnist(64, shuffle=True, n_images=None)[1]
-    # batch = next(iter(mnist))[0]
+    batch = next(iter(lld_loader))[0]
 
     dlo.show_image_grid(batch)
     show_plot = False
     if show_plot:
         plt.show()
+
+
+@pytest.mark.parametrize("n_images", [1, 32])
+def test_images_are_repated_for_small_image_amounts(n_images):
+    dataset_conf = params.Dataset(params.AvailableDatasets.LLD, n_images=n_images, shuffle=True, specific_clusters=[5])
+    _, lld_loader = dlo.load_data(32, dataset_conf)
+    dataset_conf.name = params.AvailableDatasets.MNIST
+    _, mnist_loader = dlo.load_data(32, dataset_conf)
+
+    assert len(lld_loader.dataset) == 5000
+    assert len(mnist_loader.dataset) == 5000

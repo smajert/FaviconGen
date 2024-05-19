@@ -1,6 +1,6 @@
   batch_size: 32
   epochs_mnist: 20
-  epochs_lld: 10
+  epochs_lld: 50
   guiding_factor: 0.90
   learning_rate: 1e-2
   steps: 1000
