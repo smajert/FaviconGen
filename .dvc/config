@@ -1,4 +1,6 @@
 [core]
     remote = my_dvc_remote
+[hydra]
+    enabled = True
 ['remote "my_dvc_remote"']
     url = F:/my_dvc_remote

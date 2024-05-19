@@ -1,0 +1,9 @@
+defaults:
+  - dataset: lld
+  - model: diffusion
+  - _self_
+
+general:
+  device: "cuda"
+  embedding_dim: 32
+  do_norm: True

@@ -1,82 +1,25 @@
 stages:
-  train_autoencoder_mnist:
-    cmd: python favicon_gen/autoencoder.py --use_mnist
+  train_model:
+    cmd: python favicon_gen/call_training.py
     deps:
       - data/LLD-icon.hdf5
     outs:
-      - outs/train_autoencoder_mnist/model.pt
+      - outs/model.pt
     params:
-      - favicon_gen/params.py:
-        - DO_NORM
-        - EMBEDDING_DIM
-        - AutoEncoder
-        - Dataset
+      - general
+      - model
+      - dataset
     plots:
-      - outs/train_autoencoder_mnist/loss.csv:
+      - outs/loss.csv:
           x: Epoch
           y: Loss
 
-  train_autoencoder_lld:
-    cmd: python favicon_gen/autoencoder.py
-    deps:
-      - data/LLD-icon.hdf5
-    outs:
-      - outs/train_autoencoder_lld/model.pt
-    params:
-      - favicon_gen/params.py:
-          - DO_NORM
-          - EMBEDDING_DIM
-          - AutoEncoder
-          - Dataset
-    plots:
-      - outs/train_autoencoder_lld/loss.csv:
-          x: Epoch
-          y: Loss
-
-  train_diffusion_model_mnist:
-    cmd: python favicon_gen/denoising_diffusion.py --use_mnist
-    deps:
-      - data/LLD-icon.hdf5
-    outs:
-      - outs/train_diffusion_model_mnist/model.pt
-    params:
-      - favicon_gen/params.py:
-        - DO_NORM
-        - EMBEDDING_DIM
-        - Dataset
-        - Diffusion
-    plots:
-      - outs/train_diffusion_model_mnist/loss.csv:
-          x: Epoch
-          y: Loss
-
-  train_diffusion_model_lld:
-    cmd: python favicon_gen/denoising_diffusion.py
-    deps:
-      - data/LLD-icon.hdf5
-    outs:
-      - outs/train_diffusion_model_lld/model.pt
-    params:
-      - favicon_gen/params.py:
-          - DO_NORM
-          - EMBEDDING_DIM
-          - Dataset
-          - Diffusion
-    plots:
-      - outs/train_diffusion_model_lld/loss.csv:
-          x: Epoch
-          y: Loss
-
-
-  draw_samples_mnist:
-    cmd: python favicon_gen/sample_from_model.py --use_mnist --use_gpu --n_samples 64
-    deps:
-      - outs/train_autoencoder_mnist/model.pt
-      - outs/train_diffusion_model_mnist/model.pt
-
-  draw_samples_lld:
+  draw_samples:
     cmd: python favicon_gen/sample_from_model.py --use_gpu --n_samples 64
     deps:
-      - outs/train_autoencoder_lld/model.pt
-      - outs/train_diffusion_model_lld/model.pt
+      - outs/model.pt
+    params:
+    - dataset
 
+metrics:
+  - outs/metrics.json

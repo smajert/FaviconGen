@@ -1,68 +1,96 @@
 schema: '2.0'
 stages:
   train_autoencoder:
-    cmd: python logo_maker/autoencoder.py
+    cmd: python favicon_gen/autoencoder.py
     deps:
     - path: data/LLD-icon.hdf5
       md5: 91f56af2235117e44629fa608fed59ef
       size: 798927457
     params:
-      logo_maker/params.py:
-        AutoEncoderParams:
-          ADVERSARIAL_LOSS_WEIGHT: 1
-          BATCH_SIZE: 128
-          EPOCHS: 50
-          KL_LOSS_WEIGHT: 1
-          LEARNING_RATE: 0.0004
-        DatasetParams:
-          CLUSTER:
-          N_IMAGES: 37376
-          SHUFFLE_DATA: true
-          USE_MNIST: true
+      params.yaml:
+        autoencoder:
+          adversarial_loss_weight: 1.0
+          batch_size: 512
+          epochs_mnist: 20
+          epochs_lld: 100
+          kl_loss_weight: 1.0
+          learning_rate: 0.0004
+        dataset:
+          name: LLD
+          specific_clusters:
+          - 0
+          - 1
+          - 2
+          n_images:
+          shuffle: true
+        general:
+          device: cuda
+          embedding_dim: 32
+          do_norm: true
     outs:
     - path: outs/train_autoencoder/loss.csv
-      md5: 8c9796046f1144c2ba476bccde401b72
-      size: 1166
+      hash: md5
+      md5: 2afcf15ace22f56b30beb565aed3feec
+      size: 2293
     - path: outs/train_autoencoder/model.pt
-      md5: b205f79b4d6d26f5730e630af8d80e9e
-      size: 3477013
+      hash: md5
+      md5: 8ecd7ba7a09263204f00470d8ce2fb19
+      size: 18708753
   train_diffusion_model:
-    cmd: python logo_maker/denoising_diffusion.py
+    cmd: python favicon_gen/denoising_diffusion.py
     deps:
     - path: data/LLD-icon.hdf5
       md5: 91f56af2235117e44629fa608fed59ef
       size: 798927457
     params:
-      logo_maker/params.py:
-        DatasetParams:
-          CLUSTER:
-          N_IMAGES: 37376
-          SHUFFLE_DATA: true
-          USE_MNIST: true
-        DiffusionModelParams:
-          BATCH_SIZE: 128
-          DIFFUSION_STEPS: 1000
-          EMBEDDING_DIMENSION: 32
-          EPOCHS: 10
-          LEARNING_RATE: 0.001
-          VAR_SCHEDULE_START: 0.0001
-          VAR_SCHEDULE_END: 0.02
+      params.yaml:
+        dataset:
+          name: LLD
+          specific_clusters:
+          - 0
+          - 1
+          - 2
+          n_images:
+          shuffle: true
+        diffusion:
+          batch_size: 32
+          epochs_mnist: 20
+          epochs_lld: 100
+          guiding_factor: 0.9
+          learning_rate: 0.01
+          steps: 1000
+          var_schedule_start: 0.0001
+          var_schedule_end: 0.02
+        general:
+          device: cuda
+          embedding_dim: 32
+          do_norm: true
     outs:
     - path: outs/train_diffusion_model/loss.csv
-      md5: ac93ddd973e524f5e2324a24eac6aece
-      size: 245
+      hash: md5
+      md5: ba04ec94ec32396e558222f2190de612
+      size: 2414
     - path: outs/train_diffusion_model/model.pt
-      md5: f0faa6c6a1d9121cea100b16b5c3bd09
-      size: 54153325
+      hash: md5
+      md5: 956651012fd4d4018424a453a2d34710
+      size: 58607529
   draw_samples:
-    cmd: python logo_maker/probe_model.py --use_gpu --n_samples 64
+    cmd: python favicon_gen/sample_from_model.py --use_gpu --n_samples 64
     deps:
-    - path: outs/train_autoencoder/model.pt
-      md5: b205f79b4d6d26f5730e630af8d80e9e
-      size: 3477013
-    - path: outs/train_diffusion_model/model.pt
-      md5: f0faa6c6a1d9121cea100b16b5c3bd09
-      size: 54153325
+    - path: outs/model.pt
+      hash: md5
+      md5: 187e6851ab413a10868144acad804e83
+      size: 58607529
+    params:
+      params.yaml:
+        dataset:
+          name: LLD
+          specific_clusters:
+          - 0
+          - 1
+          - 2
+          n_images:
+          shuffle: true
   train_autoencoder_lld:
     cmd: python favicon_gen/autoencoder.py
     deps:
@@ -71,32 +99,32 @@ stages:
       md5: 91f56af2235117e44629fa608fed59ef
       size: 798927457
     params:
-      favicon_gen/params.py:
-        AutoEncoder:
+      params.yaml:
+        autoencoder:
           adversarial_loss_weight: 1.0
           batch_size: 512
-          epochs_mnist: 35
-          epochs_lld: 350
-          kl_loss_weight: 1
+          epochs_mnist: 20
+          epochs_lld: 200
+          kl_loss_weight: 1.0
           learning_rate: 0.0004
-        DO_NORM: true
-        Dataset:
+        dataset:
           specific_clusters:
           - 0
-          - 1
-          - 2
-          n_images:
+          n_images: 128
           shuffle: true
-        EMBEDDING_DIM: 32
+        general:
+          device: cuda
+          embedding_dim: 32
+          do_norm: true
     outs:
     - path: outs/train_autoencoder_lld/loss.csv
       hash: md5
-      md5: e5a2d2b580dae6e13fe52f9bdc56710e
-      size: 8260
+      md5: c095212bf46ae8b486f16eb221871951
+      size: 4686
     - path: outs/train_autoencoder_lld/model.pt
       hash: md5
-      md5: fd884c1f770b1bdc10014c55f8b92e90
-      size: 18708753
+      md5: b63e2fcf45016fe2ff5bc1a235cb11f2
+      size: 18708497
   train_autoencoder_mnist:
     cmd: python favicon_gen/autoencoder.py --use_mnist
     deps:
@@ -105,31 +133,31 @@ stages:
       md5: 91f56af2235117e44629fa608fed59ef
       size: 798927457
     params:
-      favicon_gen/params.py:
-        AutoEncoder:
+      params.yaml:
+        autoencoder:
           adversarial_loss_weight: 1.0
           batch_size: 512
-          epochs_mnist: 35
-          epochs_lld: 350
-          kl_loss_weight: 1
+          epochs_mnist: 20
+          epochs_lld: 200
+          kl_loss_weight: 1.0
           learning_rate: 0.0004
-        DO_NORM: true
-        Dataset:
+        dataset:
           specific_clusters:
           - 0
-          - 1
-          - 2
-          n_images:
+          n_images: 128
           shuffle: true
-        EMBEDDING_DIM: 32
+        general:
+          device: cuda
+          embedding_dim: 32
+          do_norm: true
     outs:
     - path: outs/train_autoencoder_mnist/loss.csv
       hash: md5
-      md5: 1788f4fe95f55e56f6f9ec2aa36c374d
-      size: 812
+      md5: 31f2c0f5bad7baa78a03d877baacb29a
+      size: 459
     - path: outs/train_autoencoder_mnist/model.pt
       hash: md5
-      md5: d5d78c3434a77881b8729526bdab8204
+      md5: c2e687fa031dba17ef40254db917a3bb
       size: 18705937
   draw_samples_mnist:
     cmd: python favicon_gen/sample_from_model.py --use_mnist --use_gpu --n_samples
@@ -137,23 +165,23 @@ stages:
     deps:
     - path: outs/train_autoencoder_mnist/model.pt
       hash: md5
-      md5: d5d78c3434a77881b8729526bdab8204
+      md5: c2e687fa031dba17ef40254db917a3bb
       size: 18705937
     - path: outs/train_diffusion_model_mnist/model.pt
       hash: md5
-      md5: e5ab7800229b9323457ff01466bdcabf
+      md5: ea1264dfba0645b41a75ec9689de5c6e
       size: 58599465
   draw_samples_lld:
     cmd: python favicon_gen/sample_from_model.py --use_gpu --n_samples 64
     deps:
     - path: outs/train_autoencoder_lld/model.pt
       hash: md5
-      md5: fd884c1f770b1bdc10014c55f8b92e90
-      size: 18708753
+      md5: b63e2fcf45016fe2ff5bc1a235cb11f2
+      size: 18708497
     - path: outs/train_diffusion_model_lld/model.pt
       hash: md5
-      md5: 21d2f1d6f2fff0cef2e1e27483582d7d
-      size: 58607529
+      md5: 7785b32060090ef63ded457db404bdb3
+      size: 58607273
   train_diffusion_model_mnist:
     cmd: python favicon_gen/denoising_diffusion.py --use_mnist
     deps:
@@ -162,33 +190,33 @@ stages:
       md5: 91f56af2235117e44629fa608fed59ef
       size: 798927457
     params:
-      favicon_gen/params.py:
-        DO_NORM: true
-        Dataset:
+      params.yaml:
+        dataset:
           specific_clusters:
           - 0
-          - 1
-          - 2
-          n_images:
+          n_images: 128
           shuffle: true
-        Diffusion:
-          batch_size: 512
-          epochs_mnist: 35
-          epochs_lld: 250
+        diffusion:
+          batch_size: 32
+          epochs_mnist: 20
+          epochs_lld: 201
           guiding_factor: 0.9
-          learning_rate: 0.001
+          learning_rate: 0.01
           steps: 1000
           var_schedule_start: 0.0001
           var_schedule_end: 0.02
-        EMBEDDING_DIM: 32
+        general:
+          device: cuda
+          embedding_dim: 32
+          do_norm: true
     outs:
     - path: outs/train_diffusion_model_mnist/loss.csv
       hash: md5
-      md5: debad67760818d04c6a21d9b6a23a7d0
-      size: 851
+      md5: c45451d179f1b16a472656dfb4adf6c7
+      size: 463
     - path: outs/train_diffusion_model_mnist/model.pt
       hash: md5
-      md5: e5ab7800229b9323457ff01466bdcabf
+      md5: ea1264dfba0645b41a75ec9689de5c6e
       size: 58599465
   train_diffusion_model_lld:
     cmd: python favicon_gen/denoising_diffusion.py
@@ -198,31 +226,70 @@ stages:
       md5: 91f56af2235117e44629fa608fed59ef
       size: 798927457
     params:
-      favicon_gen/params.py:
-        DO_NORM: true
-        Dataset:
+      params.yaml:
+        dataset:
+          specific_clusters:
+          - 0
+          n_images: 128
+          shuffle: true
+        diffusion:
+          batch_size: 32
+          epochs_mnist: 20
+          epochs_lld: 201
+          guiding_factor: 0.9
+          learning_rate: 0.01
+          steps: 1000
+          var_schedule_start: 0.0001
+          var_schedule_end: 0.02
+        general:
+          device: cuda
+          embedding_dim: 32
+          do_norm: true
+    outs:
+    - path: outs/train_diffusion_model_lld/loss.csv
+      hash: md5
+      md5: f7c1cc4a9d3cb45c21f60abf19bc33a6
+      size: 4877
+    - path: outs/train_diffusion_model_lld/model.pt
+      hash: md5
+      md5: 7785b32060090ef63ded457db404bdb3
+      size: 58607273
+  train_model:
+    cmd: python favicon_gen/call_training.py
+    deps:
+    - path: data/LLD-icon.hdf5
+      hash: md5
+      md5: 91f56af2235117e44629fa608fed59ef
+      size: 798927457
+    params:
+      params.yaml:
+        dataset:
+          name: LLD
           specific_clusters:
           - 0
           - 1
           - 2
           n_images:
           shuffle: true
-        Diffusion:
-          batch_size: 512
-          epochs_mnist: 35
-          epochs_lld: 250
+        general:
+          device: cuda
+          embedding_dim: 32
+          do_norm: true
+        model:
+          batch_size: 32
+          epochs_mnist: 20
+          epochs_lld: 10
           guiding_factor: 0.9
-          learning_rate: 0.001
+          learning_rate: 0.01
           steps: 1000
           var_schedule_start: 0.0001
           var_schedule_end: 0.02
-        EMBEDDING_DIM: 32
     outs:
-    - path: outs/train_diffusion_model_lld/loss.csv
+    - path: outs/loss.csv
       hash: md5
-      md5: 5216d6179898d9e3b88f20cc0fe08294
-      size: 6248
-    - path: outs/train_diffusion_model_lld/model.pt
+      md5: f260ed0748ca93ad1cd582e88909ae16
+      size: 240
+    - path: outs/model.pt
       hash: md5
-      md5: 21d2f1d6f2fff0cef2e1e27483582d7d
+      md5: 187e6851ab413a10868144acad804e83
       size: 58607529

@@ -2,7 +2,6 @@
 Denoising diffusion model similar to [1].
 """
 
-import argparse
 from dataclasses import dataclass
 import math
 from pathlib import Path
@@ -13,9 +12,9 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from favicon_gen.blocks import ConvBlock, ResampleModi
-from favicon_gen.data_loading import load_logos, load_mnist, show_image_grid, get_number_of_different_labels
 from favicon_gen import params
+from favicon_gen.blocks import ConvBlock, ResampleModi
+from favicon_gen.data_loading import load_data, show_image_grid, get_number_of_different_labels
 
 
 @dataclass
@@ -109,11 +108,12 @@ class DiffusionModel(torch.nn.Module):
     :param n_labels: Amount of different labels in the data (e.g. 10 for the 10 different digits in MNIST)
     """
 
-    def __init__(self, in_channels: int, variance_schedule: VarianceSchedule, n_labels: int) -> None:
+    def __init__(
+        self, in_channels: int, variance_schedule: VarianceSchedule, n_labels: int, embedding_dim: int
+    ) -> None:
         super().__init__()
         self.variance_schedule = variance_schedule
         self.n_labels = n_labels
-        embedding_dim = params.EMBEDDING_DIM
 
         self.time_mlp = torch.nn.Sequential(
             SinusoidalPositionEmbeddings(embedding_dim),
@@ -233,30 +233,27 @@ def diffusion_backward_process(
 
 
 def train(
-    dataset_info: params.Dataset, diffusion_info: params.Diffusion, use_mnist: bool, model_file: Path | None = None
-) -> None:
+    dataset_info: params.Dataset,
+    diffusion_info: params.Diffusion,
+    general_params: params.General,
+    model_file: Path | None = None,
+) -> np.ndarray:
     """
     Training loop for diffusion model.
 
     :param dataset_info: Dataset parameters
     :param diffusion_info: Model parameters
-    :param use_mnist: Whether to use MNIST (`True`) or LLD (`False`) as training data
     :param model_file: If given, will start from the model saved there
+    :return: Loss for each epoch
     """
 
-    if use_mnist:
-        n_samples, data_loader = load_mnist(diffusion_info.batch_size, dataset_info.shuffle, dataset_info.n_images)
-        model_storage_directory = params.OUTS_BASE_DIR / "train_diffusion_model_mnist"
-        in_channels = 1
-    else:
-        n_samples, data_loader = load_logos(
-            diffusion_info.batch_size,
-            dataset_info.shuffle,
-            dataset_info.n_images,
-            clusters=dataset_info.specific_clusters,
-        )
-        model_storage_directory = params.OUTS_BASE_DIR / "train_diffusion_model_lld"
-        in_channels = 3
+    n_samples, data_loader = load_data(diffusion_info.batch_size, dataset_info)
+    model_storage_directory = params.OUTS_BASE_DIR
+    match dataset_info.name:
+        case params.AvailableDatasets.MNIST:
+            use_mnist = True
+        case params.AvailableDatasets.LLD:
+            use_mnist = False
 
     print(f"Cleaning output directory {model_storage_directory} ...")
     if model_storage_directory.exists():
@@ -264,13 +261,15 @@ def train(
     model_storage_directory.mkdir(exist_ok=True)
 
     beta_start_end = (diffusion_info.var_schedule_start, diffusion_info.var_schedule_end)
-    schedule = VarianceSchedule(beta_start_end=beta_start_end, n_time_steps=diffusion_info.steps, device=params.DEVICE)
+    schedule = VarianceSchedule(
+        beta_start_end=beta_start_end, n_time_steps=diffusion_info.steps, device=general_params.device
+    )
 
     n_labels = get_number_of_different_labels(use_mnist, dataset_info.specific_clusters)
-    model = DiffusionModel(in_channels, schedule, n_labels)
+    model = DiffusionModel(dataset_info.in_channels, schedule, n_labels, general_params.embedding_dim)
     if model_file is not None:
         model.load_state_dict(torch.load(model_file))
-    model.to(params.DEVICE)
+    model.to(general_params.device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=diffusion_info.learning_rate)
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -282,10 +281,10 @@ def train(
     n_epochs = diffusion_info.epochs_mnist if use_mnist else diffusion_info.epochs_lld
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
         for batch, labels in data_loader:
-            labels = labels.to(params.DEVICE)
+            labels = labels.to(general_params.device)
             if np.random.random() < 0.1:
                 labels = None
-            batch = batch.to(params.DEVICE)
+            batch = batch.to(general_params.device)
 
             optimizer.zero_grad()
             # pytorch expects tuple for size here:
@@ -293,7 +292,7 @@ def train(
             t = torch.randint(low=0, high=diffusion_info.steps, size=(actual_batch_size,))
             noisy_batch, noise = diffusion_forward_process(batch, t, schedule)
 
-            noise_pred = model(noisy_batch, t.to(params.DEVICE), labels)
+            noise_pred = model(noisy_batch, t.to(general_params.device), labels)
             loss = loss_fn(noise_pred, noise)
 
             loss.backward()
@@ -316,17 +315,4 @@ def train(
 
     torch.save(model.state_dict(), model_storage_directory / "model.pt")
 
-    with open(model_storage_directory / "loss.csv", "w", encoding="utf-8") as file:
-        file.write("Epoch,Loss\n")
-        for epoch, loss in enumerate(running_losses):
-            file.write(f"{epoch},{loss}\n")
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train the diffusion model")
-    parser.add_argument(
-        "--use_mnist", action="store_true", help="Whether to train on MNIST instead of the Large Logo Dataset."
-    )
-    args = parser.parse_args()
-
-    train(dataset_info=params.Dataset(), diffusion_info=params.Diffusion(), use_mnist=args.use_mnist)
+    return running_losses

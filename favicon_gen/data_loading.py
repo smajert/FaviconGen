@@ -18,7 +18,6 @@ from torchvision import datasets, transforms, utils
 
 from favicon_gen import params
 
-
 FORWARD_TRANSFORMS = transforms.Compose(
     [transforms.ToTensor(), transforms.Lambda(lambda t: (t * 2) - 1)]  # Scale between [-1, 1]
 )
@@ -160,6 +159,16 @@ def load_mnist(batch_size: int, shuffle: bool, n_images: int | None) -> tuple[in
     print(f"Loading {len(mnist)} MNIST images ...")
     loader = DataLoader(mnist, batch_size=batch_size, shuffle=shuffle)
     return len(mnist), loader
+
+
+def load_data(batch_size: int, dataset_params: params.Dataset):
+    match dataset_params.name:
+        case params.AvailableDatasets.MNIST:
+            return load_mnist(batch_size, dataset_params.shuffle, dataset_params.n_images)
+        case params.AvailableDatasets.LLD:
+            return load_logos(
+                batch_size, dataset_params.shuffle, dataset_params.n_images, dataset_params.specific_clusters
+            )
 
 
 def get_number_of_different_labels(use_mnist: bool, clusters: list[int] | None) -> int:

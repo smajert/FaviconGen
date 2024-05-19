@@ -1,0 +1,6 @@
+  adversarial_loss_weight: 1.0
+  batch_size: 512
+  epochs_mnist: 20
+  epochs_lld: 100
+  kl_loss_weight: 1.0
+  learning_rate: 4e-4

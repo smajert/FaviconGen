@@ -11,6 +11,8 @@ import torch
 
 from favicon_gen import params
 
+GENERAL_PARAMS = params.load_config().general
+
 
 class ResampleModi(Enum):
     """Possible resampling modi for convolutional block"""
@@ -47,8 +49,8 @@ class ConvBlock(torch.nn.Module):
         super().__init__()
         self.activation = activation
         self.resample_modus = resample_modus
-        embedding_dimension = params.EMBEDDING_DIM
-        norm_fn = torch.nn.LazyBatchNorm2d if params.DO_NORM else torch.nn.Identity
+        embedding_dimension = GENERAL_PARAMS.embedding_dim
+        norm_fn = torch.nn.LazyBatchNorm2d if GENERAL_PARAMS.do_norm else torch.nn.Identity
 
         self.conv_in: torch.nn.Conv2d | torch.nn.Identity
         self.conv_out: torch.nn.ConvTranspose2d | torch.nn.Identity

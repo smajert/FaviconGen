@@ -1,0 +1,21 @@
+dataset:
+  name: LLD
+  specific_clusters:
+  - 0
+  - 1
+  - 2
+  n_images: null
+  shuffle: true
+model:
+  batch_size: 32
+  epochs_mnist: 20
+  epochs_lld: 10
+  guiding_factor: 0.9
+  learning_rate: 0.01
+  steps: 1000
+  var_schedule_start: 0.0001
+  var_schedule_end: 0.02
+general:
+  device: cuda
+  embedding_dim: 32
+  do_norm: true
