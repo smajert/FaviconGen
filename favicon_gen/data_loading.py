@@ -56,7 +56,6 @@ class LargeLogoDataset(Dataset):
     here: https://data.vision.ee.ethz.ch/sagea/lld/
 
     :param hdf5_file_location: Location of the LLD-icon.hdf5 file
-    :param n_images: Amount of images to load, default loads all available
     :param clusters: Only load images of the given clusters (see [2] for details on cluster).
         By default, all images are loaded.
     :param cluster_type: Which cluster method to use. See [2] for details.
@@ -65,7 +64,6 @@ class LargeLogoDataset(Dataset):
     def __init__(
         self,
         hdf5_file_location: Path,
-        n_images: int | None = None,
         clusters: list[int] | None = None,
         cluster_type: ClusterMethod = ClusterMethod.ae_grayscale,
     ) -> None:
@@ -93,11 +91,6 @@ class LargeLogoDataset(Dataset):
                 np.swapaxes(np.squeeze(arr), 0, -1) for arr in np.split(stacked_images, stacked_images.shape[0], axis=0)
             ]
 
-        if n_images is not None:
-            if n_images > len(self.images):
-                warnings.warn(f"Requested {n_images} images, but LLD(-cluster) is only {len(self.images)} long.")
-            self.images = self.images[:n_images]
-
     def __len__(self) -> int:
         return len(self.images)
 
@@ -105,37 +98,22 @@ class LargeLogoDataset(Dataset):
         return self.transform(self.images[idx]), self.image_labels[idx]
 
 
-def load_logos(
-    batch_size: int, shuffle: bool, n_images: int | None, clusters: list[int] | None = None
-) -> tuple[int, DataLoader]:
+def load_logos(clusters: list[int] | None = None) -> LargeLogoDataset:
     """
     Convenience function for loading LLD logos.
 
-    :param batch_size: How many images the returned `DataLoader` should provide in at once (i.e.
-        as one batch)
-    :param shuffle: Whether the returned `DataLoader` shuffles the data
-    :param n_images: Amount of images to load, default loads all available
     :param clusters: Only load images of the given clusters (see [2] for details on cluster).
         By default, all images are loaded.
-    :return: Amount of images loaded (useful when loading all images) and DataLoader for LLD
+    :return: Dataset with logos from LLD
     """
     dataset_location = params.DATA_BASE_DIR / "LLD-icon.hdf5"
-    logos = LargeLogoDataset(dataset_location, clusters=clusters, n_images=n_images)
-    loader = DataLoader(logos, batch_size=batch_size, shuffle=shuffle)
-    if n_images is None:
-        print(f"Loading {len(logos)} LLD images ...")
-    return len(logos), loader
+    return LargeLogoDataset(dataset_location, clusters=clusters)
 
 
-def load_mnist(batch_size: int, shuffle: bool, n_images: int | None) -> tuple[int, DataLoader]:
+def load_mnist() -> Dataset:
     """
     Convenience function for loading MNIST digits
-
-    :param batch_size: How many images the returned `DataLoader` should provide at once (i.e.
-        as one batch)
-    :param shuffle: Whether the returned `DataLoader` shuffles the data
-    :param n_images: Amount of images to load, default loads all available
-    :return: Amount of images loaded (useful when loading all images) and DataLoader for MNIST
+    :return MNIST dataset (both train and test images)
     """
     data_transforms = [
         transforms.Resize((32, 32)),
@@ -150,39 +128,45 @@ def load_mnist(batch_size: int, shuffle: bool, n_images: int | None) -> tuple[in
     )
     mnist = ConcatDataset([mnist_train, mnist_test])  # type: ConcatDataset
 
-    if n_images is not None:
-        if n_images > len(mnist):
-            warnings.warn(f"Requested {n_images} images, but MNIST is only {len(mnist)} images long.")
-        loader = DataLoader(Subset(mnist, list(range(len(mnist)))[:n_images]), batch_size=batch_size, shuffle=shuffle)
-        return n_images, loader
-
-    print(f"Loading {len(mnist)} MNIST images ...")
-    loader = DataLoader(mnist, batch_size=batch_size, shuffle=shuffle)
-    return len(mnist), loader
+    return mnist
 
 
-def load_data(batch_size: int, dataset_params: params.Dataset):
+def load_data(batch_size: int, dataset_params: params.Dataset) -> tuple[int, DataLoader]:
+    """
+    Prepare the data loader required for training.
+
+    If no more than 32 distinct images are selected via `dataset_params.n_images`, these
+    will be repeated to contain 5000 images per epoch to make the training process
+    faster.
+
+    :param batch_size: How many images from the dataset to load for each adjustment of the model
+        weights.
+    :param dataset_params: What dataset to load (.name), whether to shuffle the data (.shuffle),
+        how many images to load (.n_images) and, for the LLD dataset, which clusters to use
+        (.specific_clusters).
+    :return: Amount of images loaded and `DataLoader` for the requeted `DataSet`.
+    """
     match dataset_params.name:
         case params.AvailableDatasets.MNIST:
-            return load_mnist(batch_size, dataset_params.shuffle, dataset_params.n_images)
+            dataset = load_mnist()
         case params.AvailableDatasets.LLD:
-            return load_logos(
-                batch_size, dataset_params.shuffle, dataset_params.n_images, dataset_params.specific_clusters
+            dataset = load_logos(dataset_params.specific_clusters)
+
+    n_images = dataset_params.n_images
+    if n_images is not None:
+        if n_images > len(dataset):
+            warnings.warn(f"Requested {n_images} images, but dataset is only {len(dataset)} images long.")
+        dataset = Subset(dataset, list(range(len(dataset)))[:n_images])
+        if n_images <= 32:
+            n_images_to_repeat_to = 5000
+            print(
+                f"Only {n_images} different images requested. To make training faster, the images"
+                f" are repeated so that {n_images_to_repeat_to} are available per epoch."
             )
+            repetitions = int(n_images_to_repeat_to / n_images + 1)
+            dataset = ConcatDataset([dataset] * repetitions)  # type: ConcatDataset
+            dataset = Subset(dataset, list(range(len(dataset)))[:n_images_to_repeat_to])
 
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=dataset_params.shuffle)
+    return len(dataset), data_loader
 
-def get_number_of_different_labels(use_mnist: bool, clusters: list[int] | None) -> int:
-    """
-    Get amount of different labels (e.g. 10 for the ten digits in MNIST).
-
-    :param use_mnist: Whether MNIST is used
-    :param clusters: Amount of clusters loaded from LLD
-    :return: Amount of different labels
-    """
-
-    if use_mnist:
-        return 10
-    if clusters is not None:
-        return len(clusters)
-
-    return 100

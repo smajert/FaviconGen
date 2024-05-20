@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from favicon_gen import params
 from favicon_gen.blocks import ConvBlock, ResampleModi
-from favicon_gen.data_loading import load_data, show_image_grid, get_number_of_different_labels
+from favicon_gen.data_loading import load_data, show_image_grid
 
 
 class Encoder(torch.nn.Module):
@@ -209,7 +209,7 @@ def train(
         optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=lower_disc_learning_rate)
 
     # prepare autoencoder
-    n_labels = get_number_of_different_labels(use_mnist, dataset_params.specific_clusters)
+    n_labels = dataset_params.n_classes
     autoencoder = VariationalAutoEncoder(dataset_params.in_channels, n_labels, general_params.embedding_dim)
     if model_file is not None:
         autoencoder.load_state_dict(torch.load(model_file))

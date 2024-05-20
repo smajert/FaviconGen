@@ -3,5 +3,6 @@ specific_clusters:
   - 0
   - 1
   - 2
+  - 3
 n_images: !!null
 shuffle: True
