@@ -36,11 +36,24 @@ class Dataset:  # everything related to MNIST/LLD
 
     @property
     def in_channels(self):
+        """Get number of channels, i.e. 3 for colored images and 1 for greyscale"""
         match self.name:
             case AvailableDatasets.LLD:
                 return 3
             case AvailableDatasets.MNIST:
                 return 1
+
+    @property
+    def n_classes(self):
+        """Get amount of different classes, e.g. the 10 different digits for MNIST"""
+        match self.name:
+            case AvailableDatasets.LLD:
+                n_classes = 100
+                if self.specific_clusters is not None:
+                    n_classes = len(set(self.specific_clusters))
+                return n_classes
+            case AvailableDatasets.MNIST:
+                return 10
 
 
 @dataclass

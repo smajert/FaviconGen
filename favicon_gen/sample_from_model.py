@@ -12,7 +12,7 @@ import torch
 from tqdm import tqdm
 
 from favicon_gen.autoencoder import VariationalAutoEncoder
-from favicon_gen.data_loading import show_image_grid, load_data, get_number_of_different_labels
+from favicon_gen.data_loading import show_image_grid, load_data
 from favicon_gen.denoising_diffusion import DiffusionModel, diffusion_backward_process, VarianceSchedule
 from favicon_gen import params
 

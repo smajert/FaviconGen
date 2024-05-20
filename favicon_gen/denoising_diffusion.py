@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from favicon_gen import params
 from favicon_gen.blocks import ConvBlock, ResampleModi
-from favicon_gen.data_loading import load_data, show_image_grid, get_number_of_different_labels
+from favicon_gen.data_loading import load_data, show_image_grid
 
 
 @dataclass
@@ -265,7 +265,7 @@ def train(
         beta_start_end=beta_start_end, n_time_steps=diffusion_info.steps, device=general_params.device
     )
 
-    n_labels = get_number_of_different_labels(use_mnist, dataset_info.specific_clusters)
+    n_labels = dataset_info.n_classes
     model = DiffusionModel(dataset_info.in_channels, schedule, n_labels, general_params.embedding_dim)
     if model_file is not None:
         model.load_state_dict(torch.load(model_file))

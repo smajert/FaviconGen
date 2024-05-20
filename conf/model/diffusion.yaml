@@ -1,7 +1,7 @@
   batch_size: 32
   epochs_mnist: 20
-  epochs_lld: 50
-  guiding_factor: 0.90
+  epochs_lld: 200
+  guiding_factor: 0.
   learning_rate: 1e-2
   steps: 1000
   var_schedule_start: 0.0001

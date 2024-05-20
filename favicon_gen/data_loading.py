@@ -170,19 +170,3 @@ def load_data(batch_size: int, dataset_params: params.Dataset) -> tuple[int, Dat
     data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=dataset_params.shuffle)
     return len(dataset), data_loader
 
-
-def get_number_of_different_labels(use_mnist: bool, clusters: list[int] | None) -> int:
-    """
-    Get amount of different labels (e.g. 10 for the ten digits in MNIST).
-
-    :param use_mnist: Whether MNIST is used
-    :param clusters: Amount of clusters loaded from LLD
-    :return: Amount of different labels
-    """
-
-    if use_mnist:
-        return 10
-    if clusters is not None:
-        return len(clusters)
-
-    return 100
