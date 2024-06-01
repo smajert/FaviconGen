@@ -13,7 +13,11 @@ from tqdm import tqdm
 
 from favicon_gen.autoencoder import VariationalAutoEncoder
 from favicon_gen.data_loading import show_image_grid, load_data
-from favicon_gen.denoising_diffusion import DiffusionModel, diffusion_backward_process, VarianceSchedule
+from favicon_gen.denoising_diffusion import (
+    DiffusionModel,
+    diffusion_backward_process,
+    VarianceSchedule,
+)
 from favicon_gen import params
 
 
@@ -46,7 +50,9 @@ def sample_from_vae(
     rand_generator = torch.Generator(device=device)
 
     while True:
-        random_latent = torch.randn((n_samples, autoencoder.latent_dim), device=device, generator=rand_generator)
+        random_latent = torch.randn(
+            (n_samples, autoencoder.latent_dim), device=device, generator=rand_generator
+        )
         random_labels = autoencoder.label_embedding(
             torch.randint(0, n_labels, size=(n_samples,), device=device, generator=rand_generator)
         )
@@ -90,7 +96,9 @@ def sample_from_diffusion_model(
     generator.eval()
 
     # draw single batch first to set seed
-    batch = diffusion_backward_process(generator, (n_samples, in_channels, 32, 32), diffusion_info.guiding_factor)
+    batch = diffusion_backward_process(
+        generator, (n_samples, in_channels, 32, 32), diffusion_info.guiding_factor
+    )
     while True:
         if save_as is not None:
             show_image_grid(batch)
@@ -98,7 +106,9 @@ def sample_from_diffusion_model(
             # plt.show()
         yield batch
         # draw batch without setting seed again
-        batch = diffusion_backward_process(generator, (n_samples, in_channels, 32, 32), diffusion_info.guiding_factor)
+        batch = diffusion_backward_process(
+            generator, (n_samples, in_channels, 32, 32), diffusion_info.guiding_factor
+        )
 
 
 @torch.no_grad()
@@ -130,7 +140,9 @@ def nearest_neighbor_search(
         # single_image is broadcast along batch dimension
         distances = torch.sum(torch.abs(single_image - generated_batch), dim=(1, 2, 3))
         diffs = distances - current_nearest_neighbor_distances
-        closer_neighbor_idxs = diffs < 0  # idx where the current image is a closer neighbor than the current one
+        closer_neighbor_idxs = (
+            diffs < 0
+        )  # idx where the current image is a closer neighbor than the current one
         current_nearest_neighbor_distances[closer_neighbor_idxs] = distances[closer_neighbor_idxs]
         nearest_neighbors[closer_neighbor_idxs, ...] = single_image[0, ...]
 
@@ -143,7 +155,9 @@ def nearest_neighbor_search(
 
 def main():
     parser = argparse.ArgumentParser(description="Get sample images from models")
-    parser.add_argument("--n_samples", type=int, default=64, help="Number of samples to get from model.")
+    parser.add_argument(
+        "--n_samples", type=int, default=64, help="Number of samples to get from model."
+    )
     parser.add_argument("--use_gpu", help="Try to calculate on GPU.", action="store_true")
 
     args = parser.parse_args()

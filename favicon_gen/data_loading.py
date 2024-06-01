@@ -23,7 +23,10 @@ FORWARD_TRANSFORMS = transforms.Compose(
 )
 
 BACKWARD_TRANSFORMS = transforms.Compose(
-    [transforms.Lambda(lambda t: (t + 1) / 2), transforms.ToPILImage()]  # Undo scaling between [-1, 1]
+    [
+        transforms.Lambda(lambda t: (t + 1) / 2),
+        transforms.ToPILImage(),
+    ]  # Undo scaling between [-1, 1]
 )
 # For explanation of clustering methods and process see [2]
 ClusterMethod = Enum("ClusterMethod", ["ae_grayscale", "rc_32", "rc_64", "rc_128"])
@@ -83,12 +86,15 @@ class LargeLogoDataset(Dataset):
                 image_clusters = image_clusters[image_in_clusters]
                 # change labels so that e.g. if clusters = [2, 20] labels will be [0, 1]
                 cluster_to_label = {cluster: idx for idx, cluster in enumerate(set(image_clusters))}
-                self.image_labels = np.array([cluster_to_label[cluster] for cluster in image_clusters])
+                self.image_labels = np.array(
+                    [cluster_to_label[cluster] for cluster in image_clusters]
+                )
             else:
                 stacked_images = stacked_images[()]
                 self.image_labels = image_clusters
             self.images = [  # pytorch needs channel dimension first
-                np.swapaxes(np.squeeze(arr), 0, -1) for arr in np.split(stacked_images, stacked_images.shape[0], axis=0)
+                np.swapaxes(np.squeeze(arr), 0, -1)
+                for arr in np.split(stacked_images, stacked_images.shape[0], axis=0)
             ]
 
     def __len__(self) -> int:
@@ -122,9 +128,14 @@ def load_mnist() -> Dataset:
     ]
     data_transform = transforms.Compose(data_transforms)
 
-    mnist_train = datasets.MNIST(str(tempfile.gettempdir() / Path("MNIST")), transform=data_transform, download=True)
+    mnist_train = datasets.MNIST(
+        str(tempfile.gettempdir() / Path("MNIST")), transform=data_transform, download=True
+    )
     mnist_test = datasets.MNIST(
-        str(tempfile.gettempdir() / Path("MNIST")), train=False, transform=data_transform, download=True
+        str(tempfile.gettempdir() / Path("MNIST")),
+        train=False,
+        transform=data_transform,
+        download=True,
     )
     mnist = ConcatDataset([mnist_train, mnist_test])  # type: ConcatDataset
 
@@ -155,7 +166,9 @@ def load_data(batch_size: int, dataset_params: params.Dataset) -> tuple[int, Dat
     n_images = dataset_params.n_images
     if n_images is not None:
         if n_images > len(dataset):
-            warnings.warn(f"Requested {n_images} images, but dataset is only {len(dataset)} images long.")
+            warnings.warn(
+                f"Requested {n_images} images, but dataset is only {len(dataset)} images long."
+            )
         dataset = Subset(dataset, list(range(len(dataset)))[:n_images])
         if n_images <= 32:
             n_images_to_repeat_to = 5000
@@ -169,4 +182,3 @@ def load_data(batch_size: int, dataset_params: params.Dataset) -> tuple[int, Dat
 
     data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=dataset_params.shuffle)
     return len(dataset), data_loader
-

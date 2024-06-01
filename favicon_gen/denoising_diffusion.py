@@ -30,7 +30,9 @@ class VarianceSchedule:
     :param device: 'cpu' for CPU or 'cuda' for GPU
     """
 
-    def __init__(self, beta_start_end: tuple[float, float], n_time_steps: int, device: str = "cpu") -> None:
+    def __init__(
+        self, beta_start_end: tuple[float, float], n_time_steps: int, device: str = "cpu"
+    ) -> None:
         super().__init__()
         self.n_steps = n_time_steps
         beta_start = beta_start_end[0]
@@ -64,8 +66,10 @@ def diffusion_forward_process(
 
     noise = torch.randn(size=original_batch.shape, device=original_batch.device)
     noisy_batch = (
-        original_batch * torch.sqrt(schedule.alpha_bar_t[time_step])[:, np.newaxis, np.newaxis, np.newaxis]
-        + noise * torch.sqrt(1 - schedule.alpha_bar_t[time_step])[:, np.newaxis, np.newaxis, np.newaxis]
+        original_batch
+        * torch.sqrt(schedule.alpha_bar_t[time_step])[:, np.newaxis, np.newaxis, np.newaxis]
+        + noise
+        * torch.sqrt(1 - schedule.alpha_bar_t[time_step])[:, np.newaxis, np.newaxis, np.newaxis]
     )
 
     return noisy_batch, noise
@@ -87,13 +91,19 @@ class SinusoidalPositionEmbeddings(torch.nn.Module):
         """in: [n_time_steps] out: [n_time_steps, embedding_dimension]"""
         # see [3] for variable names
         half_d = self.embedding_dimension // 2  # d/2
-        i_times_two_times_d = torch.arange(half_d, device=time_step.device) / (half_d - 1)  # i / (d/2) = 2*i/d
+        i_times_two_times_d = torch.arange(half_d, device=time_step.device) / (
+            half_d - 1
+        )  # i / (d/2) = 2*i/d
         n = 10000  # n
-        denominator = torch.exp(math.log(n) * i_times_two_times_d)  # exp(ln(n) * 2 * i / d) = n ** (2 * i / d)
+        denominator = torch.exp(
+            math.log(n) * i_times_two_times_d
+        )  # exp(ln(n) * 2 * i / d) = n ** (2 * i / d)
         sin_cos_arg = time_step[:, np.newaxis] / denominator[np.newaxis, :]  # k / n ** (2 * i / d)
         sin_embedding = sin_cos_arg.sin()
         cos_embedding = sin_cos_arg.cos()
-        sin_cos_alternating = torch.zeros((sin_cos_arg.shape[0], sin_cos_arg.shape[1] * 2), device=time_step.device)
+        sin_cos_alternating = torch.zeros(
+            (sin_cos_arg.shape[0], sin_cos_arg.shape[1] * 2), device=time_step.device
+        )
         sin_cos_alternating[:, 0::2] = sin_embedding
         sin_cos_alternating[:, 1::2] = cos_embedding
         return sin_cos_alternating
@@ -109,7 +119,11 @@ class DiffusionModel(torch.nn.Module):
     """
 
     def __init__(
-        self, in_channels: int, variance_schedule: VarianceSchedule, n_labels: int, embedding_dim: int
+        self,
+        in_channels: int,
+        variance_schedule: VarianceSchedule,
+        n_labels: int,
+        embedding_dim: int,
     ) -> None:
         super().__init__()
         self.variance_schedule = variance_schedule
@@ -138,7 +152,9 @@ class DiffusionModel(torch.nn.Module):
         ])
         # fmt: on
 
-    def forward(self, x: torch.Tensor, time_step: torch.Tensor, labels: torch.Tensor | None) -> torch.Tensor:
+    def forward(
+        self, x: torch.Tensor, time_step: torch.Tensor, labels: torch.Tensor | None
+    ) -> torch.Tensor:
         time_emb = self.time_mlp(time_step)
         if labels is not None:
             time_emb += self.label_embedding(labels)
@@ -262,11 +278,15 @@ def train(
 
     beta_start_end = (diffusion_info.var_schedule_start, diffusion_info.var_schedule_end)
     schedule = VarianceSchedule(
-        beta_start_end=beta_start_end, n_time_steps=diffusion_info.steps, device=general_params.device
+        beta_start_end=beta_start_end,
+        n_time_steps=diffusion_info.steps,
+        device=general_params.device,
     )
 
     n_labels = dataset_info.n_classes
-    model = DiffusionModel(dataset_info.in_channels, schedule, n_labels, general_params.embedding_dim)
+    model = DiffusionModel(
+        dataset_info.in_channels, schedule, n_labels, general_params.embedding_dim
+    )
     if model_file is not None:
         model.load_state_dict(torch.load(model_file))
     model.to(general_params.device)
@@ -300,7 +320,9 @@ def train(
             running_loss += loss.item() * batch.shape[0] / n_samples
 
         lr_scheduler.step(loss)
-        if (epoch + 1) in [int(rel_plot_step * n_epochs) for rel_plot_step in [0.1, 0.25, 0.5, 0.75, 1.0]]:
+        if (epoch + 1) in [
+            int(rel_plot_step * n_epochs) for rel_plot_step in [0.1, 0.25, 0.5, 0.75, 1.0]
+        ]:
             sample_shape = torch.Size((1, *batch.shape[1:]))
             _ = diffusion_backward_process(
                 model,

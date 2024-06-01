@@ -55,7 +55,10 @@ class Decoder(torch.nn.Module):
     """
 
     def __init__(
-        self, out_channels: int, encoder_out_shape: tuple[int, ...], activation: torch.nn.modules.module.Module
+        self,
+        out_channels: int,
+        encoder_out_shape: tuple[int, ...],
+        activation: torch.nn.modules.module.Module,
     ) -> None:
         super().__init__()
         self.activation = activation
@@ -97,7 +100,9 @@ class VariationalAutoEncoder(torch.nn.Module):
 
         self.encoder = Encoder(in_channels, self.activation)
         encoder_output_shape = (256, 2, 2)
-        flattened_dimension = encoder_output_shape[0] * encoder_output_shape[1] * encoder_output_shape[2]
+        flattened_dimension = (
+            encoder_output_shape[0] * encoder_output_shape[1] * encoder_output_shape[2]
+        )
         self.to_latent = torch.nn.Linear(flattened_dimension, self.latent_dim)
         self.to_mu = torch.nn.Linear(self.latent_dim, self.latent_dim)
         self.to_log_var = torch.nn.Linear(self.latent_dim, self.latent_dim)
@@ -131,7 +136,9 @@ class VariationalAutoEncoder(torch.nn.Module):
         x = self.activation(self.from_latent(z))
         return x
 
-    def forward(self, x: torch.Tensor, labels: torch.Tensor | None) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(
+        self, x: torch.Tensor, labels: torch.Tensor | None
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         label_emb = self.label_embedding(labels)
         x = self.encoder(x, label_emb)
         encoded_shape = x.shape
@@ -205,12 +212,18 @@ def train(
     if use_patch_discriminator:
         patch_disc = PatchDiscriminator(dataset_params.in_channels)
         patch_disc.to(general_params.device)
-        lower_disc_learning_rate = 0.1 * auto_params.learning_rate  # lower rate helps in GAN training
-        optimizer_discriminator = torch.optim.Adam(patch_disc.parameters(), lr=lower_disc_learning_rate)
+        lower_disc_learning_rate = (
+            0.1 * auto_params.learning_rate
+        )  # lower rate helps in GAN training
+        optimizer_discriminator = torch.optim.Adam(
+            patch_disc.parameters(), lr=lower_disc_learning_rate
+        )
 
     # prepare autoencoder
     n_labels = dataset_params.n_classes
-    autoencoder = VariationalAutoEncoder(dataset_params.in_channels, n_labels, general_params.embedding_dim)
+    autoencoder = VariationalAutoEncoder(
+        dataset_params.in_channels, n_labels, general_params.embedding_dim
+    )
     if model_file is not None:
         autoencoder.load_state_dict(torch.load(model_file))
     autoencoder.to(general_params.device)
@@ -231,19 +244,25 @@ def train(
 
             optimizer_generator.zero_grad()
             reconst_batch, mu, log_var = autoencoder(batch, labels)
-            kl_loss = -0.5 * torch.mean(1 + log_var - mu.pow(2) - log_var.exp())  # Kullback Leibler loss
+            kl_loss = -0.5 * torch.mean(
+                1 + log_var - mu.pow(2) - log_var.exp()
+            )  # Kullback Leibler loss
             reconstruction_loss = loss_fn(reconst_batch, batch)
             if use_patch_discriminator:
                 disc_pred_reconstructed = patch_disc(reconst_batch)
                 is_original = torch.broadcast_to(value_for_original, disc_pred_reconstructed.shape)
-                is_reconstructed = torch.broadcast_to(value_for_reconstructed, disc_pred_reconstructed.shape)
+                is_reconstructed = torch.broadcast_to(
+                    value_for_reconstructed, disc_pred_reconstructed.shape
+                )
                 adversarial_loss = torch.nn.L1Loss()(disc_pred_reconstructed, is_original)
                 adversarial_loss_weight = auto_params.adversarial_loss_weight
             else:
                 adversarial_loss = 0
                 adversarial_loss_weight = 0
             generator_loss = (
-                reconstruction_loss + auto_params.kl_loss_weight * kl_loss + adversarial_loss_weight * adversarial_loss
+                reconstruction_loss
+                + auto_params.kl_loss_weight * kl_loss
+                + adversarial_loss_weight * adversarial_loss
             )
             generator_loss.backward()
             optimizer_generator.step()
@@ -260,8 +279,12 @@ def train(
                 optimizer_discriminator.step()
 
             running_loss += generator_loss.item() * batch.shape[0] / n_samples
-        if (epoch + 1) in [int(rel_plot_step * n_epochs) for rel_plot_step in [0.1, 0.25, 0.5, 0.75, 1.0]]:
-            show_image_grid(reconst_batch, save_as=model_storage_directory / f"reconstruction_epoch_{epoch}.png")
+        if (epoch + 1) in [
+            int(rel_plot_step * n_epochs) for rel_plot_step in [0.1, 0.25, 0.5, 0.75, 1.0]
+        ]:
+            show_image_grid(
+                reconst_batch, save_as=model_storage_directory / f"reconstruction_epoch_{epoch}.png"
+            )
             show_image_grid(batch, save_as=model_storage_directory / f"original_{epoch}.png")
 
         pbar.set_description(f"Current avg. loss: {running_loss:.3f}, Epochs")

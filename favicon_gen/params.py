@@ -62,7 +62,7 @@ class AutoEncoder:  # everything related to VAE training
     batch_size: int
     epochs_mnist: int  # epochs to train on MNIST
     epochs_lld: int  # epochs to train on LLD
-    kl_loss_weight: float # how strongly to force latent space to gaussian distribution
+    kl_loss_weight: float  # how strongly to force latent space to gaussian distribution
     learning_rate: float  # learning rate for VAE
 
 
@@ -90,7 +90,8 @@ def load_config() -> ProjectConfig:
     class DummyProjectConfig:
         general: General
         dataset: Dataset
-        model: Any # currently, Omegaconf cannot deal with the union container here -> dummy class
+        model: Any  # currently, Omegaconf cannot deal with the union container here -> dummy class
+
     schema = OmegaConf.structured(DummyProjectConfig)
 
     cfg = OmegaConf.merge(schema, OmegaConf.load("params.yaml"))
