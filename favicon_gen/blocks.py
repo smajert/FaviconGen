@@ -59,26 +59,42 @@ class ConvBlock(torch.nn.Module):
             case ResampleModi.UP:
                 self.conv_in = torch.nn.Identity()
                 self.conv_out = torch.nn.ConvTranspose2d(channels_in, channels_out, **conv_conf)
-                channels_non_transform_conv = ((channels_in, channels_in), (channels_in, channels_in))
+                channels_non_transform_conv = (
+                    (channels_in, channels_in),
+                    (channels_in, channels_in),
+                )
             case ResampleModi.DOWN:
                 self.conv_in = torch.nn.Conv2d(channels_in, channels_in, **conv_conf)
                 self.conv_out = torch.nn.Identity()
-                channels_non_transform_conv = ((channels_in, channels_out), (channels_out, channels_out))
+                channels_non_transform_conv = (
+                    (channels_in, channels_out),
+                    (channels_out, channels_out),
+                )
             case ResampleModi.DOWN_AND_UP:
                 self.conv_in = torch.nn.Conv2d(channels_in, channels_in, **conv_conf)
                 self.conv_out = torch.nn.ConvTranspose2d(2 * channels_in, channels_out, **conv_conf)
-                channels_non_transform_conv = ((channels_in, 2 * channels_in), (2 * channels_in, 2 * channels_in))
+                channels_non_transform_conv = (
+                    (channels_in, 2 * channels_in),
+                    (2 * channels_in, 2 * channels_in),
+                )
             case ResampleModi.NO:
                 self.conv_in = torch.nn.Identity()
                 self.conv_out = torch.nn.Identity()
-                channels_non_transform_conv = ((channels_in, channels_out), (channels_out, channels_out))
+                channels_non_transform_conv = (
+                    (channels_in, channels_out),
+                    (channels_out, channels_out),
+                )
 
         self.time_mlp = torch.nn.Linear(embedding_dimension, channels_in)
 
         self.non_transform_layers = torch.nn.ModuleList()
         for chs in channels_non_transform_conv:
             self.non_transform_layers.extend(
-                [torch.nn.Conv2d(chs[0], chs[1], kernel_size=3, padding=1), norm_fn(), self.activation]
+                [
+                    torch.nn.Conv2d(chs[0], chs[1], kernel_size=3, padding=1),
+                    norm_fn(),
+                    self.activation,
+                ]
             )
 
     def forward(self, x: torch.Tensor, time_step_emb: torch.Tensor | None = None) -> torch.Tensor:

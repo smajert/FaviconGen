@@ -23,7 +23,9 @@ def test_labels_correct_when_restricting_to_cluster():
 def test_image_grid_and_loading():
     _, lld_loader = dlo.load_data(
         64,
-        params.Dataset(params.AvailableDatasets.LLD, n_images=None, shuffle=True, specific_clusters=[2]),
+        params.Dataset(
+            params.AvailableDatasets.LLD, n_images=None, shuffle=True, specific_clusters=[2]
+        ),
     )
 
     batch = next(iter(lld_loader))[0]
@@ -36,7 +38,9 @@ def test_image_grid_and_loading():
 
 @pytest.mark.parametrize("n_images", [1, 32])
 def test_images_are_repated_for_small_image_amounts(n_images):
-    dataset_conf = params.Dataset(params.AvailableDatasets.LLD, n_images=n_images, shuffle=True, specific_clusters=[5])
+    dataset_conf = params.Dataset(
+        params.AvailableDatasets.LLD, n_images=n_images, shuffle=True, specific_clusters=[5]
+    )
     _, lld_loader = dlo.load_data(32, dataset_conf)
     dataset_conf.name = params.AvailableDatasets.MNIST
     _, mnist_loader = dlo.load_data(32, dataset_conf)
