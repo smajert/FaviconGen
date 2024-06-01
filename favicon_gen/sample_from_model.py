@@ -122,7 +122,6 @@ def nearest_neighbor_search(
 
     :param generated_batch: Images for which to find the nearest neighbors
     :param dataset_info: General information about the dataset
-    :param use_mnist: Whether to use MNIST or LLD
     :param save_as: Save image of the batch of nearest neighbors here
     :return: batch of nearest neighbors
     """
@@ -170,11 +169,9 @@ def main():
     match config.dataset.name:
         case params.AvailableDatasets.MNIST:
             in_channels = 1
-            use_mnist = True
             n_labels = 10
         case params.AvailableDatasets.LLD:
             in_channels = 3
-            use_mnist = False
             spec_clusters = config.dataset.specific_clusters
             n_labels = 100 if spec_clusters is None else len(spec_clusters)
 

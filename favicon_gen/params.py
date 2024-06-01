@@ -15,17 +15,9 @@ DATA_BASE_DIR = REPO_ROOT / "data"
 OUTS_BASE_DIR = REPO_ROOT / "outs"
 
 
-@dataclass
-class General:
-    device: str  # whether to run on GPU ("cuda") or CPU ("cpu")
-    embedding_dim: int  # dimension class labels and/or time step are transformed to
-    do_norm: bool  # whether to perform batch norm
-
-
 class AvailableDatasets(Enum):
     LLD = auto()  # Large Logo Dataset
     MNIST = auto()  # Modified National Institute of Standards and Technology database
-
 
 @dataclass
 class Dataset:  # everything related to MNIST/LLD
@@ -56,23 +48,25 @@ class Dataset:  # everything related to MNIST/LLD
                 return 10
 
 
+@ dataclass
+class General:  # Parameters relevant for all models
+    device: str  # whether to run on GPU ("cuda") or CPU ("cpu")
+    do_norm: bool  # whether to perform batch norm
+    embedding_dim: int  # dimension class labels and/or time step are transformed to
+    batch_size: int
+    epochs: int
+    learning_rate: float
+
+
 @dataclass
 class AutoEncoder:  # everything related to VAE training
     adversarial_loss_weight: Optional[float]
-    batch_size: int
-    epochs_mnist: int  # epochs to train on MNIST
-    epochs_lld: int  # epochs to train on LLD
     kl_loss_weight: float  # how strongly to force latent space to gaussian distribution
-    learning_rate: float  # learning rate for VAE
 
 
 @dataclass
 class Diffusion:  # everything related to diffusion model training
-    batch_size: int
-    epochs_mnist: int  # epochs to train on MNIST
-    epochs_lld: int  # epochs to train on LLD
     guiding_factor: float  # Guided (with label) vs. unguided (without labels) in classifier free guidance [4]
-    learning_rate: float
     steps: int  # amount of time steps the diffusion model uses
     var_schedule_start: float  # starting value of the variance schedule beta
     var_schedule_end: float  # final value (after `Diffusion.steps` time steps) of the variance schedule beta
@@ -80,8 +74,8 @@ class Diffusion:  # everything related to diffusion model training
 
 @dataclass
 class ProjectConfig:
-    general: General
     dataset: Dataset
+    general: General
     model: AutoEncoder | Diffusion
 
 

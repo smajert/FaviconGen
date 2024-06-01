@@ -28,14 +28,14 @@ class Encoder(torch.nn.Module):
         self.activation = activation
         small_kernel = {"kernel_size": 2, "padding": 0}  # type: Any
         # fmt: off
-        self.convs = torch.nn.ModuleList([                                          # input: in_channels x 32 x 32
-            ConvBlock(in_channels, 16, resample_modus=ResampleModi.NO),             # 16 x 32 x 32
-            ConvBlock(16, 32, resample_modus=ResampleModi.DOWN),                    # 32 x 16 x 16
-            ConvBlock(32, 64, resample_modus=ResampleModi.DOWN),                    # 64 x 8 x 8
-            ConvBlock(64, 128, resample_modus=ResampleModi.DOWN, **small_kernel),   # 128 x 4 x 4
-            ConvBlock(128, 256, resample_modus=ResampleModi.DOWN, **small_kernel),  # 256 x 2 x 2
+        self.convs = torch.nn.ModuleList([                                        # input: in_channels x 32 x 32
+            ConvBlock(in_channels, 16, resample_modus=ResampleModi.NO),           # 16 x 32 x 32
+            ConvBlock(16, 32, resample_modus=ResampleModi.DOWN),                  # 32 x 16 x 16
+            ConvBlock(32, 64, resample_modus=ResampleModi.DOWN),                  # 64 x 8 x 8
+            ConvBlock(64, 128, resample_modus=ResampleModi.DOWN, **small_kernel), # 128 x 4 x 4
+            ConvBlock(128, 256, resample_modus=ResampleModi.DOWN, **small_kernel),# 256 x 2 x 2
         ])
-        self.flatten = torch.nn.Flatten()                                           # 256*2*2 = 1024
+        self.flatten = torch.nn.Flatten()                                         # 256*2*2 = 1024
         # fmt: on
 
     def forward(self, x: torch.Tensor, label_embedding: torch.Tensor) -> torch.Tensor:
@@ -162,12 +162,12 @@ class PatchDiscriminator(torch.nn.Module):
     def __init__(self, in_channels: int) -> None:
         super().__init__()
         # fmt: off
-        self.layers = torch.nn.ModuleList([                                             # input: 3 x 32 x 32
-            torch.nn.Conv2d(in_channels, 32, kernel_size=4, stride=2, padding=1),       # 32 x 16 x 16
+        self.layers = torch.nn.ModuleList([                                # input: 3 x 32 x 32
+            torch.nn.Conv2d(in_channels, 32, kernel_size=4, stride=2, padding=1),# 32 x 16 x 16
             torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(32, 16, kernel_size=7, padding=3),                          # 16 x 16 x 16
+            torch.nn.Conv2d(32, 16, kernel_size=7, padding=3),                   # 16 x 16 x 16
             torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(16, 8, kernel_size=5, padding=2),                           # 8 x 16 x 16
+            torch.nn.Conv2d(16, 8, kernel_size=5, padding=2),                    # 8 x 16 x 16
             torch.nn.Sigmoid()
         ])
         # fmt: on
@@ -192,15 +192,8 @@ def train(
     :param model_file: If given, will start from the model saved there
     :return: Loss for each epoch
     """
-    n_samples, data_loader = load_data(auto_params.batch_size, dataset_params)
+    n_samples, data_loader = load_data(general_params.batch_size, dataset_params)
     model_storage_directory = params.OUTS_BASE_DIR
-    match dataset_params.name:
-        case params.AvailableDatasets.MNIST:
-            n_epochs = auto_params.epochs_mnist
-            use_mnist = True
-        case params.AvailableDatasets.LLD:
-            n_epochs = auto_params.epochs_lld
-            use_mnist = False
 
     print(f"Cleaning output directory {model_storage_directory} ...")
     if model_storage_directory.exists():
@@ -213,7 +206,7 @@ def train(
         patch_disc = PatchDiscriminator(dataset_params.in_channels)
         patch_disc.to(general_params.device)
         lower_disc_learning_rate = (
-            0.1 * auto_params.learning_rate
+            0.1 * general_params.learning_rate
         )  # lower rate helps in GAN training
         optimizer_discriminator = torch.optim.Adam(
             patch_disc.parameters(), lr=lower_disc_learning_rate
@@ -227,14 +220,16 @@ def train(
     if model_file is not None:
         autoencoder.load_state_dict(torch.load(model_file))
     autoencoder.to(general_params.device)
-    optimizer_generator = torch.optim.Adam(autoencoder.parameters(), lr=auto_params.learning_rate)
+    optimizer_generator = torch.optim.Adam(
+        autoencoder.parameters(), lr=general_params.learning_rate
+    )
     loss_fn = torch.nn.MSELoss()
 
     running_losses = []
     running_loss = 0
     value_for_original = torch.tensor([1], device=general_params.device, dtype=torch.float)
     value_for_reconstructed = torch.tensor([0], device=general_params.device, dtype=torch.float)
-    for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
+    for epoch in (pbar := tqdm(range(general_params.epochs), desc="Current avg. loss: /, Epochs")):
         batch: torch.Tensor
         for batch, labels in data_loader:
             labels = labels.to(general_params.device)
@@ -280,7 +275,8 @@ def train(
 
             running_loss += generator_loss.item() * batch.shape[0] / n_samples
         if (epoch + 1) in [
-            int(rel_plot_step * n_epochs) for rel_plot_step in [0.1, 0.25, 0.5, 0.75, 1.0]
+            int(rel_plot_step * general_params.epochs)
+            for rel_plot_step in [0.1, 0.25, 0.5, 0.75, 1.0]
         ]:
             show_image_grid(
                 reconst_batch, save_as=model_storage_directory / f"reconstruction_epoch_{epoch}.png"

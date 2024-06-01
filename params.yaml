@@ -5,18 +5,15 @@ dataset:
   - 1
   - 2
   - 3
-  n_images: null
+  n_images: 1000
   shuffle: true
 model:
-  batch_size: 32
-  epochs_mnist: 20
-  epochs_lld: 200
-  guiding_factor: 0.0
-  learning_rate: 0.01
-  steps: 1000
-  var_schedule_start: 0.0001
-  var_schedule_end: 0.02
+  adversarial_loss_weight: 1.0
+  kl_loss_weight: 1.0
 general:
   device: cuda
-  embedding_dim: 32
   do_norm: true
+  embedding_dim: 32
+  batch_size: 64
+  epochs: 5
+  learning_rate: 0.01

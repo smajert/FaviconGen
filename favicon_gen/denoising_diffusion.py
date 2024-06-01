@@ -263,13 +263,8 @@ def train(
     :return: Loss for each epoch
     """
 
-    n_samples, data_loader = load_data(diffusion_info.batch_size, dataset_info)
+    n_samples, data_loader = load_data(general_params.batch_size, dataset_info)
     model_storage_directory = params.OUTS_BASE_DIR
-    match dataset_info.name:
-        case params.AvailableDatasets.MNIST:
-            use_mnist = True
-        case params.AvailableDatasets.LLD:
-            use_mnist = False
 
     print(f"Cleaning output directory {model_storage_directory} ...")
     if model_storage_directory.exists():
@@ -291,14 +286,14 @@ def train(
         model.load_state_dict(torch.load(model_file))
     model.to(general_params.device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=diffusion_info.learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=general_params.learning_rate)
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, factor=0.7, patience=10, verbose=True, min_lr=1e-4
     )
     loss_fn = torch.nn.MSELoss()
     running_losses = []
     running_loss = 0
-    n_epochs = diffusion_info.epochs_mnist if use_mnist else diffusion_info.epochs_lld
+    n_epochs = general_params.epochs
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
         for batch, labels in data_loader:
             labels = labels.to(general_params.device)
