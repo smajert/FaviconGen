@@ -1,7 +1,7 @@
 import torch
 
-from favicon_gen import diffuser_model
 from favicon_gen.blocks import VarianceSchedule
+from favicon_gen.diffusion import diffuser_model
 
 
 def test_saving_and_loading_of_model_runs(tmp_path):

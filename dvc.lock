@@ -79,7 +79,7 @@ stages:
     deps:
     - path: outs/model.pt
       hash: md5
-      md5: 07afbf99f13f0299ed8f3976f44fb98b
+      md5: 24e494bcc19f601c45a8fa1d5c85afa3
       size: 64513517
     params:
       params.yaml:
@@ -294,9 +294,9 @@ stages:
     outs:
     - path: outs/loss.csv
       hash: md5
-      md5: e6894d7ca69704ad4711f4650f81f97c
-      size: 243
+      md5: 864ea7bf9f91ad27320860fbeebe9bf6
+      size: 246
     - path: outs/model.pt
       hash: md5
-      md5: 07afbf99f13f0299ed8f3976f44fb98b
+      md5: 24e494bcc19f601c45a8fa1d5c85afa3
       size: 64513517

@@ -14,7 +14,7 @@ from tqdm import tqdm
 from favicon_gen import params
 from favicon_gen.blocks import ConvBlock, ResampleModi, VarianceSchedule
 from favicon_gen.data_loading import load_data, show_image_grid
-from favicon_gen.diffuser_model import DiffusersModel
+from favicon_gen.diffusion.diffuser_model import DiffusersModel
 
 
 def diffusion_forward_process(

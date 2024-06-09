@@ -2,7 +2,7 @@ import random
 
 import torch
 
-import favicon_gen.autoencoder as ate
+import favicon_gen.vae.autoencoder as ate
 
 
 def test_gpu_available():

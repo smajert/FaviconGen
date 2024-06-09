@@ -11,14 +11,14 @@ from matplotlib import pyplot as plt
 import torch
 from tqdm import tqdm
 
-from favicon_gen.autoencoder import VariationalAutoEncoder
+from favicon_gen.vae.autoencoder import VariationalAutoEncoder
 from favicon_gen.data_loading import show_image_grid, load_data
-from favicon_gen.denoising_diffusion import (
+from favicon_gen.diffusion.denoising_diffusion import (
     DiffusionModel,
     diffusion_backward_process,
     VarianceSchedule,
 )
-from favicon_gen.diffuser_model import DiffusersModel
+from favicon_gen.diffusion.diffuser_model import DiffusersModel
 from favicon_gen import params
 
 
@@ -36,7 +36,8 @@ def sample_from_vae(
     Draw samples from the Variational AutoEncoder (VAE).
 
     :param model_file: File where the VAE is saved
-    :param n_labels: Amount of different labels in the data (e.g. 10 for the 10 different digits in MNIST)
+    :param n_labels: Amount of different labels in the data (e.g. 10 for the
+        10 different digits in MNIST)
     :param in_channels: Amount of channels in input (1 for grayscale MNIST, 3 for color LLD)
     :param n_samples: Amount of images to generate from the model
     :param device: 'cpu' for CPU or 'cuda' for GPU
@@ -80,7 +81,8 @@ def sample_from_diffusion_model(
     Sample images from the denoising diffusion model.
 
     :param model_file: File where the diffusion model is saved
-    :param n_labels: Amount of different labels in the data (e.g. 10 for the 10 different digits in MNIST)
+    :param n_labels: Amount of different labels in the data (e.g. 10 for the 10 different
+        digits in MNIST)
     :param in_channels: Amount of channels in input (1 for grayscale MNIST, 3 for color LLD)
     :param n_samples: Amount of images to generate from the model
     :param device: 'cpu' for CPU or 'cuda' for GPU
