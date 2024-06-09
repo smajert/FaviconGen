@@ -79,8 +79,8 @@ stages:
     deps:
     - path: outs/model.pt
       hash: md5
-      md5: 883556e1c7d316588f3db98c4811105b
-      size: 18708881
+      md5: 07afbf99f13f0299ed8f3976f44fb98b
+      size: 64513517
     params:
       params.yaml:
         dataset:
@@ -90,7 +90,9 @@ stages:
           - 1
           - 2
           - 3
-          n_images: 1000
+          - 4
+          - 5
+          n_images: 1
           shuffle: true
   train_autoencoder_lld:
     cmd: python favicon_gen/autoencoder.py
@@ -271,24 +273,30 @@ stages:
           - 1
           - 2
           - 3
-          n_images: 1000
+          - 4
+          - 5
+          n_images: 1
           shuffle: true
         general:
           device: cuda
           do_norm: true
           embedding_dim: 32
-          batch_size: 64
-          epochs: 5
-          learning_rate: 0.01
+          batch_size: 128
+          epochs: 10
+          learning_rate: 0.0005
+          lr_reduction_patience: 5
         model:
-          adversarial_loss_weight: 1.0
-          kl_loss_weight: 1.0
+          architecture: UNET2D
+          guiding_factor:
+          steps: 1000
+          var_schedule_start: 0.0001
+          var_schedule_end: 0.02
     outs:
     - path: outs/loss.csv
       hash: md5
-      md5: cda2af5a9b6228a11d8b2d962081a569
-      size: 122
+      md5: e6894d7ca69704ad4711f4650f81f97c
+      size: 243
     - path: outs/model.pt
       hash: md5
-      md5: 883556e1c7d316588f3db98c4811105b
-      size: 18708881
+      md5: 07afbf99f13f0299ed8f3976f44fb98b
+      size: 64513517

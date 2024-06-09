@@ -4,5 +4,7 @@ specific_clusters:
   - 1
   - 2
   - 3
-n_images: 1000
+  - 4
+  - 5
+n_images: 1
 shuffle: True

@@ -2,7 +2,6 @@
 Denoising diffusion model similar to [1].
 """
 
-from dataclasses import dataclass
 import math
 from pathlib import Path
 import shutil
@@ -13,35 +12,9 @@ import torch
 from tqdm import tqdm
 
 from favicon_gen import params
-from favicon_gen.blocks import ConvBlock, ResampleModi
+from favicon_gen.blocks import ConvBlock, ResampleModi, VarianceSchedule
 from favicon_gen.data_loading import load_data, show_image_grid
-
-
-@dataclass
-class VarianceSchedule:
-    """
-    Linear variance schedule for the Denoising Diffusion Probabilistic Model (DDPM).
-    The naming scheme is the same as in [1]. In particular, `beta_t` is the
-    variance of the Gaussian noise added at time step t.
-
-    :param beta_start_end: Start and end values of the variance during the noising process.
-        Defaults to values used in [1]
-    :param n_time_steps: Amount of noising steps in the model.
-    :param device: 'cpu' for CPU or 'cuda' for GPU
-    """
-
-    def __init__(
-        self, beta_start_end: tuple[float, float], n_time_steps: int, device: str = "cpu"
-    ) -> None:
-        super().__init__()
-        self.n_steps = n_time_steps
-        beta_start = beta_start_end[0]
-        beta_end = beta_start_end[1]
-        self.beta_t = torch.linspace(beta_start, beta_end, n_time_steps, device=device)
-        self.alpha_t = 1 - self.beta_t
-        self.alpha_bar_t = torch.cumprod(self.alpha_t, dim=0)
-        alpha_bar_t_minus_1 = torch.nn.functional.pad(self.alpha_bar_t[:-1], (1, 0), value=1)
-        self.beta_tilde_t = (1 - alpha_bar_t_minus_1) / (1 - self.alpha_bar_t) * self.beta_t
+from favicon_gen.diffuser_model import DiffusersModel
 
 
 def diffusion_forward_process(
@@ -175,12 +148,16 @@ class DiffusionModel(torch.nn.Module):
         x = self.layers[9](x)
         return x
 
+    @property
+    def device(self) -> torch.device:
+        return self.layers[0].non_transform_layers[0].weight.device
+
 
 @torch.no_grad()
 def diffusion_backward_process(
     model: DiffusionModel,
     batch_shape: tuple[int, ...],
-    guiding_factor: float,
+    guiding_factor: float | None,
     seed: int | None = None,
     label: int | None = None,
     save_sample_as: Path | None = None,
@@ -193,13 +170,13 @@ def diffusion_backward_process(
     :param batch_shape: Shape of the batch to generate; In particular, first dimension determines
         the amount of images generated.
     :param guiding_factor: Factor between 0 and 1 of generation with label to generation without label in
-        classifier-free guidance. See [4] for more details.
+        classifier-free guidance. See [4] for more details. None means do not use guidance.
     :param seed: Seed for random number generator to make
     :param label: If given, will generate image of a specific class/cluster (e.g. generate a 5 from MNIST)
     :param save_sample_as: Save the generated images as a pdf
     :return: [*batch_shape] - batch of generated images
     """
-    device = model.layers[0].non_transform_layers[0].weight.device
+    device = model.device
     rand_generator = torch.Generator(device=device)
     if seed is not None:
         rand_generator.manual_seed(seed)
@@ -217,7 +194,11 @@ def diffusion_backward_process(
         alpha = variance_schedule.alpha_t[time_step]
         alpha_bar = variance_schedule.alpha_bar_t[time_step]
         beta_tilde = variance_schedule.beta_tilde_t[time_step]
-        noise_pred = torch.lerp(model(batch, t, None), model(batch, t, labels), guiding_factor)
+
+        if guiding_factor is None:
+            noise_pred = model(batch, t, None)
+        else:
+            noise_pred = torch.lerp(model(batch, t, None), model(batch, t, labels), guiding_factor)
 
         batch = 1 / torch.sqrt(alpha) * (batch - beta / torch.sqrt(1 - alpha_bar) * noise_pred)
         if time_step != 0:
@@ -279,16 +260,24 @@ def train(
     )
 
     n_labels = dataset_info.n_classes
-    model = DiffusionModel(
-        dataset_info.in_channels, schedule, n_labels, general_params.embedding_dim
-    )
+    match diffusion_info.architecture:
+        case params.DiffusionArchitecture.CUSTOM:
+            model = DiffusionModel(
+                dataset_info.in_channels, schedule, n_labels, general_params.embedding_dim
+            )
+        case params.DiffusionArchitecture.UNET2D:
+            model = DiffusersModel(dataset_info.in_channels, schedule, n_labels, 2)
     if model_file is not None:
         model.load_state_dict(torch.load(model_file))
     model.to(general_params.device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=general_params.learning_rate)
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, factor=0.7, patience=10, verbose=True, min_lr=1e-4
+        optimizer,
+        factor=0.7,
+        patience=general_params.lr_reduction_patience,
+        verbose=True,
+        min_lr=1e-4,
     )
     loss_fn = torch.nn.MSELoss()
     running_losses = []

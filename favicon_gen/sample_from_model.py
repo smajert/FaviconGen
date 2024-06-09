@@ -18,6 +18,7 @@ from favicon_gen.denoising_diffusion import (
     diffusion_backward_process,
     VarianceSchedule,
 )
+from favicon_gen.diffuser_model import DiffusersModel
 from favicon_gen import params
 
 
@@ -90,7 +91,11 @@ def sample_from_diffusion_model(
     variance_schedule = VarianceSchedule(
         (diffusion_info.var_schedule_start, diffusion_info.var_schedule_end), diffusion_info.steps
     )
-    generator = DiffusionModel(in_channels, variance_schedule, n_labels, embedding_dim)
+    match diffusion_info.architecture:
+        case params.DiffusionArchitecture.CUSTOM:
+            generator = DiffusionModel(in_channels, variance_schedule, n_labels, embedding_dim)
+        case params.DiffusionArchitecture.UNET2D:
+            generator = DiffusersModel(in_channels, variance_schedule, n_labels, 2)
     generator.load_state_dict(torch.load(model_file))
     generator = generator.to(device)
     generator.eval()

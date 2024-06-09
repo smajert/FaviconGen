@@ -132,3 +132,10 @@ def test_diffusion_model_runs(device: str = "cpu"):
         3, ddi.VarianceSchedule(n_time_steps=1000, beta_start_end=(0.0001, 0.02)), 10, 32
     ).to(device)
     _ = model(pseudo_batch, pseudo_time_steps, pseudo_labels)
+
+
+def test_getting_device():
+    model = ddi.DiffusionModel(
+        3, ddi.VarianceSchedule(n_time_steps=10, beta_start_end=(0.0001, 0.02)), 10, 32
+    )
+    assert model.device == torch.device("cpu")

@@ -3,7 +3,7 @@ Parameters used throughout the project
 """
 from dataclasses import dataclass
 from enum import auto, Enum
-from typing import Any, Optional
+from typing import Any
 from pathlib import Path
 
 from dacite import Config, from_dict
@@ -19,12 +19,13 @@ class AvailableDatasets(Enum):
     LLD = auto()  # Large Logo Dataset
     MNIST = auto()  # Modified National Institute of Standards and Technology database
 
+
 @dataclass
 class Dataset:  # everything related to MNIST/LLD
     name: AvailableDatasets
-    n_images: Optional[int]  # total amount of images to load, None means all of them
+    n_images: int | None  # total amount of images to load, None means all of them
     shuffle: bool  # whether to shuffle the data
-    specific_clusters: Optional[list[int]] = None  # which LLD clusters to use
+    specific_clusters: list[int] | None = None  # which LLD clusters to use
 
     @property
     def in_channels(self):
@@ -48,7 +49,7 @@ class Dataset:  # everything related to MNIST/LLD
                 return 10
 
 
-@ dataclass
+@dataclass
 class General:  # Parameters relevant for all models
     device: str  # whether to run on GPU ("cuda") or CPU ("cpu")
     do_norm: bool  # whether to perform batch norm
@@ -56,17 +57,24 @@ class General:  # Parameters relevant for all models
     batch_size: int
     epochs: int
     learning_rate: float
+    lr_reduction_patience: int  # patience for reduction of learning rate in epochs
 
 
 @dataclass
 class AutoEncoder:  # everything related to VAE training
-    adversarial_loss_weight: Optional[float]
+    adversarial_loss_weight: float | None
     kl_loss_weight: float  # how strongly to force latent space to gaussian distribution
+
+
+class DiffusionArchitecture(Enum):
+    CUSTOM = "CUSTOM"
+    UNET2D = "UNET2D"
 
 
 @dataclass
 class Diffusion:  # everything related to diffusion model training
-    guiding_factor: float  # Guided (with label) vs. unguided (without labels) in classifier free guidance [4]
+    architecture: DiffusionArchitecture
+    guiding_factor: float | None # Guided (with label) vs. unguided (without labels) in classifier free guidance [4]
     steps: int  # amount of time steps the diffusion model uses
     var_schedule_start: float  # starting value of the variance schedule beta
     var_schedule_end: float  # final value (after `Diffusion.steps` time steps) of the variance schedule beta
@@ -90,4 +98,6 @@ def load_config() -> ProjectConfig:
 
     cfg = OmegaConf.merge(schema, OmegaConf.load("params.yaml"))
     cfg_dict = OmegaConf.to_container(cfg, resolve=True)
-    return from_dict(data_class=ProjectConfig, data=cfg_dict, config=Config(strict=True))
+    return from_dict(
+        data_class=ProjectConfig, data=cfg_dict, config=Config(strict=True, cast=[Enum])
+    )
