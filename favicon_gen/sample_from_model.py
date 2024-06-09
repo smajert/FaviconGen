@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from favicon_gen.vae.autoencoder import VariationalAutoEncoder
 from favicon_gen.data_loading import show_image_grid, load_data
-from favicon_gen.diffusion.denoising_diffusion import (
+from favicon_gen.diffusion.custom_model import (
     DiffusionModel,
     diffusion_backward_process,
     VarianceSchedule,

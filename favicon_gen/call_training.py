@@ -1,8 +1,8 @@
 import json
 
 from favicon_gen import params
-from favicon_gen.diffusion.denoising_diffusion import train as train_diffusion
-from favicon_gen.vae.autoencoder import train as train_autoencoder
+from favicon_gen.diffusion.train_diffusion import train as train_diffusion
+from favicon_gen.vae.train_vae import train as train_autoencoder
 
 
 if __name__ == "__main__":

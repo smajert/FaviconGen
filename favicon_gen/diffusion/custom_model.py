@@ -4,17 +4,15 @@ Denoising diffusion model similar to [1].
 
 import math
 from pathlib import Path
-import shutil
 from typing import Any  # noqa: F401
 
 import numpy as np
 import torch
-from tqdm import tqdm
 
-from favicon_gen import params
+
 from favicon_gen.blocks import ConvBlock, ResampleModi, VarianceSchedule
-from favicon_gen.data_loading import load_data, show_image_grid
-from favicon_gen.diffusion.diffuser_model import DiffusersModel
+from favicon_gen.data_loading import show_image_grid
+
 
 
 def diffusion_forward_process(
@@ -88,7 +86,8 @@ class DiffusionModel(torch.nn.Module):
 
     :param in_channels: Amount of input channels (1 for grayscale MNIST, 3 for color LLD)
     :param variance_schedule: Schedule to control the fashion in which noise is added to the images.
-    :param n_labels: Amount of different labels in the data (e.g. 10 for the 10 different digits in MNIST)
+    :param n_labels: Amount of different labels in the data (e.g. 10 for the 10 different digits
+        in MNIST)
     """
 
     def __init__(
@@ -111,17 +110,17 @@ class DiffusionModel(torch.nn.Module):
         self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
         small = {"kernel_size": 2, "padding": 0}  # type: Any
         # fmt: off
-        self.layers = torch.nn.ModuleList([                                         # input: in_channels x 32 x 32
-            ConvBlock(in_channels, 32, resample_modus=ResampleModi.NO),             # 0: 32 x 32 x 32
-            ConvBlock(32, 64, resample_modus=ResampleModi.DOWN),                    # 1: 64 x 16 x 16
-            ConvBlock(64, 128, resample_modus=ResampleModi.DOWN, **small),          # 2: 128 x 8 x 8
-            ConvBlock(128, 256, resample_modus=ResampleModi.DOWN, **small),         # 3: 256 x 4 x 4
-            ConvBlock(256, 256, resample_modus=ResampleModi.DOWN_AND_UP),           # 4: 256 x 4 x 4  <-+ skip after 3
-            ConvBlock(512, 128, resample_modus=ResampleModi.UP, **small),           # 5: 128 x 8 x 8  <-+ skip after 2
-            ConvBlock(256, 64, resample_modus=ResampleModi.UP, **small),            # 6: 64 x 16 x 16 <-+ skip after 1
-            ConvBlock(128, 32, resample_modus=ResampleModi.UP),                     # 7: 32 x 32 x 32 <-+ skip after 0
-            ConvBlock(64, 32, resample_modus=ResampleModi.NO),                      # 8: 32 x 32 x 32
-            torch.nn.Conv2d(32, in_channels, 5, padding=2)                          # 9: in_channels x 32 x 32
+        self.layers = torch.nn.ModuleList([                                # input: in_channels x 32 x 32
+            ConvBlock(in_channels, 32, resample_modus=ResampleModi.NO),    # 0: 32 x 32 x 32
+            ConvBlock(32, 64, resample_modus=ResampleModi.DOWN),           # 1: 64 x 16 x 16
+            ConvBlock(64, 128, resample_modus=ResampleModi.DOWN, **small), # 2: 128 x 8 x 8
+            ConvBlock(128, 256, resample_modus=ResampleModi.DOWN, **small),# 3: 256 x 4 x 4
+            ConvBlock(256, 256, resample_modus=ResampleModi.DOWN_AND_UP),  # 4: 256 x 4 x 4  <-+ skip after 3
+            ConvBlock(512, 128, resample_modus=ResampleModi.UP, **small),  # 5: 128 x 8 x 8  <-+ skip after 2
+            ConvBlock(256, 64, resample_modus=ResampleModi.UP, **small),   # 6: 64 x 16 x 16 <-+ skip after 1
+            ConvBlock(128, 32, resample_modus=ResampleModi.UP),            # 7: 32 x 32 x 32 <-+ skip after 0
+            ConvBlock(64, 32, resample_modus=ResampleModi.NO),             # 8: 32 x 32 x 32
+            torch.nn.Conv2d(32, in_channels, 5, padding=2)                 # 9: in_channels x 32 x 32
         ])
         # fmt: on
 
@@ -169,10 +168,11 @@ def diffusion_backward_process(
     :param model: Diffusion model to predict the noise at each time step
     :param batch_shape: Shape of the batch to generate; In particular, first dimension determines
         the amount of images generated.
-    :param guiding_factor: Factor between 0 and 1 of generation with label to generation without label in
-        classifier-free guidance. See [4] for more details. None means do not use guidance.
+    :param guiding_factor: Factor between 0 and 1 of generation with label to generation without
+        label in classifier-free guidance. See [4] for more details. None means do not use guidance.
     :param seed: Seed for random number generator to make
-    :param label: If given, will generate image of a specific class/cluster (e.g. generate a 5 from MNIST)
+    :param label: If given, will generate image of a specific class/cluster
+        (e.g. generate a 5 from MNIST)
     :param save_sample_as: Save the generated images as a pdf
     :return: [*batch_shape] - batch of generated images
     """
@@ -227,98 +227,3 @@ def diffusion_backward_process(
 
     model.train()
     return batch
-
-
-def train(
-    dataset_info: params.Dataset,
-    diffusion_info: params.Diffusion,
-    general_params: params.General,
-    model_file: Path | None = None,
-) -> np.ndarray:
-    """
-    Training loop for diffusion model.
-
-    :param dataset_info: Dataset parameters
-    :param diffusion_info: Model parameters
-    :param model_file: If given, will start from the model saved there
-    :return: Loss for each epoch
-    """
-
-    n_samples, data_loader = load_data(general_params.batch_size, dataset_info)
-    model_storage_directory = params.OUTS_BASE_DIR
-
-    print(f"Cleaning output directory {model_storage_directory} ...")
-    if model_storage_directory.exists():
-        shutil.rmtree(model_storage_directory)
-    model_storage_directory.mkdir(exist_ok=True)
-
-    beta_start_end = (diffusion_info.var_schedule_start, diffusion_info.var_schedule_end)
-    schedule = VarianceSchedule(
-        beta_start_end=beta_start_end,
-        n_time_steps=diffusion_info.steps,
-        device=general_params.device,
-    )
-
-    n_labels = dataset_info.n_classes
-    match diffusion_info.architecture:
-        case params.DiffusionArchitecture.CUSTOM:
-            model = DiffusionModel(
-                dataset_info.in_channels, schedule, n_labels, general_params.embedding_dim
-            )
-        case params.DiffusionArchitecture.UNET2D:
-            model = DiffusersModel(dataset_info.in_channels, schedule, n_labels, 2)
-    if model_file is not None:
-        model.load_state_dict(torch.load(model_file))
-    model.to(general_params.device)
-
-    optimizer = torch.optim.Adam(model.parameters(), lr=general_params.learning_rate)
-    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer,
-        factor=0.7,
-        patience=general_params.lr_reduction_patience,
-        verbose=True,
-        min_lr=1e-4,
-    )
-    loss_fn = torch.nn.MSELoss()
-    running_losses = []
-    running_loss = 0
-    n_epochs = general_params.epochs
-    for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
-        for batch, labels in data_loader:
-            labels = labels.to(general_params.device)
-            if np.random.random() < 0.1:
-                labels = None
-            batch = batch.to(general_params.device)
-
-            optimizer.zero_grad()
-            # pytorch expects tuple for size here:
-            actual_batch_size = batch.shape[0]
-            t = torch.randint(low=0, high=diffusion_info.steps, size=(actual_batch_size,))
-            noisy_batch, noise = diffusion_forward_process(batch, t, schedule)
-
-            noise_pred = model(noisy_batch, t.to(general_params.device), labels)
-            loss = loss_fn(noise_pred, noise)
-
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item() * batch.shape[0] / n_samples
-
-        lr_scheduler.step(loss)
-        if (epoch + 1) in [
-            int(rel_plot_step * n_epochs) for rel_plot_step in [0.1, 0.25, 0.5, 0.75, 1.0]
-        ]:
-            sample_shape = torch.Size((1, *batch.shape[1:]))
-            _ = diffusion_backward_process(
-                model,
-                sample_shape,
-                diffusion_info.guiding_factor,
-                save_sample_as=model_storage_directory / f"epoch_{epoch + 1}.png",
-            )
-
-        pbar.set_description(f"Current avg. loss: {running_loss:.3f}, Epochs")
-        running_losses.append(running_loss)
-        running_loss = 0
-
-    torch.save(model.state_dict(), model_storage_directory / "model.pt")
-
-    return running_losses

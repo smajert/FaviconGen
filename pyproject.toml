@@ -7,9 +7,10 @@ ignored-modules = ["numpy", "torch"]
 
 [tool.pylint."messages control"]
 disable = [
-    "missing-function-docstring",
     "missing-class-docstring",
+    "missing-function-docstring",
     "missing-module-docstring",
+    "too-many-locals",
 ]
 
 [tool.mypy]
