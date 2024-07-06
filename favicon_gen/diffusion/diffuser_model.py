@@ -22,10 +22,11 @@ class DiffusersModel(torch.nn.Module):
             in_channels=in_channels,
             out_channels=in_channels,
             layers_per_block=layers_per_block,
-            block_out_channels=(32, 64, 128, 256),
+            block_out_channels=(128, 128, 128, 256, 512),
             downsample_type="resnet",
             upsample_type="resnet",
             down_block_types=(
+                "DownBlock2D",
                 "DownBlock2D",
                 "DownBlock2D",
                 "DownBlock2D",
@@ -36,7 +37,9 @@ class DiffusersModel(torch.nn.Module):
                 "UpBlock2D",
                 "UpBlock2D",
                 "UpBlock2D",
+                "UpBlock2D",
             ),
+            norm_num_groups=4,
         )
 
     @property
@@ -46,5 +49,5 @@ class DiffusersModel(torch.nn.Module):
     def forward(
         self, x: torch.Tensor, time_step: torch.Tensor, labels: torch.Tensor | None
     ) -> torch.Tensor:
-        # todo inocroporate labels here
-        return self.model_core(x, time_step).sample
+        # todo incoroporate labels here
+        return self.model_core(x, time_step, return_dict=False)[0]

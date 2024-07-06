@@ -1,10 +1,4 @@
 name: "LLD"
-specific_clusters:
-  - 0
-  - 1
-  - 2
-  - 3
-  - 4
-  - 5
-n_images: 1
+specific_clusters: !!null
+n_images: 50000
 shuffle: True

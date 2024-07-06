@@ -17,5 +17,5 @@ def test_saving_and_loading_of_model_runs(tmp_path):
 
 def test_getting_device_works():
     schedule = VarianceSchedule((0.1, 0.001), 20, device="cpu")
-    model = diffuser_model.DiffusersModel(1, schedule, 10, 20)
+    model = diffuser_model.DiffusersModel(3, schedule, 10, 3)
     assert model.device == torch.device("cpu")

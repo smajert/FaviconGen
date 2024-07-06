@@ -9,5 +9,5 @@ general:
   embedding_dim: 32
   batch_size: 128
   epochs: 10
-  learning_rate: 0.5e-3
-  lr_reduction_patience: 5
+  learning_rate: 2e-4
+  lr_reduction_patience: 2

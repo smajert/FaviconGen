@@ -1,13 +1,7 @@
 dataset:
   name: LLD
-  specific_clusters:
-  - 0
-  - 1
-  - 2
-  - 3
-  - 4
-  - 5
-  n_images: 1
+  specific_clusters: null
+  n_images: 50000
   shuffle: true
 model:
   architecture: UNET2D
@@ -21,5 +15,5 @@ general:
   embedding_dim: 32
   batch_size: 128
   epochs: 10
-  learning_rate: 0.0005
-  lr_reduction_patience: 5
+  learning_rate: 0.0002
+  lr_reduction_patience: 2

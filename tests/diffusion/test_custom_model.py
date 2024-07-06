@@ -1,7 +1,8 @@
+import random
+
 from matplotlib import pyplot as plt
 import numpy as np
 import pytest
-import random
 import torch
 
 from favicon_gen.diffusion import custom_model

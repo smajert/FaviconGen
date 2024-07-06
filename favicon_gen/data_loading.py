@@ -11,7 +11,7 @@ import warnings
 import h5py
 from matplotlib import pyplot as plt
 import numpy as np
-from torch import Tensor
+from torch import Tensor, transpose
 from torch.utils.data import Dataset, DataLoader, Subset
 from torch.utils.data.dataset import ConcatDataset  # noqa: F401
 from torchvision import datasets, transforms, utils
@@ -39,7 +39,7 @@ def show_image_grid(tensor: Tensor, save_as: Path | None = None) -> None:
     :param tensor: [n_images, n_channels, height, width] - batch to visualize
     :param save_as: If given, plot will be saved here.
     """
-    img_grid = utils.make_grid(tensor)
+    img_grid = utils.make_grid(transpose(tensor, -2, -1))
     img_grid = BACKWARD_TRANSFORMS(img_grid.detach())
 
     ax = plt.gca()
