@@ -44,10 +44,7 @@ def train(
         )
 
     # prepare autoencoder
-    n_labels = dataset_params.n_classes
-    autoencoder = VariationalAutoEncoder(
-        dataset_params.in_channels, n_labels, general_params.embedding_dim
-    )
+    autoencoder = VariationalAutoEncoder(dataset_params.in_channels)
     if model_file is not None:
         autoencoder.load_state_dict(torch.load(model_file))
     autoencoder.to(general_params.device)
@@ -62,14 +59,13 @@ def train(
     value_for_reconstructed = torch.tensor([0], device=general_params.device, dtype=torch.float)
     for epoch in (pbar := tqdm(range(general_params.epochs), desc="Current avg. loss: /, Epochs")):
         batch: torch.Tensor
-        for batch, labels in data_loader:
-            labels = labels.to(general_params.device)
+        for batch, _ in data_loader:
             batch = batch.to(
                 general_params.device
             )  # batch does not track gradients -> does not need to be detached ever
 
             optimizer_generator.zero_grad()
-            reconst_batch, mu, log_var = autoencoder(batch, labels)
+            reconst_batch, mu, log_var = autoencoder(batch)
             kl_loss = -0.5 * torch.mean(
                 1 + log_var - mu.pow(2) - log_var.exp()
             )  # Kullback Leibler loss
@@ -96,7 +92,7 @@ def train(
             if use_patch_discriminator:
                 optimizer_discriminator.zero_grad()
                 disc_pred_original = patch_disc(batch)
-                reconst_batch, _, _ = autoencoder(batch, labels)
+                reconst_batch, _, _ = autoencoder(batch)
                 disc_pred_reconstructed = patch_disc(reconst_batch.detach())
                 disc_loss = torch.nn.L1Loss()(disc_pred_original, is_original) + torch.nn.L1Loss()(
                     disc_pred_reconstructed, is_reconstructed

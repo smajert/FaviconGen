@@ -1,5 +1,4 @@
   architecture: "UNET2D"
-  guiding_factor: !!null
   steps: 1000
   var_schedule_start: 0.0001
   var_schedule_end: 0.02

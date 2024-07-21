@@ -79,7 +79,7 @@ stages:
     deps:
     - path: outs/model.pt
       hash: md5
-      md5: e99b627a6def1ed15225f7762dd6a253
+      md5: d8eb72a42b790e3b89147061089cb86e
       size: 283078789
     params:
       params.yaml:
@@ -275,16 +275,15 @@ stages:
           lr_reduction_patience: 2
         model:
           architecture: UNET2D
-          guiding_factor:
           steps: 1000
           var_schedule_start: 0.0001
           var_schedule_end: 0.02
     outs:
     - path: outs/loss.csv
       hash: md5
-      md5: deea7fd3f9d913d3e0dee812eee71340
-      size: 249
+      md5: fb984f025aad39f860a8187106805b26
+      size: 248
     - path: outs/model.pt
       hash: md5
-      md5: e99b627a6def1ed15225f7762dd6a253
+      md5: d8eb72a42b790e3b89147061089cb86e
       size: 283078789

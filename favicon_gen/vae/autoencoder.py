@@ -33,9 +33,9 @@ class Encoder(torch.nn.Module):
         self.flatten = torch.nn.Flatten()                                         # 256*2*2 = 1024
         # fmt: on
 
-    def forward(self, x: torch.Tensor, label_embedding: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         for layer in self.convs:
-            x = layer(x, label_embedding)
+            x = layer(x, None)
         x = self.flatten(x)
         return x
 
@@ -71,10 +71,10 @@ class Decoder(torch.nn.Module):
         self.last_conv = torch.nn.Conv2d(out_channels, out_channels, 5, padding=2, stride=1)
         self.last_activation = torch.nn.Tanh()
 
-    def forward(self, x: torch.Tensor, label_embeddings: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.unflatten(x)
         for layer in self.convs:
-            x = layer(x, label_embeddings)
+            x = layer(x, None)
         x = self.last_conv(x)
         return self.last_activation(x)
 
@@ -84,14 +84,12 @@ class VariationalAutoEncoder(torch.nn.Module):
     Variational Autoencoder (VAE) for MNIST or LLD.
 
     :param in_channels: Amount of channels in input (1 for grayscale MNIST, 3 for color LLD)
-    :param n_labels: Amount of different labels in the data (e.g. 10 for the 10 different digits in MNIST)
     """
 
-    def __init__(self, in_channels: int, n_labels: int, embedding_dim: int) -> None:
+    def __init__(self, in_channels: int) -> None:
         super().__init__()
         self.latent_dim = 512
         self.activation = torch.nn.LeakyReLU()
-        self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
 
         self.encoder = Encoder(in_channels, self.activation)
         encoder_output_shape = (256, 2, 2)
@@ -131,16 +129,13 @@ class VariationalAutoEncoder(torch.nn.Module):
         x = self.activation(self.from_latent(z))
         return x
 
-    def forward(
-        self, x: torch.Tensor, labels: torch.Tensor | None
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        label_emb = self.label_embedding(labels)
-        x = self.encoder(x, label_emb)
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        x = self.encoder(x)
         encoded_shape = x.shape
         z, mu, log_var = self.convert_to_latent(x)
         x = self.convert_from_latent(z)
         x = torch.reshape(x, shape=encoded_shape)
-        x = self.decoder(x, label_emb)
+        x = self.decoder(x)
 
         return x, mu, log_var
 

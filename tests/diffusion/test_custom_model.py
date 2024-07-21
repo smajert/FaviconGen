@@ -121,8 +121,8 @@ def test_drawing_sample_from_module_runs():
     variance_schedule = custom_model.VarianceSchedule(
         n_time_steps=n_time_steps, beta_start_end=(0.0001, 0.02)
     )
-    model = custom_model.DiffusionModel(3, variance_schedule, 10, 32)
-    _ = custom_model.diffusion_backward_process(model, (4, 3, 32, 32), 0.9, seed=0)
+    model = custom_model.DiffusionModel(3, variance_schedule, 32)
+    _ = custom_model.diffusion_backward_process(model, (4, 3, 32, 32), seed=0)
 
 
 def test_diffusion_model_runs(device: str = "cpu"):
@@ -130,15 +130,14 @@ def test_diffusion_model_runs(device: str = "cpu"):
     random.seed(0)
     pseudo_batch = torch.rand((32, 3, 32, 32), device=device)
     pseudo_time_steps = torch.randint(0, 10, size=(32,), device=device)
-    pseudo_labels = torch.randint(0, 9, size=(32,), device=device)
     model = custom_model.DiffusionModel(
-        3, custom_model.VarianceSchedule(n_time_steps=1000, beta_start_end=(0.0001, 0.02)), 10, 32
+        3, custom_model.VarianceSchedule(n_time_steps=1000, beta_start_end=(0.0001, 0.02)), 32
     ).to(device)
-    _ = model(pseudo_batch, pseudo_time_steps, pseudo_labels)
+    _ = model(pseudo_batch, pseudo_time_steps)
 
 
 def test_getting_device():
     model = custom_model.DiffusionModel(
-        3, custom_model.VarianceSchedule(n_time_steps=10, beta_start_end=(0.0001, 0.02)), 10, 32
+        3, custom_model.VarianceSchedule(n_time_steps=10, beta_start_end=(0.0001, 0.02)), 32
     )
     assert model.device == torch.device("cpu")

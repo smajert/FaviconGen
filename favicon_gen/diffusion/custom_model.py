@@ -86,20 +86,16 @@ class DiffusionModel(torch.nn.Module):
 
     :param in_channels: Amount of input channels (1 for grayscale MNIST, 3 for color LLD)
     :param variance_schedule: Schedule to control the fashion in which noise is added to the images.
-    :param n_labels: Amount of different labels in the data (e.g. 10 for the 10 different digits
-        in MNIST)
     """
 
     def __init__(
         self,
         in_channels: int,
         variance_schedule: VarianceSchedule,
-        n_labels: int,
         embedding_dim: int,
     ) -> None:
         super().__init__()
         self.variance_schedule = variance_schedule
-        self.n_labels = n_labels
 
         self.time_mlp = torch.nn.Sequential(
             SinusoidalPositionEmbeddings(embedding_dim),
@@ -107,7 +103,6 @@ class DiffusionModel(torch.nn.Module):
             torch.nn.LeakyReLU(),
         )
 
-        self.label_embedding = torch.nn.Embedding(n_labels, embedding_dim)
         small = {"kernel_size": 2, "padding": 0}  # type: Any
         # fmt: off
         self.layers = torch.nn.ModuleList([                                # input: in_channels x 32 x 32
@@ -125,11 +120,9 @@ class DiffusionModel(torch.nn.Module):
         # fmt: on
 
     def forward(
-        self, x: torch.Tensor, time_step: torch.Tensor, labels: torch.Tensor | None
+        self, x: torch.Tensor, time_step: torch.Tensor
     ) -> torch.Tensor:
         time_emb = self.time_mlp(time_step)
-        if labels is not None:
-            time_emb += self.label_embedding(labels)
 
         x_down1 = self.layers[0](x, time_emb)
         x_down2 = self.layers[1](x_down1, time_emb)
@@ -156,9 +149,7 @@ class DiffusionModel(torch.nn.Module):
 def diffusion_backward_process(
     model: DiffusionModel,
     batch_shape: tuple[int, ...],
-    guiding_factor: float | None,
     seed: int | None = None,
-    label: int | None = None,
     save_sample_as: Path | None = None,
 ) -> torch.Tensor:
     """
@@ -168,8 +159,6 @@ def diffusion_backward_process(
     :param model: Diffusion model to predict the noise at each time step
     :param batch_shape: Shape of the batch to generate; In particular, first dimension determines
         the amount of images generated.
-    :param guiding_factor: Factor between 0 and 1 of generation with label to generation without
-        label in classifier-free guidance. See [4] for more details. None means do not use guidance.
     :param seed: Seed for random number generator to make
     :param label: If given, will generate image of a specific class/cluster
         (e.g. generate a 5 from MNIST)
@@ -180,10 +169,6 @@ def diffusion_backward_process(
     rand_generator = torch.Generator(device=device)
     if seed is not None:
         rand_generator.manual_seed(seed)
-    if label is None:
-        labels = torch.randint(0, model.n_labels, (batch_shape[0],), device=device)
-    else:
-        labels = torch.full((batch_shape[0],), fill_value=label, device=device)
     batch = torch.randn(size=batch_shape, generator=rand_generator, device=device)
     variance_schedule = model.variance_schedule
 
@@ -195,10 +180,7 @@ def diffusion_backward_process(
         alpha_bar = variance_schedule.alpha_bar_t[time_step]
         beta_tilde = variance_schedule.beta_tilde_t[time_step]
 
-        if guiding_factor is None:
-            noise_pred = model(batch, t, None)
-        else:
-            noise_pred = torch.lerp(model(batch, t, None), model(batch, t, labels), guiding_factor)
+        noise_pred = model(batch, t)
 
         batch = 1 / torch.sqrt(alpha) * (batch - beta / torch.sqrt(1 - alpha_bar) * noise_pred)
         if time_step != 0:

@@ -1,2 +1,2 @@
-  adversarial_loss_weight: 1.0
-  kl_loss_weight: 1.0
+  adversarial_loss_weight: 0.3
+  kl_loss_weight: 0.5

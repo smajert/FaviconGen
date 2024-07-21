@@ -46,14 +46,11 @@ def train(
         device=general_params.device,
     )
 
-    n_labels = dataset_info.n_classes
     match diffusion_info.architecture:
         case params.DiffusionArchitecture.CUSTOM:
-            model = DiffusionModel(
-                dataset_info.in_channels, schedule, n_labels, general_params.embedding_dim
-            )
+            model = DiffusionModel(dataset_info.in_channels, schedule, general_params.embedding_dim)
         case params.DiffusionArchitecture.UNET2D:
-            model = DiffusersModel(dataset_info.in_channels, schedule, n_labels, 2)
+            model = DiffusersModel(dataset_info.in_channels, schedule, 2)
     if model_file is not None:
         model.load_state_dict(torch.load(model_file))
     model.to(general_params.device)
@@ -71,10 +68,7 @@ def train(
     running_loss = 0
     n_epochs = general_params.epochs
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
-        for batch, labels in data_loader:
-            labels = labels.to(general_params.device)
-            if np.random.random() < 0.1:
-                labels = None
+        for batch, _ in data_loader:
             batch = batch.to(general_params.device)
 
             optimizer.zero_grad()
@@ -82,8 +76,7 @@ def train(
             actual_batch_size = batch.shape[0]
             t = torch.randint(low=0, high=diffusion_info.steps, size=(actual_batch_size,))
             noisy_batch, noise = diffusion_forward_process(batch, t, schedule)
-
-            noise_pred = model(noisy_batch, t.to(general_params.device), labels)
+            noise_pred = model(noisy_batch, t.to(general_params.device))
             loss = loss_fn(noise_pred, noise)
 
             loss.backward()
@@ -98,7 +91,6 @@ def train(
             _ = diffusion_backward_process(
                 model,
                 sample_shape,
-                diffusion_info.guiding_factor,
                 save_sample_as=model_storage_directory / f"epoch_{epoch + 1}.png",
             )
 

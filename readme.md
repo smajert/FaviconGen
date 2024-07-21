@@ -2,6 +2,8 @@
 
 <img src="images/title.png" alt="Generated Favicons" width="400"/>
 
+#TODO: make amount of layers for unet2d setable, update readme
+
 ## Introduction
 This is just a small side project of mine to try to generate logos
 (to be precise favicons = favorite + icon) with pytorch on my home
@@ -98,10 +100,6 @@ pp. 5879–5888. DOI: 10.1109/CVPR.2018.00616.
 <a id="3">[3]</a>
 M. Saeed, "A Gentle Introduction to Positional Encoding in Transformer Models, Part 1"
 Machine Learning Mastery, 2022, [URL](https://machinelearningmastery.com/a-gentle-introduction-to-positional-encoding-in-transformer-models-part-1/)
-
-<a id="4">[4]</a>
-J. Ho and T. Salimans, "Classifier-free Diffusion Guidance" arXiv, 2022,
-[URL](https://arxiv.org/abs/2207.12598)
 
 <a id="5">[5]</a>
 C. Doersch, "Tutorial on Variational Autoencoders" arXiv, 2021,

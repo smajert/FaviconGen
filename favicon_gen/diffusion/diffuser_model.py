@@ -5,16 +5,22 @@ from favicon_gen.blocks import VarianceSchedule
 
 
 class DiffusersModel(torch.nn.Module):
+    """
+    Diffusion model with support from the diffusers library.
+
+    :param in_channels: Amount of channels in input images (1 for grayscale, 3 for color)
+    :param variance_schedule: Schedule describing
+    :param layers_per_block: Amount of conv-layers for one convlution block before down-
+        sampling.
+    """
     def __init__(
         self,
         in_channels: int,
         variance_schedule: VarianceSchedule,
-        n_labels: int,
         layers_per_block: int,
     ) -> None:
         super().__init__()
         self.variance_schedule = variance_schedule
-        self.n_labels = n_labels
 
         self.model_core = UNet2DModel(
             sample_size=32,
@@ -47,7 +53,6 @@ class DiffusersModel(torch.nn.Module):
         return next(self.model_core.parameters()).device
 
     def forward(
-        self, x: torch.Tensor, time_step: torch.Tensor, labels: torch.Tensor | None
+        self, x: torch.Tensor, time_step: torch.Tensor
     ) -> torch.Tensor:
-        # todo incoroporate labels here
         return self.model_core(x, time_step, return_dict=False)[0]

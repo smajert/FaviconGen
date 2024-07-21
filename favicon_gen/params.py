@@ -36,24 +36,12 @@ class Dataset:  # everything related to MNIST/LLD
             case AvailableDatasets.MNIST:
                 return 1
 
-    @property
-    def n_classes(self):
-        """Get amount of different classes, e.g. the 10 different digits for MNIST"""
-        match self.name:
-            case AvailableDatasets.LLD:
-                n_classes = 100
-                if self.specific_clusters is not None:
-                    n_classes = len(set(self.specific_clusters))
-                return n_classes
-            case AvailableDatasets.MNIST:
-                return 10
-
 
 @dataclass
 class General:  # Parameters relevant for all models
     device: str  # whether to run on GPU ("cuda") or CPU ("cpu")
     do_norm: bool  # whether to perform batch norm
-    embedding_dim: int  # dimension class labels and/or time step are transformed to
+    embedding_dim: int  # dimension time steps are transformed to
     batch_size: int
     epochs: int
     learning_rate: float
@@ -74,10 +62,9 @@ class DiffusionArchitecture(Enum):
 @dataclass
 class Diffusion:  # everything related to diffusion model training
     architecture: DiffusionArchitecture
-    guiding_factor: float | None # Guided (with label) vs. unguided (without labels) in classifier free guidance [4]
     steps: int  # amount of time steps the diffusion model uses
     var_schedule_start: float  # starting value of the variance schedule beta
-    var_schedule_end: float  # final value (after `Diffusion.steps` time steps) of the variance schedule beta
+    var_schedule_end: float  # final value (after `steps` time steps) of the variance schedule beta
 
 
 @dataclass
