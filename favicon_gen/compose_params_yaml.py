@@ -1,8 +1,8 @@
 """
 Explicitly compose a params.yaml from
 the hydra config files stored in the 'conf'
-folder. 
-For some reason DVC does not come with this 
+folder.
+For some reason DVC does not come with this
 functionality outside of using 'dvc exp run'.
 """
 

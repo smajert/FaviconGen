@@ -28,7 +28,6 @@ def sample_from_vae(
     in_channels: int,
     n_samples: int,
     device: str,
-    embedding_dim: int,
     save_as: Path | None = None,
 ) -> typing.Generator[torch.Tensor, None, None]:
     """
@@ -84,11 +83,12 @@ def sample_from_diffusion_model(
     variance_schedule = VarianceSchedule(
         (diffusion_info.var_schedule_start, diffusion_info.var_schedule_end), diffusion_info.steps
     )
+    generator: DiffusionModel | DiffusersModel
     match diffusion_info.architecture:
         case params.DiffusionArchitecture.CUSTOM:
             generator = DiffusionModel(in_channels, variance_schedule, embedding_dim)
         case params.DiffusionArchitecture.UNET2D:
-            generator = DiffusersModel(in_channels, variance_schedule, 2)
+            generator = DiffusersModel(in_channels, variance_schedule)
     generator.load_state_dict(torch.load(model_file))
     generator = generator.to(device)
     generator.eval()
@@ -173,7 +173,6 @@ def main():
                     in_channels,
                     args.n_samples,
                     device,
-                    config.general.embedding_dim,
                     save_as=samples_out_file,
                 )
             )

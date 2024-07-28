@@ -1,7 +1,6 @@
 from pathlib import Path
 import shutil
 
-import numpy as np
 import torch
 from tqdm import tqdm
 
@@ -21,7 +20,7 @@ def train(
     diffusion_info: params.Diffusion,
     general_params: params.General,
     model_file: Path | None = None,
-) -> np.ndarray:
+) -> list[float]:
     """
     Training loop for diffusion model.
 
@@ -46,11 +45,12 @@ def train(
         device=general_params.device,
     )
 
+    model: DiffusersModel | DiffusionModel
     match diffusion_info.architecture:
         case params.DiffusionArchitecture.CUSTOM:
             model = DiffusionModel(dataset_info.in_channels, schedule, general_params.embedding_dim)
         case params.DiffusionArchitecture.UNET2D:
-            model = DiffusersModel(dataset_info.in_channels, schedule, 2)
+            model = DiffusersModel(dataset_info.in_channels, schedule)
     if model_file is not None:
         model.load_state_dict(torch.load(model_file))
     model.to(general_params.device)
@@ -65,7 +65,7 @@ def train(
     )
     loss_fn = torch.nn.MSELoss()
     running_losses = []
-    running_loss = 0
+    running_loss = 0.0
     n_epochs = general_params.epochs
     for epoch in (pbar := tqdm(range(n_epochs), desc="Current avg. loss: /, Epochs")):
         for batch, _ in data_loader:
@@ -96,7 +96,7 @@ def train(
 
         pbar.set_description(f"Current avg. loss: {running_loss:.3f}, Epochs")
         running_losses.append(running_loss)
-        running_loss = 0
+        running_loss = 0.0
 
     torch.save(model.state_dict(), model_storage_directory / "model.pt")
 

@@ -13,11 +13,12 @@ class DiffusersModel(torch.nn.Module):
     :param layers_per_block: Amount of conv-layers for one convlution block before down-
         sampling.
     """
+
     def __init__(
         self,
         in_channels: int,
         variance_schedule: VarianceSchedule,
-        layers_per_block: int,
+        layers_per_block: int = 2,
     ) -> None:
         super().__init__()
         self.variance_schedule = variance_schedule
@@ -52,7 +53,5 @@ class DiffusersModel(torch.nn.Module):
     def device(self) -> torch.device:
         return next(self.model_core.parameters()).device
 
-    def forward(
-        self, x: torch.Tensor, time_step: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, time_step: torch.Tensor) -> torch.Tensor:
         return self.model_core(x, time_step, return_dict=False)[0]

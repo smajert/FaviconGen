@@ -88,7 +88,7 @@ def test_values_in_noise_and_image_seem_sensible(LogoDataset):
     )
     for t in range(0, n_time_steps, 30):
         time_step = torch.full((image_batch.shape[0],), fill_value=t)
-        noisy_tensor, noise = custom_model.diffusion_forward_process(
+        noisy_tensor, _ = custom_model.diffusion_forward_process(
             image_batch, time_step, schedule=variance_schedule
         )
         if t == 0:

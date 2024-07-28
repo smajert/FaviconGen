@@ -23,12 +23,12 @@ class Encoder(torch.nn.Module):
         self.activation = activation
         small_kernel = {"kernel_size": 2, "padding": 0}  # type: Any
         # fmt: off
-        self.convs = torch.nn.ModuleList([                                        # input: in_channels x 32 x 32
-            ConvBlock(in_channels, 16, resample_modus=ResampleModi.NO),           # 16 x 32 x 32
-            ConvBlock(16, 32, resample_modus=ResampleModi.DOWN),                  # 32 x 16 x 16
-            ConvBlock(32, 64, resample_modus=ResampleModi.DOWN),                  # 64 x 8 x 8
-            ConvBlock(64, 128, resample_modus=ResampleModi.DOWN, **small_kernel), # 128 x 4 x 4
-            ConvBlock(128, 256, resample_modus=ResampleModi.DOWN, **small_kernel),# 256 x 2 x 2
+        self.convs = torch.nn.ModuleList([                                          # input: in_channels x 32 x 32
+            ConvBlock(in_channels, 16, resample_modus=ResampleModi.NO),             # 16 x 32 x 32
+            ConvBlock(16, 32, resample_modus=ResampleModi.DOWN),                    # 32 x 16 x 16
+            ConvBlock(32, 64, resample_modus=ResampleModi.DOWN),                    # 64 x 8 x 8
+            ConvBlock(64, 128, resample_modus=ResampleModi.DOWN, **small_kernel),   # 128 x 4 x 4
+            ConvBlock(128, 256, resample_modus=ResampleModi.DOWN, **small_kernel),  # 256 x 2 x 2
         ])
         self.flatten = torch.nn.Flatten()                                         # 256*2*2 = 1024
         # fmt: on
@@ -152,12 +152,12 @@ class PatchDiscriminator(torch.nn.Module):
     def __init__(self, in_channels: int) -> None:
         super().__init__()
         # fmt: off
-        self.layers = torch.nn.ModuleList([                                # input: 3 x 32 x 32
-            torch.nn.Conv2d(in_channels, 32, kernel_size=4, stride=2, padding=1),# 32 x 16 x 16
+        self.layers = torch.nn.ModuleList([                                         # input: 3 x 32 x 32
+            torch.nn.Conv2d(in_channels, 32, kernel_size=4, stride=2, padding=1),   # 32 x 16 x 16
             torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(32, 16, kernel_size=7, padding=3),                   # 16 x 16 x 16
+            torch.nn.Conv2d(32, 16, kernel_size=7, padding=3),                      # 16 x 16 x 16
             torch.nn.LeakyReLU(),
-            torch.nn.Conv2d(16, 8, kernel_size=5, padding=2),                    # 8 x 16 x 16
+            torch.nn.Conv2d(16, 8, kernel_size=5, padding=2),                       # 8 x 16 x 16
             torch.nn.Sigmoid()
         ])
         # fmt: on

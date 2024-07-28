@@ -2,7 +2,7 @@
 
 <img src="images/title.png" alt="Generated Favicons" width="400"/>
 
-#TODO: make amount of layers for unet2d setable, update readme
+#TODO: update readme
 
 ## Introduction
 This is just a small side project of mine to try to generate logos

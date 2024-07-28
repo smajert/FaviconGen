@@ -14,7 +14,7 @@ def train(
     auto_params: params.AutoEncoder,
     general_params: params.General,
     model_file: Path | None = None,
-) -> None:
+) -> list[float]:
     """
     Training loop for VAE or VAE + adversarial patch discriminator.
 
@@ -54,7 +54,7 @@ def train(
     loss_fn = torch.nn.MSELoss()
 
     running_losses = []
-    running_loss = 0
+    running_loss = 0.0
     value_for_original = torch.tensor([1], device=general_params.device, dtype=torch.float)
     value_for_reconstructed = torch.tensor([0], device=general_params.device, dtype=torch.float)
     for epoch in (pbar := tqdm(range(general_params.epochs), desc="Current avg. loss: /, Epochs")):
@@ -112,7 +112,7 @@ def train(
 
         pbar.set_description(f"Current avg. loss: {running_loss:.3f}, Epochs")
         running_losses.append(running_loss)
-        running_loss = 0
+        running_loss = 0.0
 
     print(f"Saving model in directory {model_storage_directory} ...")
     torch.save(autoencoder.state_dict(), model_storage_directory / "model.pt")

@@ -12,7 +12,7 @@ import torch
 
 from favicon_gen.blocks import ConvBlock, ResampleModi, VarianceSchedule
 from favicon_gen.data_loading import show_image_grid
-
+from favicon_gen.diffusion.diffuser_model import DiffusersModel
 
 
 def diffusion_forward_process(
@@ -105,23 +105,21 @@ class DiffusionModel(torch.nn.Module):
 
         small = {"kernel_size": 2, "padding": 0}  # type: Any
         # fmt: off
-        self.layers = torch.nn.ModuleList([                                # input: in_channels x 32 x 32
-            ConvBlock(in_channels, 32, resample_modus=ResampleModi.NO),    # 0: 32 x 32 x 32
-            ConvBlock(32, 64, resample_modus=ResampleModi.DOWN),           # 1: 64 x 16 x 16
-            ConvBlock(64, 128, resample_modus=ResampleModi.DOWN, **small), # 2: 128 x 8 x 8
-            ConvBlock(128, 256, resample_modus=ResampleModi.DOWN, **small),# 3: 256 x 4 x 4
-            ConvBlock(256, 256, resample_modus=ResampleModi.DOWN_AND_UP),  # 4: 256 x 4 x 4  <-+ skip after 3
-            ConvBlock(512, 128, resample_modus=ResampleModi.UP, **small),  # 5: 128 x 8 x 8  <-+ skip after 2
-            ConvBlock(256, 64, resample_modus=ResampleModi.UP, **small),   # 6: 64 x 16 x 16 <-+ skip after 1
-            ConvBlock(128, 32, resample_modus=ResampleModi.UP),            # 7: 32 x 32 x 32 <-+ skip after 0
-            ConvBlock(64, 32, resample_modus=ResampleModi.NO),             # 8: 32 x 32 x 32
-            torch.nn.Conv2d(32, in_channels, 5, padding=2)                 # 9: in_channels x 32 x 32
+        self.layers = torch.nn.ModuleList([                                  # input: in_channels x 32 x 32
+            ConvBlock(in_channels, 32, resample_modus=ResampleModi.NO),      # 0: 32 x 32 x 32
+            ConvBlock(32, 64, resample_modus=ResampleModi.DOWN),             # 1: 64 x 16 x 16
+            ConvBlock(64, 128, resample_modus=ResampleModi.DOWN, **small),   # 2: 128 x 8 x 8
+            ConvBlock(128, 256, resample_modus=ResampleModi.DOWN, **small),  # 3: 256 x 4 x 4
+            ConvBlock(256, 256, resample_modus=ResampleModi.DOWN_AND_UP),    # 4: 256 x 4 x 4  <-+ skip after 3
+            ConvBlock(512, 128, resample_modus=ResampleModi.UP, **small),    # 5: 128 x 8 x 8  <-+ skip after 2
+            ConvBlock(256, 64, resample_modus=ResampleModi.UP, **small),     # 6: 64 x 16 x 16 <-+ skip after 1
+            ConvBlock(128, 32, resample_modus=ResampleModi.UP),              # 7: 32 x 32 x 32 <-+ skip after 0
+            ConvBlock(64, 32, resample_modus=ResampleModi.NO),               # 8: 32 x 32 x 32
+            torch.nn.Conv2d(32, in_channels, 5, padding=2)                   # 9: in_channels x 32 x 32
         ])
         # fmt: on
 
-    def forward(
-        self, x: torch.Tensor, time_step: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, time_step: torch.Tensor) -> torch.Tensor:
         time_emb = self.time_mlp(time_step)
 
         x_down1 = self.layers[0](x, time_emb)
@@ -147,7 +145,7 @@ class DiffusionModel(torch.nn.Module):
 
 @torch.no_grad()
 def diffusion_backward_process(
-    model: DiffusionModel,
+    model: DiffusionModel | DiffusersModel,
     batch_shape: tuple[int, ...],
     seed: int | None = None,
     save_sample_as: Path | None = None,
