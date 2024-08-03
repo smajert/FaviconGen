@@ -2,7 +2,7 @@
 Some basic building blocks used for both the variational
 autoencoder and the diffusion model.
 """
-
+from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Any  # noqa: F401
 
@@ -21,6 +21,33 @@ class ResampleModi(Enum):
     DOWN = auto()
     DOWN_AND_UP = auto()
     NO = auto()
+
+
+@dataclass
+class VarianceSchedule:
+    """
+    Linear variance schedule for the Denoising Diffusion Probabilistic Model (DDPM).
+    The naming scheme is the same as in [1]. In particular, `beta_t` is the
+    variance of the Gaussian noise added at time step t.
+
+    :param beta_start_end: Start and end values of the variance during the noising process.
+        Defaults to values used in [1]
+    :param n_time_steps: Amount of noising steps in the model.
+    :param device: 'cpu' for CPU or 'cuda' for GPU
+    """
+
+    def __init__(
+        self, beta_start_end: tuple[float, float], n_time_steps: int, device: str = "cpu"
+    ) -> None:
+        super().__init__()
+        self.n_steps = n_time_steps
+        beta_start = beta_start_end[0]
+        beta_end = beta_start_end[1]
+        self.beta_t = torch.linspace(beta_start, beta_end, n_time_steps, device=device)
+        self.alpha_t = 1 - self.beta_t
+        self.alpha_bar_t = torch.cumprod(self.alpha_t, dim=0)
+        alpha_bar_t_minus_1 = torch.nn.functional.pad(self.alpha_bar_t[:-1], (1, 0), value=1)
+        self.beta_tilde_t = (1 - alpha_bar_t_minus_1) / (1 - self.alpha_bar_t) * self.beta_t
 
 
 class ConvBlock(torch.nn.Module):

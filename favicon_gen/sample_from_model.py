@@ -11,38 +11,36 @@ from matplotlib import pyplot as plt
 import torch
 from tqdm import tqdm
 
-from favicon_gen.autoencoder import VariationalAutoEncoder
+from favicon_gen.vae.autoencoder import VariationalAutoEncoder
 from favicon_gen.data_loading import show_image_grid, load_data
-from favicon_gen.denoising_diffusion import (
+from favicon_gen.diffusion.custom_model import (
     DiffusionModel,
     diffusion_backward_process,
     VarianceSchedule,
 )
+from favicon_gen.diffusion.diffuser_model import DiffusersModel
 from favicon_gen import params
 
 
 @torch.no_grad()
 def sample_from_vae(
     model_file: Path,
-    n_labels: int,
     in_channels: int,
     n_samples: int,
     device: str,
-    embedding_dim: int,
     save_as: Path | None = None,
 ) -> typing.Generator[torch.Tensor, None, None]:
     """
     Draw samples from the Variational AutoEncoder (VAE).
 
     :param model_file: File where the VAE is saved
-    :param n_labels: Amount of different labels in the data (e.g. 10 for the 10 different digits in MNIST)
     :param in_channels: Amount of channels in input (1 for grayscale MNIST, 3 for color LLD)
     :param n_samples: Amount of images to generate from the model
     :param device: 'cpu' for CPU or 'cuda' for GPU
     :param save_as: If given, plot will be saved here
     :return: Batch of generated images; call again to get more images
     """
-    autoencoder = VariationalAutoEncoder(in_channels, n_labels, embedding_dim)
+    autoencoder = VariationalAutoEncoder(in_channels)
     autoencoder.load_state_dict(torch.load(model_file))
     autoencoder.eval()
     autoencoder.to(device)
@@ -53,10 +51,7 @@ def sample_from_vae(
         random_latent = torch.randn(
             (n_samples, autoencoder.latent_dim), device=device, generator=rand_generator
         )
-        random_labels = autoencoder.label_embedding(
-            torch.randint(0, n_labels, size=(n_samples,), device=device, generator=rand_generator)
-        )
-        batch = autoencoder.decoder(autoencoder.convert_from_latent(random_latent), random_labels)
+        batch = autoencoder.decoder(autoencoder.convert_from_latent(random_latent))
         if save_as is not None:
             show_image_grid(batch)
             plt.savefig(save_as)
@@ -67,7 +62,6 @@ def sample_from_vae(
 @torch.no_grad()
 def sample_from_diffusion_model(
     model_file: Path,
-    n_labels: int,
     in_channels: int,
     n_samples: int,
     device: str,
@@ -79,7 +73,6 @@ def sample_from_diffusion_model(
     Sample images from the denoising diffusion model.
 
     :param model_file: File where the diffusion model is saved
-    :param n_labels: Amount of different labels in the data (e.g. 10 for the 10 different digits in MNIST)
     :param in_channels: Amount of channels in input (1 for grayscale MNIST, 3 for color LLD)
     :param n_samples: Amount of images to generate from the model
     :param device: 'cpu' for CPU or 'cuda' for GPU
@@ -90,15 +83,18 @@ def sample_from_diffusion_model(
     variance_schedule = VarianceSchedule(
         (diffusion_info.var_schedule_start, diffusion_info.var_schedule_end), diffusion_info.steps
     )
-    generator = DiffusionModel(in_channels, variance_schedule, n_labels, embedding_dim)
+    generator: DiffusionModel | DiffusersModel
+    match diffusion_info.architecture:
+        case params.DiffusionArchitecture.CUSTOM:
+            generator = DiffusionModel(in_channels, variance_schedule, embedding_dim)
+        case params.DiffusionArchitecture.UNET2D:
+            generator = DiffusersModel(in_channels, variance_schedule)
     generator.load_state_dict(torch.load(model_file))
     generator = generator.to(device)
     generator.eval()
 
     # draw single batch first to set seed
-    batch = diffusion_backward_process(
-        generator, (n_samples, in_channels, 32, 32), diffusion_info.guiding_factor
-    )
+    batch = diffusion_backward_process(generator, (n_samples, in_channels, 32, 32))
     while True:
         if save_as is not None:
             show_image_grid(batch)
@@ -106,9 +102,7 @@ def sample_from_diffusion_model(
             # plt.show()
         yield batch
         # draw batch without setting seed again
-        batch = diffusion_backward_process(
-            generator, (n_samples, in_channels, 32, 32), diffusion_info.guiding_factor
-        )
+        batch = diffusion_backward_process(generator, (n_samples, in_channels, 32, 32))
 
 
 @torch.no_grad()
@@ -122,7 +116,6 @@ def nearest_neighbor_search(
 
     :param generated_batch: Images for which to find the nearest neighbors
     :param dataset_info: General information about the dataset
-    :param use_mnist: Whether to use MNIST or LLD
     :param save_as: Save image of the batch of nearest neighbors here
     :return: batch of nearest neighbors
     """
@@ -167,16 +160,7 @@ def main():
         device = "cpu"
 
     config = params.load_config()
-    match config.dataset.name:
-        case params.AvailableDatasets.MNIST:
-            in_channels = 1
-            use_mnist = True
-            n_labels = 10
-        case params.AvailableDatasets.LLD:
-            in_channels = 3
-            use_mnist = False
-            spec_clusters = config.dataset.specific_clusters
-            n_labels = 100 if spec_clusters is None else len(spec_clusters)
+    in_channels = config.dataset.in_channels
 
     model_file = params.OUTS_BASE_DIR / "model.pt"
     samples_out_file = params.OUTS_BASE_DIR / "samples.pdf"
@@ -186,11 +170,9 @@ def main():
             sample_batch = next(
                 sample_from_vae(
                     model_file,
-                    n_labels,
                     in_channels,
                     args.n_samples,
                     device,
-                    config.general.embedding_dim,
                     save_as=samples_out_file,
                 )
             )
@@ -198,7 +180,6 @@ def main():
             sample_batch = next(
                 sample_from_diffusion_model(
                     model_file,
-                    n_labels,
                     in_channels,
                     args.n_samples,
                     device,

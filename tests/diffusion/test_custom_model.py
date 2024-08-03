@@ -1,11 +1,12 @@
+import random
+
 from matplotlib import pyplot as plt
 import numpy as np
 import pytest
-import random
 import torch
 
+from favicon_gen.diffusion import custom_model
 from favicon_gen.data_loading import LargeLogoDataset, show_image_grid
-import favicon_gen.denoising_diffusion as ddi
 
 
 @pytest.fixture()
@@ -19,7 +20,7 @@ def LogoDataLoader(LogoDataset):
 
 
 def test_noise_schedule_is_correct():
-    noise_schedule = ddi.VarianceSchedule(beta_start_end=(0.0001, 0.02), n_time_steps=5)
+    noise_schedule = custom_model.VarianceSchedule(beta_start_end=(0.0001, 0.02), n_time_steps=5)
     beta = noise_schedule.beta_t
     prod_1 = torch.sqrt(noise_schedule.alpha_bar_t)
     prod_2 = torch.sqrt(1 - noise_schedule.alpha_bar_t)
@@ -57,11 +58,13 @@ def test_make_batch_noisy(LogoDataset):
     image_batch = next(iter(loader))[0]
 
     n_time_steps = 100
-    noise_schedule = ddi.VarianceSchedule(beta_start_end=(0.0001, 0.02), n_time_steps=n_time_steps)
+    noise_schedule = custom_model.VarianceSchedule(
+        beta_start_end=(0.0001, 0.02), n_time_steps=n_time_steps
+    )
     time_steps = torch.round(torch.linspace(0, 0.99, steps=steps_to_show) * n_time_steps).to(
         torch.long
     )
-    noisy_tensor, noise = ddi.diffusion_forward_process(
+    noisy_tensor, noise = custom_model.diffusion_forward_process(
         image_batch, time_steps, schedule=noise_schedule
     )
     mean_of_image = torch.mean(noisy_tensor[4, ...])
@@ -80,12 +83,12 @@ def test_values_in_noise_and_image_seem_sensible(LogoDataset):
     image_batch = next(iter(data_loader))[0]
     n_time_steps = 300
     beta_start_end = (0.0001, 0.02)
-    variance_schedule = ddi.VarianceSchedule(
+    variance_schedule = custom_model.VarianceSchedule(
         n_time_steps=n_time_steps, beta_start_end=beta_start_end
     )
     for t in range(0, n_time_steps, 30):
         time_step = torch.full((image_batch.shape[0],), fill_value=t)
-        noisy_tensor, noise = ddi.diffusion_forward_process(
+        noisy_tensor, _ = custom_model.diffusion_forward_process(
             image_batch, time_step, schedule=variance_schedule
         )
         if t == 0:
@@ -100,7 +103,7 @@ def test_values_in_noise_and_image_seem_sensible(LogoDataset):
 
 def test_position_embeddings():
     time = torch.arange(0, 100, device="cpu")
-    embedder = ddi.SinusoidalPositionEmbeddings(512)
+    embedder = custom_model.SinusoidalPositionEmbeddings(512)
     embeddings = embedder(time)
     torch.testing.assert_close(torch.mean(embeddings), torch.tensor(0.3579), rtol=0, atol=1e-4)
 
@@ -115,11 +118,11 @@ def test_drawing_sample_from_module_runs():
     torch.random.manual_seed(0)
     random.seed(0)
     n_time_steps = 20
-    variance_schedule = ddi.VarianceSchedule(
+    variance_schedule = custom_model.VarianceSchedule(
         n_time_steps=n_time_steps, beta_start_end=(0.0001, 0.02)
     )
-    model = ddi.DiffusionModel(3, variance_schedule, 10, 32)
-    _ = ddi.diffusion_backward_process(model, (4, 3, 32, 32), 0.9, seed=0)
+    model = custom_model.DiffusionModel(3, variance_schedule, 32)
+    _ = custom_model.diffusion_backward_process(model, (4, 3, 32, 32), seed=0)
 
 
 def test_diffusion_model_runs(device: str = "cpu"):
@@ -127,8 +130,14 @@ def test_diffusion_model_runs(device: str = "cpu"):
     random.seed(0)
     pseudo_batch = torch.rand((32, 3, 32, 32), device=device)
     pseudo_time_steps = torch.randint(0, 10, size=(32,), device=device)
-    pseudo_labels = torch.randint(0, 9, size=(32,), device=device)
-    model = ddi.DiffusionModel(
-        3, ddi.VarianceSchedule(n_time_steps=1000, beta_start_end=(0.0001, 0.02)), 10, 32
+    model = custom_model.DiffusionModel(
+        3, custom_model.VarianceSchedule(n_time_steps=1000, beta_start_end=(0.0001, 0.02)), 32
     ).to(device)
-    _ = model(pseudo_batch, pseudo_time_steps, pseudo_labels)
+    _ = model(pseudo_batch, pseudo_time_steps)
+
+
+def test_getting_device():
+    model = custom_model.DiffusionModel(
+        3, custom_model.VarianceSchedule(n_time_steps=10, beta_start_end=(0.0001, 0.02)), 32
+    )
+    assert model.device == torch.device("cpu")

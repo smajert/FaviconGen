@@ -24,7 +24,7 @@ def test_image_grid_and_loading():
     _, lld_loader = dlo.load_data(
         64,
         params.Dataset(
-            params.AvailableDatasets.LLD, n_images=None, shuffle=True, specific_clusters=[2]
+            params.AvailableDatasets.LLD, n_images=None, shuffle=True, specific_clusters=[7]
         ),
     )
 

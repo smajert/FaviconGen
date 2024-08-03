@@ -5,5 +5,9 @@ defaults:
 
 general:
   device: "cuda"
-  embedding_dim: 32
   do_norm: True
+  embedding_dim: 32
+  batch_size: 128
+  epochs: 10
+  learning_rate: 2e-4
+  lr_reduction_patience: 2

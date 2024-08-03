@@ -5,6 +5,14 @@ line-length = 100
 max-line-length = 100
 ignored-modules = ["numpy", "torch"]
 
+[tool.pylint."messages control"]
+disable = [
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "missing-module-docstring",
+    "too-many-locals",
+]
+
 [tool.mypy]
 ignore_missing_imports = true
 
