@@ -11,8 +11,7 @@ computer.
 
 While the results are not terribly impressive, the diversity of images that
 even the small diffusion model used here can generate is quite astounding.
-With some tuning, better results are certainly possible (especially if you
-have a newer GPU than my aging 1070Ti).
+With some tuning, better results are certainly possible.
 
 ## Installation
 Note: If you do not have an Nvidia GPU, this will probably not work.
@@ -42,20 +41,26 @@ Code for reading in the training datasets resides in `data_loading.py`. The mode
 be trained either with the Large Logo Database (LLD) dataset [[2]](#2) or the
 MNIST dataset [[8]](#8).
 
-The files `autoencoder.py` and `denoising_diffusion.py` implement convolutional neural
+The files [`autoencoder.py`](/favicon_gen/vae/autoencoder.py) and
+[`custom_model.py`](/favicon_gen/diffusion/custom_model.py) implement convolutional neural
 networks for Variational Autoencoder (VAE) and a denoising diffusion model, respectively.
 For a quick overview of the model architectures, see [fig. 1](#fig_1) and [fig.2](#fig_2).
-You can change parameters for these two models within the `./params.yaml` file.
+You can change parameters for these two models within the [configuration folder](/conf).
+Run the [`commpose_params_yaml.py`](/favicon_gen/compose_params_yaml.py) script to update
+the paramters in the `params.yaml` (used by DVC) from the conf-folder.
+Changing the `architecture` field in the [config-file](/conf/model/diffusion.yaml) for
+the diffusion model from `"CUSTOM"` to `"UNET2D"`, you can also try out the `UNET2D`-architecture
+from the diffusers package.
 
 To learn more about diffusion models, I really recommend reading [[1]](#1), which is a
 lot more digestible when accompanied by some [educational YouTube videos](#Educational-Youtube-Videos).
 For more details on VAEs, I found [[5]](#5) quite helpful, though one can also find some
 helpful videos and web articles (e.g. [[6]](#6) and [[7]](#7)).
 
-Finally, the script `sample_from_model.py` draws samples from the different models.
-It can also find the nearest neighbor of a generated image within the dataset, which is really helpful
-in judging whether the generated images are actually novel or just carbon copies of images already
-in the dataset.
+Finally, the script [`sample_from_model.py`](/favicon_gen/sample_from_model.py) draws samples from
+the different models. It can also find the nearest neighbor of a generated image within the dataset,
+which is really helpful in judging whether the generated images are actually novel or just carbon
+copies of images already in the dataset.
 
 <figure>
    <img src="images/vae_architecture.png" alt="Architecture of the variational autoencoder" width="600"/>

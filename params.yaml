@@ -4,7 +4,7 @@ dataset:
   n_images: 50000
   shuffle: true
 model:
-  architecture: UNET2D
+  architecture: CUSTOM
   steps: 1000
   var_schedule_start: 0.0001
   var_schedule_end: 0.02

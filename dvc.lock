@@ -79,8 +79,8 @@ stages:
     deps:
     - path: outs/model.pt
       hash: md5
-      md5: d8eb72a42b790e3b89147061089cb86e
-      size: 283078789
+      md5: 8487c30862be84dcba584e1d8ac3c91f
+      size: 58606829
     params:
       params.yaml:
         dataset:
@@ -274,16 +274,16 @@ stages:
           learning_rate: 0.0002
           lr_reduction_patience: 2
         model:
-          architecture: UNET2D
+          architecture: CUSTOM
           steps: 1000
           var_schedule_start: 0.0001
           var_schedule_end: 0.02
     outs:
     - path: outs/loss.csv
       hash: md5
-      md5: fb984f025aad39f860a8187106805b26
-      size: 248
+      md5: c28687d7246202f9f74fe9d16c9278e5
+      size: 242
     - path: outs/model.pt
       hash: md5
-      md5: d8eb72a42b790e3b89147061089cb86e
-      size: 283078789
+      md5: 8487c30862be84dcba584e1d8ac3c91f
+      size: 58606829
