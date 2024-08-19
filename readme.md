@@ -2,8 +2,6 @@
 
 <img src="images/title.png" alt="Generated Favicons" width="400"/>
 
-#TODO: update readme
-
 ## Introduction
 This is just a small side project of mine to try to generate logos
 (to be precise favicons = favorite + icon) with pytorch on my home
